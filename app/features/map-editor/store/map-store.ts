@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background } from "../types";
 import { createNewMap } from "../constants";
 
 interface MapState {
@@ -16,9 +16,13 @@ interface MapState {
   updateToken: (id: string, updates: Partial<Token>) => void;
   removeToken: (id: string) => void;
   moveToken: (id: string, position: GridPosition) => void;
+  flipToken: (id: string) => void;
 
   // Grid actions
   updateGrid: (settings: Partial<GridSettings>) => void;
+
+  // Background actions
+  setBackground: (imageUrl: string | null) => void;
 
   // Viewport actions
   setViewport: (x: number, y: number, scale: number) => void;
@@ -102,6 +106,20 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
+      flipToken: (id) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === id ? { ...t, flipped: !t.flipped } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
       updateGrid: (settings) =>
         set((state) => {
           if (!state.map) return state;
@@ -109,6 +127,20 @@ export const useMapStore = create<MapState>()(
             map: {
               ...state.map,
               grid: { ...state.map.grid, ...settings },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      setBackground: (imageUrl) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              background: imageUrl
+                ? { imageUrl, position: { x: 0, y: 0 }, scale: 1, rotation: 0 }
+                : null,
               updatedAt: new Date().toISOString(),
             },
           };

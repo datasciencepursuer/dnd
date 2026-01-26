@@ -7,13 +7,13 @@ function getEnvVar(key: string): string {
 }
 
 export const env = {
-  get AUTH_USERNAME() {
-    return getEnvVar("AUTH_USERNAME");
+  get BETTER_AUTH_SECRET() {
+    return getEnvVar("BETTER_AUTH_SECRET");
   },
-  get AUTH_PASSWORD() {
-    return getEnvVar("AUTH_PASSWORD");
+  get BETTER_AUTH_URL() {
+    return process.env.BETTER_AUTH_URL || "http://localhost:5173";
   },
-  get SESSION_SECRET() {
-    return getEnvVar("SESSION_SECRET");
+  get DATABASE_URL() {
+    return getEnvVar("DATABASE_URL");
   },
 };

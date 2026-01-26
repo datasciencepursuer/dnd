@@ -7,4 +7,5 @@ export default [
   route("maps", "routes/maps.tsx"),
   route("playground", "routes/playground.tsx"),
   route("playground/:mapId", "routes/playground.$mapId.tsx"),
+  route("api/auth/*", "routes/api.auth.$.tsx"),
 ] satisfies RouteConfig;

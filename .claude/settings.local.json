@@ -12,7 +12,8 @@
       "Bash(npx react-router typegen)",
       "Bash(npx tsc)",
       "Bash(npx drizzle-kit generate:*)",
-      "Bash(npx drizzle-kit push)"
+      "Bash(npx drizzle-kit push)",
+      "WebFetch(domain:www.better-auth.com)"
     ]
   }
 }

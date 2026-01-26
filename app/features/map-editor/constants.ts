@@ -47,13 +47,29 @@ export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 3;
 export const ZOOM_STEP = 0.1;
 
-export function createNewMap(name: string): DnDMap {
+export interface CreateMapOptions {
+  name: string;
+  gridWidth?: number;
+  gridHeight?: number;
+}
+
+export function createNewMap(options: CreateMapOptions | string): DnDMap {
+  // Support legacy string argument
+  const { name, gridWidth, gridHeight } =
+    typeof options === "string"
+      ? { name: options, gridWidth: undefined, gridHeight: undefined }
+      : options;
+
   return {
     id: crypto.randomUUID(),
     name,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    grid: { ...DEFAULT_GRID },
+    grid: {
+      ...DEFAULT_GRID,
+      width: gridWidth ?? DEFAULT_GRID.width,
+      height: gridHeight ?? DEFAULT_GRID.height,
+    },
     background: null,
     tokens: [],
     walls: [],

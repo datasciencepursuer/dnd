@@ -33,6 +33,7 @@ export interface Token {
   size: number;
   position: GridPosition;
   rotation: number;
+  flipped: boolean;
   visible: boolean;
   layer: TokenLayer;
 }
