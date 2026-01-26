@@ -34,3 +34,19 @@ This is a React Router v7 full-stack application with server-side rendering, cre
 ### Build Output
 - `/build/server/` - Server-side code
 - `/build/client/` - Static assets
+
+### Authentication
+- Cookie-based sessions via `app/.server/auth/session.ts`
+- Credentials stored in `.env` (AUTH_USERNAME, AUTH_PASSWORD, SESSION_SECRET)
+- Use `requireAuth(request)` in loaders to protect routes
+
+### Map Editor (`app/features/map-editor/`)
+- Konva.js canvas for rendering maps
+- Zustand for state management (with undo/redo via zundo)
+- LocalStorage persistence (will migrate to Neon PostgreSQL)
+- Routes: `/maps` (list), `/playground` (new), `/playground/:mapId` (edit)
+
+### Database (Future)
+- Drizzle ORM configured for PostgreSQL/Neon
+- Schema in `app/.server/db/schema.ts`
+- Config in `drizzle.config.ts`
