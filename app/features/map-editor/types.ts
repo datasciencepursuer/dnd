@@ -36,6 +36,72 @@ export interface Token {
   flipped: boolean;
   visible: boolean;
   layer: TokenLayer;
+  ownerId: string | null; // User who created/owns this token (null = map owner)
+}
+
+// Permission levels for map access
+export type MapPermission = "view" | "edit" | "owner";
+
+// Granular player permissions
+export interface PlayerPermissions {
+  canCreateTokens: boolean;
+  canEditOwnTokens: boolean;
+  canEditAllTokens: boolean;
+  canDeleteOwnTokens: boolean;
+  canDeleteAllTokens: boolean;
+  canMoveOwnTokens: boolean;
+  canMoveAllTokens: boolean;
+  canViewMap: boolean;
+  canEditMap: boolean;
+  canManagePlayers: boolean;
+}
+
+// Default permissions for each role
+export const DEFAULT_PERMISSIONS: Record<MapPermission, PlayerPermissions> = {
+  view: {
+    canCreateTokens: false,
+    canEditOwnTokens: false,
+    canEditAllTokens: false,
+    canDeleteOwnTokens: false,
+    canDeleteAllTokens: false,
+    canMoveOwnTokens: false,
+    canMoveAllTokens: false,
+    canViewMap: true,
+    canEditMap: false,
+    canManagePlayers: false,
+  },
+  edit: {
+    canCreateTokens: false,
+    canEditOwnTokens: true,
+    canEditAllTokens: false,
+    canDeleteOwnTokens: true,
+    canDeleteAllTokens: false,
+    canMoveOwnTokens: true,
+    canMoveAllTokens: false,
+    canViewMap: true,
+    canEditMap: false,
+    canManagePlayers: false,
+  },
+  owner: {
+    canCreateTokens: true,
+    canEditOwnTokens: true,
+    canEditAllTokens: true,
+    canDeleteOwnTokens: true,
+    canDeleteAllTokens: true,
+    canMoveOwnTokens: true,
+    canMoveAllTokens: true,
+    canViewMap: true,
+    canEditMap: true,
+    canManagePlayers: true,
+  },
+};
+
+// Editor context for permission checking
+export interface EditorContext {
+  userId: string | null;
+  permission: MapPermission;
+  permissions: PlayerPermissions;
+  isMapOwner: boolean;
 }
 
 // Drawing Types

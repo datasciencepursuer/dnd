@@ -13,7 +13,8 @@
       "Bash(npx tsc)",
       "Bash(npx drizzle-kit generate:*)",
       "Bash(npx drizzle-kit push)",
-      "WebFetch(domain:www.better-auth.com)"
+      "WebFetch(domain:www.better-auth.com)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
-import { useState, useEffect, useRef } from "react";
-import type { Token } from "../../types";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 
 interface DragState {
@@ -59,26 +59,53 @@ function useImage(url: string | null): HTMLImageElement | null {
   return image;
 }
 
+/**
+ * Token-specific actions interface.
+ * Each token gets its own set of bound actions that can be extended.
+ */
+export interface TokenItemActions {
+  // Core actions
+  move: (position: GridPosition) => void;
+  flip: () => void;
+  select: () => void;
+  setName: (name: string) => void;
+
+  // Extensible action hooks (can be customized per token)
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  onDoubleClick?: () => void;
+  onRightClick?: () => void;
+
+  // Custom actions (can be added for specific token types)
+  custom?: Record<string, () => void>;
+}
+
 interface TokenItemProps {
   token: Token;
   cellSize: number;
   isSelected: boolean;
+  isHovered: boolean;
+  isEditable: boolean;
   selectedTool: string;
   isDragging: boolean;
-  onClick: (token: Token, e: any) => void;
-  onFlip: (token: Token) => void;
-  onMouseDown: (token: Token, e: any) => void;
+  actions: TokenItemActions;
+  onMouseDown: (e: any) => void;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
 }
 
 function TokenItem({
   token,
   cellSize,
   isSelected,
+  isHovered,
+  isEditable,
   selectedTool,
   isDragging,
-  onClick,
-  onFlip,
+  actions,
   onMouseDown,
+  onHoverStart,
+  onHoverEnd,
 }: TokenItemProps) {
   const image = useImage(token.imageUrl);
 
@@ -87,6 +114,10 @@ function TokenItem({
   const y = token.position.row * cellSize + offset;
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2; // Fill most of the cell
+
+  // Hover highlight color - different for editable vs locked
+  const hoverStroke = isEditable ? "#60a5fa" : "#9ca3af"; // blue-400 or gray-400
+  const hoverStrokeWidth = 2;
 
   // Calculate dimensions preserving aspect ratio
   let imgWidth = maxSize;
@@ -103,13 +134,33 @@ function TokenItem({
   }
 
   const handleFlipClick = (e: any) => {
+    if (!isEditable) return;
     e.cancelBubble = true;
-    onFlip(token);
+    actions.flip();
   };
 
   const handleFlipMouseDown = (e: any) => {
     // Prevent drag from starting when clicking flip button
     e.cancelBubble = true;
+  };
+
+  const handleClick = (e: any) => {
+    if (selectedTool !== "select") return;
+    e.cancelBubble = true;
+    actions.select();
+  };
+
+  const handleDoubleClick = (e: any) => {
+    e.cancelBubble = true;
+    if (isEditable) {
+      actions.onDoubleClick?.();
+    }
+  };
+
+  const handleRightClick = (e: any) => {
+    e.cancelBubble = true;
+    e.evt?.preventDefault();
+    actions.onRightClick?.();
   };
 
   // Flip button size and position
@@ -120,25 +171,49 @@ function TokenItem({
   // Check if this is an image token (even if image hasn't loaded yet)
   const hasImageUrl = !!token.imageUrl;
 
+  // Calculate tooltip position
+  const tooltipY = hasImageUrl ? -imgHeight / 2 - 24 : -radius - 24;
+
+  // Lock icon position
+  const lockY = hasImageUrl ? imgHeight / 2 + 8 : radius + 8;
+
   return (
     <Group
       x={x}
       y={y}
+      rotation={token.rotation}
       opacity={isDragging ? 0.5 : 1}
-      onMouseDown={(e) => onMouseDown(token, e)}
-      onTouchStart={(e) => onMouseDown(token, e)}
-      onClick={(e) => onClick(token, e)}
-      onTap={(e) => onClick(token, e)}
+      onMouseDown={isEditable ? onMouseDown : undefined}
+      onTouchStart={isEditable ? onMouseDown : undefined}
+      onClick={handleClick}
+      onTap={handleClick}
+      onDblClick={handleDoubleClick}
+      onDblTap={handleDoubleClick}
+      onContextMenu={handleRightClick}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
     >
       {hasImageUrl ? (
         <>
+          {/* Hover highlight */}
+          {isHovered && !isSelected && !isDragging && (
+            <Rect
+              width={imgWidth + 6}
+              height={imgHeight + 6}
+              offsetX={imgWidth / 2 + 3}
+              offsetY={imgHeight / 2 + 3}
+              stroke={hoverStroke}
+              strokeWidth={hoverStrokeWidth}
+              cornerRadius={4}
+            />
+          )}
           {isSelected && !isDragging && (
             <Rect
               width={imgWidth + 8}
               height={imgHeight + 8}
               offsetX={imgWidth / 2 + 4}
               offsetY={imgHeight / 2 + 4}
-              stroke="#3b82f6"
+              stroke={isEditable ? "#3b82f6" : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -153,7 +228,7 @@ function TokenItem({
               scaleX={token.flipped ? -1 : 1}
             />
           )}
-          {isSelected && !isDragging && (
+          {isSelected && !isDragging && isEditable && (
             <Group
               x={flipBtnX}
               y={flipBtnY}
@@ -180,10 +255,18 @@ function TokenItem({
         </>
       ) : (
         <>
+          {/* Hover highlight for circle tokens */}
+          {isHovered && !isSelected && !isDragging && (
+            <Circle
+              radius={radius + 3}
+              stroke={hoverStroke}
+              strokeWidth={hoverStrokeWidth}
+            />
+          )}
           {isSelected && !isDragging && (
             <Circle
               radius={radius + 4}
-              stroke="#3b82f6"
+              stroke={isEditable ? "#3b82f6" : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -199,6 +282,52 @@ function TokenItem({
             offsetY={radius / 2.5}
           />
         </>
+      )}
+
+      {/* Lock indicator for non-editable tokens */}
+      {!isEditable && isHovered && (
+        <Group y={lockY}>
+          <Rect
+            width={50}
+            height={18}
+            offsetX={25}
+            offsetY={9}
+            fill="rgba(0, 0, 0, 0.7)"
+            cornerRadius={3}
+          />
+          <Text
+            text="Locked"
+            fontSize={10}
+            fill="#f87171"
+            align="center"
+            width={50}
+            offsetX={25}
+            offsetY={5}
+          />
+        </Group>
+      )}
+
+      {/* Tooltip on hover */}
+      {isHovered && !isDragging && (
+        <Group y={tooltipY}>
+          <Rect
+            width={token.name.length * 8 + 16}
+            height={22}
+            offsetX={(token.name.length * 8 + 16) / 2}
+            offsetY={11}
+            fill="rgba(0, 0, 0, 0.8)"
+            cornerRadius={4}
+          />
+          <Text
+            text={token.name}
+            fontSize={12}
+            fill="#ffffff"
+            align="center"
+            width={token.name.length * 8 + 16}
+            offsetX={(token.name.length * 8 + 16) / 2}
+            offsetY={6}
+          />
+        </Group>
       )}
     </Group>
   );
@@ -268,17 +397,69 @@ interface TokenLayerProps {
   tokens: Token[];
   cellSize: number;
   stageRef: React.RefObject<any>;
+  onEditTokenName?: (token: Token) => void;
 }
 
-export function TokenLayer({ tokens, cellSize, stageRef }: TokenLayerProps) {
+export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
+  const updateToken = useMapStore((s) => s.updateToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
+  const canEditToken = useEditorStore((s) => s.canEditToken);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
   const draggingTokenRef = useRef<Token | null>(null);
+
+  // Create token-specific actions factory
+  const createTokenActions = useCallback(
+    (token: Token, isEditable: boolean): TokenItemActions => ({
+      move: (position: GridPosition) => {
+        if (isEditable) moveToken(token.id, position);
+      },
+      flip: () => {
+        if (isEditable) flipToken(token.id);
+      },
+      select: () => setSelectedElements([token.id]),
+      setName: (name: string) => {
+        if (isEditable) updateToken(token.id, { name });
+      },
+
+      // Extensible hooks - can be customized based on token type/layer
+      onDragStart: () => {
+        // Can add token-specific drag start behavior
+      },
+      onDragEnd: () => {
+        // Can add token-specific drag end behavior
+      },
+      onDoubleClick: () => {
+        // Open token name editor
+        if (isEditable && onEditTokenName) {
+          onEditTokenName(token);
+        }
+      },
+      onRightClick: () => {
+        // Can open context menu
+        console.log(`Right-clicked token: ${token.name}`);
+      },
+
+      // Custom actions based on token layer type
+      custom: token.layer === "character"
+        ? {
+            openCharacterSheet: () => console.log("Open character sheet"),
+          }
+        : token.layer === "monster"
+        ? {
+            rollInitiative: () => console.log("Roll initiative"),
+          }
+        : {
+            toggleInteractable: () => console.log("Toggle interactable"),
+          },
+    }),
+    [moveToken, flipToken, updateToken, setSelectedElements, onEditTokenName]
+  );
 
   // Handle mouse move during drag
   useEffect(() => {
@@ -313,7 +494,10 @@ export function TokenLayer({ tokens, cellSize, stageRef }: TokenLayerProps) {
         const col = Math.round((dragState.currentX - offset) / cellSize);
         const row = Math.round((dragState.currentY - offset) / cellSize);
 
-        moveToken(token.id, { col, row });
+        // Only move if user can edit this token
+        if (canEditToken(token.ownerId)) {
+          moveToken(token.id, { col, row });
+        }
       }
       setDragState(null);
       draggingTokenRef.current = null;
@@ -330,43 +514,57 @@ export function TokenLayer({ tokens, cellSize, stageRef }: TokenLayerProps) {
       window.removeEventListener("touchmove", handleMouseMove as any);
       window.removeEventListener("touchend", handleMouseUp);
     };
-  }, [dragState, cellSize, moveToken, stageRef]);
+  }, [dragState, cellSize, moveToken, stageRef, canEditToken]);
 
-  const handleMouseDown = (token: Token, e: any) => {
-    if (selectedTool !== "select") return;
-    e.cancelBubble = true;
+  const handleMouseDown = useCallback(
+    (token: Token, e: any) => {
+      if (selectedTool !== "select") return;
+      // Check if user can edit this token
+      if (!canEditToken(token.ownerId)) return;
 
-    // Prevent default drag behavior
-    if (e.evt) {
-      e.evt.preventDefault();
+      e.cancelBubble = true;
+
+      // Prevent default drag behavior
+      if (e.evt) {
+        e.evt.preventDefault();
+      }
+
+      const offset = (token.size * cellSize) / 2;
+      const x = token.position.col * cellSize + offset;
+      const y = token.position.row * cellSize + offset;
+
+      draggingTokenRef.current = token;
+      setDragState({
+        tokenId: token.id,
+        startX: x,
+        startY: y,
+        currentX: x,
+        currentY: y,
+      });
+
+      setSelectedElements([token.id]);
+    },
+    [selectedTool, cellSize, setSelectedElements, canEditToken]
+  );
+
+  const handleHoverStart = useCallback(
+    (tokenId: string) => {
+      setHoveredTokenId(tokenId);
+      // Change cursor to pointer
+      if (stageRef.current) {
+        stageRef.current.container().style.cursor = "pointer";
+      }
+    },
+    [stageRef]
+  );
+
+  const handleHoverEnd = useCallback(() => {
+    setHoveredTokenId(null);
+    // Reset cursor
+    if (stageRef.current) {
+      stageRef.current.container().style.cursor = "default";
     }
-
-    const offset = (token.size * cellSize) / 2;
-    const x = token.position.col * cellSize + offset;
-    const y = token.position.row * cellSize + offset;
-
-    draggingTokenRef.current = token;
-    setDragState({
-      tokenId: token.id,
-      startX: x,
-      startY: y,
-      currentX: x,
-      currentY: y,
-    });
-
-    setSelectedElements([token.id]);
-  };
-
-  const handleClick = (token: Token, e: any) => {
-    if (selectedTool !== "select") return;
-    if (dragState) return; // Don't handle click if we were dragging
-    e.cancelBubble = true;
-    setSelectedElements([token.id]);
-  };
-
-  const handleFlip = (token: Token) => {
-    flipToken(token.id);
-  };
+  }, [stageRef]);
 
   // Calculate L-shaped path points (move X first, then Y)
   const getPathPoints = (
@@ -432,17 +630,23 @@ export function TokenLayer({ tokens, cellSize, stageRef }: TokenLayerProps) {
       {tokens.map((token) => {
         if (!token.visible) return null;
 
+        const isEditable = canEditToken(token.ownerId);
+        const actions = createTokenActions(token, isEditable);
+
         return (
           <TokenItem
             key={token.id}
             token={token}
             cellSize={cellSize}
             isSelected={selectedIds.includes(token.id)}
+            isHovered={hoveredTokenId === token.id}
+            isEditable={isEditable}
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
-            onClick={handleClick}
-            onFlip={handleFlip}
-            onMouseDown={handleMouseDown}
+            actions={actions}
+            onMouseDown={(e) => handleMouseDown(token, e)}
+            onHoverStart={() => handleHoverStart(token.id)}
+            onHoverEnd={handleHoverEnd}
           />
         );
       })}

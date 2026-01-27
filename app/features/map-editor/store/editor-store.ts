@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { EditorTool } from "../types";
+import type { EditorTool, MapPermission, PlayerPermissions } from "../types";
+import { DEFAULT_PERMISSIONS } from "../types";
 
 interface EditorState {
   selectedTool: EditorTool;
@@ -9,6 +10,11 @@ interface EditorState {
   isDrawing: boolean;
   isPanning: boolean;
   snapToGrid: boolean;
+
+  // Editor context for permissions
+  userId: string | null;
+  permission: MapPermission;
+  permissions: PlayerPermissions;
 
   // Actions
   setTool: (tool: EditorTool) => void;
@@ -20,9 +26,24 @@ interface EditorState {
   setIsDrawing: (isDrawing: boolean) => void;
   setIsPanning: (isPanning: boolean) => void;
   toggleSnapToGrid: () => void;
+  setEditorContext: (
+    userId: string | null,
+    permission: MapPermission,
+    customPermissions?: PlayerPermissions | null
+  ) => void;
+
+  // Permission helpers
+  isOwner: () => boolean;
+  canEditToken: (tokenOwnerId: string | null) => boolean;
+  canMoveToken: (tokenOwnerId: string | null) => boolean;
+  canDeleteToken: (tokenOwnerId: string | null) => boolean;
+  canEditMap: () => boolean;
+  canCreateToken: () => boolean;
+  canManagePlayers: () => boolean;
+  getPermissions: () => PlayerPermissions;
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
   selectedTool: "select",
   selectedElementIds: [],
   currentColor: "#ef4444",
@@ -30,6 +51,9 @@ export const useEditorStore = create<EditorState>((set) => ({
   isDrawing: false,
   isPanning: false,
   snapToGrid: true,
+  userId: null,
+  permission: "view",
+  permissions: DEFAULT_PERMISSIONS.view,
 
   setTool: (tool) => set({ selectedTool: tool, selectedElementIds: [] }),
 
@@ -51,4 +75,67 @@ export const useEditorStore = create<EditorState>((set) => ({
   setIsPanning: (isPanning) => set({ isPanning }),
 
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
+
+  setEditorContext: (userId, permission, customPermissions) => {
+    // Use custom permissions if provided, otherwise use defaults for the permission level
+    const permissions = customPermissions || DEFAULT_PERMISSIONS[permission];
+    set({ userId, permission, permissions });
+  },
+
+  // Permission helpers
+  isOwner: () => get().permission === "owner",
+
+  getPermissions: () => get().permissions,
+
+  canEditToken: (tokenOwnerId: string | null) => {
+    const state = get();
+    const perms = state.permissions;
+
+    // Can edit all tokens?
+    if (perms.canEditAllTokens) return true;
+
+    // Can edit own tokens?
+    if (perms.canEditOwnTokens) {
+      // Check if this is user's token
+      if (tokenOwnerId === state.userId) return true;
+    }
+
+    return false;
+  },
+
+  canMoveToken: (tokenOwnerId: string | null) => {
+    const state = get();
+    const perms = state.permissions;
+
+    // Can move all tokens?
+    if (perms.canMoveAllTokens) return true;
+
+    // Can move own tokens?
+    if (perms.canMoveOwnTokens) {
+      if (tokenOwnerId === state.userId) return true;
+    }
+
+    return false;
+  },
+
+  canDeleteToken: (tokenOwnerId: string | null) => {
+    const state = get();
+    const perms = state.permissions;
+
+    // Can delete all tokens?
+    if (perms.canDeleteAllTokens) return true;
+
+    // Can delete own tokens?
+    if (perms.canDeleteOwnTokens) {
+      if (tokenOwnerId === state.userId) return true;
+    }
+
+    return false;
+  },
+
+  canEditMap: () => get().permissions.canEditMap,
+
+  canCreateToken: () => get().permissions.canCreateTokens,
+
+  canManagePlayers: () => get().permissions.canManagePlayers,
 }));

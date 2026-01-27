@@ -5,8 +5,13 @@ import { GridLayer } from "./GridLayer";
 import { TokenLayer } from "./TokenLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
+import type { Token } from "../../types";
 
-export function MapCanvas() {
+interface MapCanvasProps {
+  onEditToken?: (token: Token) => void;
+}
+
+export function MapCanvas({ onEditToken }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -183,6 +188,7 @@ export function MapCanvas() {
             tokens={map.tokens}
             cellSize={map.grid.cellSize}
             stageRef={stageRef}
+            onEditTokenName={onEditToken}
           />
         </Layer>
       </Stage>

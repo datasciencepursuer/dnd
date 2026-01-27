@@ -1,15 +1,29 @@
 import type { Route } from "./+types/maps";
 import { useState, useEffect } from "react";
-import { Link, Form, useNavigate } from "react-router";
+import { Link, Form, useNavigate, useLoaderData } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import {
-  getMapIndex,
-  deleteMap,
-  saveMap,
   createNewMap,
   DEFAULT_GRID,
+  getMapIndex,
   type MapIndexEntry,
 } from "~/features/map-editor";
+import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
+import type { PermissionLevel } from "~/.server/db/schema";
+
+interface MapListItem {
+  id: string;
+  name: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  permission: PermissionLevel;
+}
+
+interface LoaderData {
+  owned: MapListItem[];
+  shared: MapListItem[];
+}
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -20,29 +34,58 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireAuth(request);
-  return null;
+
+  // Fetch maps from the API
+  const apiUrl = new URL("/api/maps", request.url);
+  const response = await fetch(apiUrl, {
+    headers: request.headers,
+  });
+
+  if (!response.ok) {
+    throw new Response("Failed to load maps", { status: response.status });
+  }
+
+  return response.json();
 }
 
 export default function Maps() {
   const navigate = useNavigate();
-  const [maps, setMaps] = useState<MapIndexEntry[]>([]);
+  const { owned, shared } = useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
   const [gridWidth, setGridWidth] = useState(DEFAULT_GRID.width);
   const [gridHeight, setGridHeight] = useState(DEFAULT_GRID.height);
+  const [isCreating, setIsCreating] = useState(false);
+  const [localMaps, setLocalMaps] = useState<MapIndexEntry[]>([]);
+  const [migrationDismissed, setMigrationDismissed] = useState(false);
 
+  // Check for localStorage maps on mount
   useEffect(() => {
-    setMaps(getMapIndex());
+    const maps = getMapIndex();
+    setLocalMaps(maps);
   }, []);
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Delete "${name}"?`)) {
-      deleteMap(id);
-      setMaps(getMapIndex());
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Delete "${name}"?`)) return;
+
+    try {
+      const response = await fetch(`/api/maps/${id}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Refresh the page to reload the list
+        window.location.reload();
+      } else {
+        alert("Failed to delete map");
+      }
+    } catch {
+      alert("Failed to delete map");
     }
   };
 
-  const handleCreateMap = () => {
+  const handleCreateMap = async () => {
+    setIsCreating(true);
     const width = Math.max(5, Math.min(100, gridWidth));
     const height = Math.max(5, Math.min(100, gridHeight));
     const map = createNewMap({
@@ -50,8 +93,25 @@ export default function Maps() {
       gridWidth: width,
       gridHeight: height,
     });
-    saveMap(map);
-    navigate(`/playground/${map.id}`);
+
+    try {
+      const response = await fetch("/api/maps", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: map.name, data: map }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        navigate(`/playground/${result.id}`);
+      } else {
+        alert("Failed to create map");
+      }
+    } catch {
+      alert("Failed to create map");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const handleOpenModal = () => {
@@ -60,6 +120,54 @@ export default function Maps() {
     setGridHeight(DEFAULT_GRID.height);
     setShowCreateModal(true);
   };
+
+  const renderMapCard = (map: MapListItem, canDelete: boolean) => (
+    <div
+      key={map.id}
+      className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
+    >
+      <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+        <span className="text-4xl">🗺️</span>
+      </div>
+      <div className="p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <h3 className="font-semibold text-gray-900 dark:text-white">
+            {map.name}
+          </h3>
+          {map.permission !== "owner" && (
+            <span
+              className={`text-xs px-2 py-0.5 rounded ${
+                map.permission === "edit"
+                  ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+                  : "bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {map.permission}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Updated {new Date(map.updatedAt).toLocaleDateString()}
+        </p>
+        <div className="flex gap-2">
+          <Link
+            to={`/playground/${map.id}`}
+            className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded text-center hover:bg-blue-700 cursor-pointer"
+          >
+            {map.permission === "view" ? "View" : "Edit"}
+          </Link>
+          {canDelete && (
+            <button
+              onClick={() => handleDelete(map.id, map.name)}
+              className="px-3 py-1.5 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 text-sm rounded hover:bg-red-200 dark:hover:bg-red-800 cursor-pointer"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -85,6 +193,18 @@ export default function Maps() {
             </Form>
           </div>
         </div>
+
+        {/* Migration Prompt */}
+        {localMaps.length > 0 && !migrationDismissed && (
+          <MigrationPrompt
+            localMaps={localMaps}
+            onMigrationComplete={() => {
+              setLocalMaps([]);
+              window.location.reload();
+            }}
+            onDismiss={() => setMigrationDismissed(true)}
+          />
+        )}
 
         {/* Create Map Modal */}
         {showCreateModal && (
@@ -153,68 +273,57 @@ export default function Maps() {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  disabled={isCreating}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateMap}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                  disabled={isCreating}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50"
                 >
-                  Create Map
+                  {isCreating ? "Creating..." : "Create Map"}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {maps.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              No maps yet. Create your first map!
-            </p>
-            <button
-              onClick={handleOpenModal}
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-            >
-              Create Map
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {maps.map((map) => (
-              <div
-                key={map.id}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
+        {/* My Maps Section */}
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+            My Maps
+          </h2>
+          {owned.length === 0 ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                No maps yet. Create your first map!
+              </p>
+              <button
+                onClick={handleOpenModal}
+                className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
               >
-                <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                  <span className="text-4xl">🗺️</span>
-                </div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
-                    {map.name}
-                  </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                    Updated {new Date(map.updatedAt).toLocaleDateString()}
-                  </p>
-                  <div className="flex gap-2">
-                    <Link
-                      to={`/playground/${map.id}`}
-                      className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded text-center hover:bg-blue-700 cursor-pointer"
-                    >
-                      Enter
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(map.id, map.name)}
-                      className="px-3 py-1.5 bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300 text-sm rounded hover:bg-red-200 dark:hover:bg-red-800 cursor-pointer"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                Create Map
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {owned.map((map) => renderMapCard(map, true))}
+            </div>
+          )}
+        </section>
+
+        {/* Shared with Me Section */}
+        {shared.length > 0 && (
+          <section>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+              Shared with Me
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {shared.map((map) => renderMapCard(map, false))}
+            </div>
+          </section>
         )}
       </div>
     </div>

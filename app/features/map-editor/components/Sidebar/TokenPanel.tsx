@@ -12,9 +12,13 @@ export function TokenPanel() {
   const addToken = useMapStore((s) => s.addToken);
   const removeToken = useMapStore((s) => s.removeToken);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const userId = useEditorStore((s) => s.userId);
+  const canCreateToken = useEditorStore((s) => s.canCreateToken);
+  const canEditToken = useEditorStore((s) => s.canEditToken);
+  const isOwner = useEditorStore((s) => s.isOwner);
 
   const handleAddToken = () => {
-    if (!tokenName.trim() || !map) return;
+    if (!tokenName.trim() || !map || !canCreateToken()) return;
 
     const token: Token = {
       id: crypto.randomUUID(),
@@ -30,6 +34,7 @@ export function TokenPanel() {
       flipped: false,
       visible: true,
       layer: "character",
+      ownerId: isOwner() ? null : userId, // Owner's tokens have null ownerId
     };
 
     addToken(token);
@@ -37,11 +42,17 @@ export function TokenPanel() {
   };
 
   const handleDeleteSelected = () => {
-    selectedIds.forEach((id) => removeToken(id));
+    // Only delete tokens the user can edit
+    selectedIds.forEach((id) => {
+      const token = map?.tokens.find((t) => t.id === id);
+      if (token && canEditToken(token.ownerId)) {
+        removeToken(id);
+      }
+    });
   };
 
   const handleAddPreset = (preset: { name: string; imageUrl: string }) => {
-    if (!map) return;
+    if (!map || !canCreateToken()) return;
 
     const token: Token = {
       id: crypto.randomUUID(),
@@ -57,104 +68,123 @@ export function TokenPanel() {
       flipped: false,
       visible: true,
       layer: "character",
+      ownerId: isOwner() ? null : userId,
     };
 
     addToken(token);
   };
 
+  // Count how many selected tokens user can delete
+  const deletableCount = selectedIds.filter((id) => {
+    const token = map?.tokens.find((t) => t.id === id);
+    return token && canEditToken(token.ownerId);
+  }).length;
+
   const presets = [{ name: "Fighter", imageUrl: "/Fighter.png" }];
+
+  const canCreate = canCreateToken();
 
   return (
     <div className="p-4 space-y-4">
-      <h3 className="font-semibold text-gray-900 dark:text-white">Presets</h3>
-      <div className="flex flex-wrap gap-2">
-        {presets.map((preset) => (
-          <button
-            key={preset.name}
-            onClick={() => handleAddPreset(preset)}
-            className="flex flex-col items-center gap-1 p-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-            title={`Add ${preset.name}`}
-          >
-            <img
-              src={preset.imageUrl}
-              alt={preset.name}
-              className="w-10 h-10 object-contain"
-            />
-            <span className="text-xs text-gray-700 dark:text-gray-300">
-              {preset.name}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <h3 className="font-semibold text-gray-900 dark:text-white pt-2">Custom Token</h3>
-
-      <div className="space-y-3">
-        <input
-          type="text"
-          value={tokenName}
-          onChange={(e) => setTokenName(e.target.value)}
-          placeholder="Token name"
-          className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-        />
-
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-            Color
-          </label>
-          <div className="flex flex-wrap gap-1">
-            {TOKEN_COLORS.map((color) => (
+      {canCreate && (
+        <>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Presets</h3>
+          <div className="flex flex-wrap gap-2">
+            {presets.map((preset) => (
               <button
-                key={color}
-                onClick={() => setTokenColor(color)}
-                className={`w-6 h-6 rounded-full border-2 cursor-pointer ${
-                  tokenColor === color
-                    ? "border-blue-500"
-                    : "border-transparent"
-                }`}
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-            Size
-          </label>
-          <div className="grid grid-cols-4 gap-1">
-            {[1, 2, 3, 4].map((size) => (
-              <button
-                key={size}
-                onClick={() => setTokenSize(size)}
-                className={`px-2 py-1 text-xs rounded border cursor-pointer ${
-                  tokenSize === size
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
-                }`}
+                key={preset.name}
+                onClick={() => handleAddPreset(preset)}
+                className="flex flex-col items-center gap-1 p-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                title={`Add ${preset.name}`}
               >
-                {size * size} cell{size > 1 ? "s" : ""}
+                <img
+                  src={preset.imageUrl}
+                  alt={preset.name}
+                  className="w-10 h-10 object-contain"
+                />
+                <span className="text-xs text-gray-700 dark:text-gray-300">
+                  {preset.name}
+                </span>
               </button>
             ))}
           </div>
+
+          <h3 className="font-semibold text-gray-900 dark:text-white pt-2">Custom Token</h3>
+
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={tokenName}
+              onChange={(e) => setTokenName(e.target.value)}
+              placeholder="Token name"
+              className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                Color
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {TOKEN_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setTokenColor(color)}
+                    className={`w-6 h-6 rounded-full border-2 cursor-pointer ${
+                      tokenColor === color
+                        ? "border-blue-500"
+                        : "border-transparent"
+                    }`}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                Size
+              </label>
+              <div className="grid grid-cols-4 gap-1">
+                {[1, 2, 3, 4].map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setTokenSize(size)}
+                    className={`px-2 py-1 text-xs rounded border cursor-pointer ${
+                      tokenSize === size
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {size * size} cell{size > 1 ? "s" : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={handleAddToken}
+              disabled={!tokenName.trim()}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              Add Token
+            </button>
+          </div>
+        </>
+      )}
+
+      {!canCreate && (
+        <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+          <p className="text-sm">View only - cannot create tokens</p>
         </div>
+      )}
 
-        <button
-          onClick={handleAddToken}
-          disabled={!tokenName.trim()}
-          className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          Add Token
-        </button>
-      </div>
-
-      {selectedIds.length > 0 && (
+      {deletableCount > 0 && (
         <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={handleDeleteSelected}
             className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer"
           >
-            Delete Selected ({selectedIds.length})
+            Delete Selected ({deletableCount})
           </button>
         </div>
       )}
@@ -165,24 +195,32 @@ export function TokenPanel() {
             Tokens ({map.tokens.length})
           </h4>
           <div className="space-y-1 max-h-40 overflow-y-auto">
-            {map.tokens.map((token) => (
-              <div
-                key={token.id}
-                className={`flex items-center gap-2 p-2 rounded text-sm ${
-                  selectedIds.includes(token.id)
-                    ? "bg-blue-100 dark:bg-blue-900"
-                    : "bg-gray-50 dark:bg-gray-700"
-                }`}
-              >
+            {map.tokens.map((token) => {
+              const isOwnToken = canEditToken(token.ownerId);
+              return (
                 <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: token.color }}
-                />
-                <span className="text-gray-900 dark:text-white">
-                  {token.name}
-                </span>
-              </div>
-            ))}
+                  key={token.id}
+                  className={`flex items-center gap-2 p-2 rounded text-sm ${
+                    selectedIds.includes(token.id)
+                      ? "bg-blue-100 dark:bg-blue-900"
+                      : "bg-gray-50 dark:bg-gray-700"
+                  }`}
+                >
+                  <div
+                    className="w-4 h-4 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: token.color }}
+                  />
+                  <span className="text-gray-900 dark:text-white flex-1 truncate">
+                    {token.name}
+                  </span>
+                  {!isOwnToken && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      (locked)
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

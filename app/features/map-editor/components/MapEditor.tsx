@@ -1,8 +1,9 @@
-import { useEffect, lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense, useState } from "react";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
-import { useMapStore } from "../store";
-import { saveMap } from "../utils/storage-utils";
+import { TokenEditDialog } from "./TokenEditDialog";
+import { useMapStore, useEditorStore } from "../store";
+import type { Token, PlayerPermissions } from "../types";
 
 const MapCanvas = lazy(() =>
   import("./Canvas/MapCanvas").then((mod) => ({ default: mod.MapCanvas }))
@@ -10,21 +11,44 @@ const MapCanvas = lazy(() =>
 
 interface MapEditorProps {
   mapId?: string;
+  readOnly?: boolean;
+  permission?: "view" | "edit" | "owner";
+  customPermissions?: PlayerPermissions | null;
+  userId?: string | null;
 }
 
-export function MapEditor({ mapId }: MapEditorProps) {
+export function MapEditor({
+  mapId,
+  readOnly = false,
+  permission = "owner",
+  customPermissions = null,
+  userId = null,
+}: MapEditorProps) {
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
+  const setEditorContext = useEditorStore((s) => s.setEditorContext);
 
-  // Auto-save on map changes
+  const [editingToken, setEditingToken] = useState<Token | null>(null);
+
+  // Set editor context on mount/update
   useEffect(() => {
-    if (map) {
+    setEditorContext(userId, permission, customPermissions);
+  }, [userId, permission, customPermissions, setEditorContext]);
+
+  // Auto-save on map changes (only if not read-only)
+  useEffect(() => {
+    if (map && mapId && !readOnly) {
       const timeout = setTimeout(() => {
-        saveMap(map);
+        // Save to server
+        fetch(`/api/maps/${mapId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: map.name, data: map }),
+        }).catch(console.error);
       }, 1000);
       return () => clearTimeout(timeout);
     }
-  }, [map]);
+  }, [map, mapId, readOnly]);
 
   // Create new map if none loaded
   useEffect(() => {
@@ -32,6 +56,14 @@ export function MapEditor({ mapId }: MapEditorProps) {
       newMap("Untitled Map");
     }
   }, [map, mapId, newMap]);
+
+  const handleEditToken = (token: Token) => {
+    setEditingToken(token);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditingToken(null);
+  };
 
   if (!map) {
     return (
@@ -43,7 +75,7 @@ export function MapEditor({ mapId }: MapEditorProps) {
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar />
+      <Toolbar readOnly={readOnly} permission={permission} mapId={mapId} />
       <div className="flex flex-1 overflow-hidden">
         <Suspense
           fallback={
@@ -52,10 +84,14 @@ export function MapEditor({ mapId }: MapEditorProps) {
             </div>
           }
         >
-          <MapCanvas />
+          <MapCanvas onEditToken={handleEditToken} />
         </Suspense>
         <Sidebar />
       </div>
+
+      {editingToken && (
+        <TokenEditDialog token={editingToken} onClose={handleCloseEditDialog} />
+      )}
     </div>
   );
 }

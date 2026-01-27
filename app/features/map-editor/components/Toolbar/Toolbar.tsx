@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
+import { ShareDialog } from "../ShareDialog/ShareDialog";
 
 const tools: { id: EditorTool; label: string; icon: string }[] = [
   { id: "select", label: "Select", icon: "↖" },
@@ -9,7 +10,13 @@ const tools: { id: EditorTool; label: string; icon: string }[] = [
   { id: "token", label: "Token", icon: "●" },
 ];
 
-export function Toolbar() {
+interface ToolbarProps {
+  readOnly?: boolean;
+  permission?: "view" | "edit" | "owner";
+  mapId?: string;
+}
+
+export function Toolbar({ readOnly = false, permission = "owner", mapId }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
 
@@ -20,6 +27,7 @@ export function Toolbar() {
   const [mapName, setMapName] = useState(map?.name ?? "");
   const [width, setWidth] = useState(map?.grid.width ?? 30);
   const [height, setHeight] = useState(map?.grid.height ?? 20);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Sync local state when map changes
   useEffect(() => {
@@ -31,12 +39,14 @@ export function Toolbar() {
   }, [map?.id, map?.name, map?.grid.width, map?.grid.height]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) return;
     const newName = e.target.value;
     setMapName(newName);
     updateMapName(newName || "Untitled Map");
   };
 
   const handleApply = () => {
+    if (readOnly) return;
     const newWidth = Math.max(5, Math.min(100, width));
     const newHeight = Math.max(5, Math.min(100, height));
     setWidth(newWidth);
@@ -47,77 +57,102 @@ export function Toolbar() {
   const hasChanges =
     map && (width !== map.grid.width || height !== map.grid.height);
 
+  const canShare = permission === "owner";
+
   return (
-    <div className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-      <div className="flex items-center gap-3">
-        <Link
-          to="/maps"
-          className="px-3 py-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
-        >
-          ← Maps
-        </Link>
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-        <input
-          type="text"
-          value={mapName}
-          onChange={handleNameChange}
-          placeholder="Map name"
-          className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px]"
-        />
-        <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-        <div className="flex gap-1">
-          {tools.map((tool) => (
+    <>
+      <div className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/maps"
+            className="px-3 py-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+          >
+            ← Maps
+          </Link>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+          <input
+            type="text"
+            value={mapName}
+            onChange={handleNameChange}
+            placeholder="Map name"
+            disabled={readOnly}
+            className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
+          />
+          {readOnly && (
+            <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+              View only
+            </span>
+          )}
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+          <div className="flex gap-1">
+            {tools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => setTool(tool.id)}
+                disabled={readOnly && tool.id === "token"}
+                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  selectedTool === tool.id
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+                title={tool.label}
+              >
+                <span className="mr-1">{tool.icon}</span>
+                {tool.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {canShare && mapId && (
             <button
-              key={tool.id}
-              onClick={() => setTool(tool.id)}
-              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
-                selectedTool === tool.id
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-              }`}
-              title={tool.label}
+              onClick={() => setShowShareDialog(true)}
+              className="px-3 py-2 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
             >
-              <span className="mr-1">{tool.icon}</span>
-              {tool.label}
+              Share
             </button>
-          ))}
+          )}
+          {map && !readOnly && (
+            <>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={width}
+                  onChange={(e) => setWidth(parseInt(e.target.value) || 5)}
+                  min={5}
+                  max={100}
+                  className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  title="Grid width (cells)"
+                />
+                <span className="text-gray-500 dark:text-gray-400">x</span>
+                <input
+                  type="number"
+                  value={height}
+                  onChange={(e) => setHeight(parseInt(e.target.value) || 5)}
+                  min={5}
+                  max={100}
+                  className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  title="Grid height (cells)"
+                />
+              </div>
+              {hasChanges && (
+                <button
+                  onClick={handleApply}
+                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  Apply
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
-      {map && (
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              value={width}
-              onChange={(e) => setWidth(parseInt(e.target.value) || 5)}
-              min={5}
-              max={100}
-              className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              title="Grid width (cells)"
-            />
-            <span className="text-gray-500 dark:text-gray-400">x</span>
-            <input
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(parseInt(e.target.value) || 5)}
-              min={5}
-              max={100}
-              className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              title="Grid height (cells)"
-            />
-          </div>
-          {hasChanges && (
-            <button
-              onClick={handleApply}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-            >
-              Apply
-            </button>
-          )}
-        </div>
+      {showShareDialog && mapId && (
+        <ShareDialog mapId={mapId} onClose={() => setShowShareDialog(false)} />
       )}
-    </div>
+    </>
   );
 }
