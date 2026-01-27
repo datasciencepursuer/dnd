@@ -7,6 +7,7 @@ import {
   boolean,
   unique,
   index,
+  integer,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -62,6 +63,14 @@ export const verification = pgTable("verification", {
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// better-auth rate limiting table
+export const rateLimit = pgTable("rateLimit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull(),
+  count: integer("count").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
 });
 
 // Maps table for DnD maps

@@ -22,30 +22,26 @@ export const auth = betterAuth({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      rateLimit: schema.rateLimit,
     },
   }),
   emailAndPassword: {
     enabled: true,
   },
   trustedOrigins,
-  // Rate limiting - requires rateLimit table in database
-  // Run: pnpm dlx @better-auth/cli migrate
-  // Set ENABLE_RATE_LIMIT=true in env to enable
-  ...(process.env.ENABLE_RATE_LIMIT === "true" && {
-    rateLimit: {
-      enabled: true,
-      storage: "database",
-      window: 60,
-      max: 100,
-      customRules: {
-        // Limit account creation: 3 per IP per 24 hours
-        "/sign-up/email": {
-          window: 86400, // 24 hours in seconds
-          max: 3,
-        },
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    window: 60, // default: 60 seconds
+    max: 100, // default: 100 requests per window
+    customRules: {
+      // Limit account creation: 3 per IP per 24 hours
+      "/sign-up/email": {
+        window: 86400, // 24 hours in seconds
+        max: 3,
       },
     },
-  }),
+  },
 });
 
 export type Session = typeof auth.$Infer.Session;
