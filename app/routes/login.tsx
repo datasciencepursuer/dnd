@@ -70,7 +70,7 @@ export default function Login() {
         {/* Hero Image */}
         <div className="text-center">
           <img
-            src="https://gn3amfywu8.ufs.sh/f/dWzugQGhzDaS281WfuDUdrcfEKxMl0D1b8a4SNoRmCW5u9Tp"
+            src="https://gn3amfywu8.ufs.sh/f/dWzugQGhzDaSG2hFjlV3WsDHwNF80yobV295vlqiRe6UxXjM"
             alt="D&D Map Editor"
             className="w-32 h-32 mx-auto rounded-2xl shadow-lg object-cover"
           />
