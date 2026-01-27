@@ -5,4 +5,11 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+  ssr: {
+    // Externalize konva for SSR to avoid resolution issues
+    noExternal: ["konva", "react-konva"],
+  },
+  optimizeDeps: {
+    include: ["konva", "react-konva"],
+  },
 });
