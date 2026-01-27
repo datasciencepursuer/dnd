@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
-import { ShareDialog } from "../ShareDialog/ShareDialog";
 
 const tools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
   { id: "select", label: "Select", icon: "↖", shortcut: "1" },
@@ -13,11 +12,9 @@ const tools: { id: EditorTool; label: string; icon: string; shortcut: string }[]
 
 interface ToolbarProps {
   readOnly?: boolean;
-  permission?: "view" | "edit" | "owner";
-  mapId?: string;
 }
 
-export function Toolbar({ readOnly = false, permission = "owner", mapId }: ToolbarProps) {
+export function Toolbar({ readOnly = false }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
 
@@ -28,7 +25,6 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
   const [mapName, setMapName] = useState(map?.name ?? "");
   const [width, setWidth] = useState(map?.grid.width ?? 30);
   const [height, setHeight] = useState(map?.grid.height ?? 20);
-  const [showShareDialog, setShowShareDialog] = useState(false);
 
   // Sync local state when map changes
   useEffect(() => {
@@ -89,8 +85,6 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
   const hasChanges =
     map && (width !== map.grid.width || height !== map.grid.height);
 
-  const canShare = permission === "owner";
-
   return (
     <>
       <div className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -137,14 +131,6 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
         </div>
 
         <div className="flex items-center gap-3">
-          {canShare && mapId && (
-            <button
-              onClick={() => setShowShareDialog(true)}
-              className="px-3 py-2 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
-            >
-              Share
-            </button>
-          )}
           {map && !readOnly && (
             <>
               <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
@@ -181,10 +167,6 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
           )}
         </div>
       </div>
-
-      {showShareDialog && mapId && (
-        <ShareDialog mapId={mapId} onClose={() => setShowShareDialog(false)} />
-      )}
     </>
   );
 }

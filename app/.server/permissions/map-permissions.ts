@@ -2,13 +2,13 @@ import { eq, and } from "drizzle-orm";
 import { db } from "~/.server/db";
 import {
   maps,
-  mapPermissions,
+  groupMembers,
   type PermissionLevel,
   type PlayerPermissions,
   DEFAULT_PERMISSIONS,
 } from "~/.server/db/schema";
 
-export type MapAction = "view" | "edit" | "share" | "delete" | "transfer";
+export type MapAction = "view" | "edit" | "delete";
 
 export interface MapAccess {
   mapId: string;
@@ -16,6 +16,7 @@ export interface MapAccess {
   permission: PermissionLevel | null;
   customPermissions: PlayerPermissions | null;
   isOwner: boolean;
+  isGroupMember: boolean;
 }
 
 /**
@@ -25,15 +26,15 @@ export async function getMapAccess(
   mapId: string,
   userId: string
 ): Promise<MapAccess> {
-  // Check if user is the owner
+  // Check if user is the owner and get groupId
   const map = await db
-    .select({ userId: maps.userId })
+    .select({ userId: maps.userId, groupId: maps.groupId })
     .from(maps)
     .where(eq(maps.id, mapId))
     .limit(1);
 
   if (map.length === 0) {
-    return { mapId, userId, permission: null, customPermissions: null, isOwner: false };
+    return { mapId, userId, permission: null, customPermissions: null, isOwner: false, isGroupMember: false };
   }
 
   const isOwner = map[0].userId === userId;
@@ -45,33 +46,37 @@ export async function getMapAccess(
       permission: "owner",
       customPermissions: DEFAULT_PERMISSIONS.owner,
       isOwner: true,
+      isGroupMember: false,
     };
   }
 
-  // Check for explicit permission
-  const permissionData = await db
-    .select({
-      permission: mapPermissions.permission,
-      customPermissions: mapPermissions.customPermissions,
-    })
-    .from(mapPermissions)
-    .where(
-      and(eq(mapPermissions.mapId, mapId), eq(mapPermissions.userId, userId))
-    )
-    .limit(1);
+  // Check if user is a member of the map's group
+  if (map[0].groupId) {
+    const groupMembership = await db
+      .select()
+      .from(groupMembers)
+      .where(
+        and(
+          eq(groupMembers.groupId, map[0].groupId),
+          eq(groupMembers.userId, userId)
+        )
+      )
+      .limit(1);
 
-  if (permissionData.length > 0) {
-    const { permission, customPermissions } = permissionData[0];
-    return {
-      mapId,
-      userId,
-      permission,
-      customPermissions: customPermissions || DEFAULT_PERMISSIONS[permission],
-      isOwner: false,
-    };
+    if (groupMembership.length > 0) {
+      // Group members get view permission by default
+      return {
+        mapId,
+        userId,
+        permission: "view",
+        customPermissions: DEFAULT_PERMISSIONS.view,
+        isOwner: false,
+        isGroupMember: true,
+      };
+    }
   }
 
-  return { mapId, userId, permission: null, customPermissions: null, isOwner: false };
+  return { mapId, userId, permission: null, customPermissions: null, isOwner: false, isGroupMember: false };
 }
 
 /**
@@ -98,10 +103,8 @@ export function canPerformAction(
       return ["view", "edit"].includes(permission);
     case "edit":
       return permission === "edit";
-    case "share":
     case "delete":
-    case "transfer":
-      // Only owners can do these - already handled above
+      // Only owners can delete - already handled above
       return false;
     default:
       return false;

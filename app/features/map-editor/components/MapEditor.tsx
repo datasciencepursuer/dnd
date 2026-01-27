@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense, useState, useCallback } from "react";
+import { useEffect, lazy, Suspense, useState, useCallback, useRef } from "react";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { DiceHistoryBar } from "./DiceHistoryBar";
@@ -7,6 +7,8 @@ import { useMapStore, useEditorStore } from "../store";
 import { preloadImages } from "../hooks";
 import { PRESET_IMAGES } from "../constants";
 import type { Token, PlayerPermissions } from "../types";
+
+const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
 const MapCanvas = lazy(() =>
   import("./Canvas/MapCanvas").then((mod) => ({ default: mod.MapCanvas }))
@@ -76,20 +78,53 @@ export function MapEditor({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // Auto-save on map changes (only if not read-only)
+  // Auto-save with proper debouncing to prevent excessive API calls
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedRef = useRef<string | null>(null);
+  const mapRef = useRef(map);
+  mapRef.current = map; // Always keep current map in ref
+
   useEffect(() => {
-    if (map && mapId && !readOnly) {
-      const timeout = setTimeout(() => {
-        // Save to server
-        fetch(`/api/maps/${mapId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: map.name, data: map }),
-        }).catch(console.error);
-      }, 1000);
-      return () => clearTimeout(timeout);
+    if (!map || !mapId || readOnly) return;
+
+    // Create a hash of the map to detect actual changes
+    const mapHash = JSON.stringify({ name: map.name, updatedAt: map.updatedAt });
+
+    // Skip if nothing has changed since last save
+    if (lastSavedRef.current === mapHash) return;
+
+    // Clear any pending save
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
-  }, [map, mapId, readOnly]);
+
+    // Schedule a save after debounce delay
+    saveTimeoutRef.current = setTimeout(() => {
+      const currentMap = mapRef.current;
+      if (!currentMap) return;
+
+      // Save to server
+      fetch(`/api/maps/${mapId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: currentMap.name, data: currentMap }),
+      })
+        .then(() => {
+          // Update last saved hash on success
+          lastSavedRef.current = JSON.stringify({
+            name: currentMap.name,
+            updatedAt: currentMap.updatedAt
+          });
+        })
+        .catch(console.error);
+    }, AUTO_SAVE_DELAY);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [map?.updatedAt, mapId, readOnly]); // Only trigger on updatedAt changes, not entire map
 
   // Create new map if none loaded
   useEffect(() => {
@@ -116,7 +151,7 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar readOnly={readOnly} permission={permission} mapId={mapId} />
+      <Toolbar readOnly={readOnly} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar mapId={mapId} onEditToken={handleEditToken} />
         <Suspense

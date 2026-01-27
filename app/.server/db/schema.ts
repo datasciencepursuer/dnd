@@ -11,6 +11,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
+// Group role enum
+export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
+
 // better-auth user table
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -70,8 +73,61 @@ export const rateLimit = pgTable("rateLimit", {
   id: text("id").primaryKey(),
   key: text("key").notNull(),
   count: integer("count").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
+  lastRequest: integer("last_request").notNull(),
+  expiresAt: timestamp("expires_at").notNull().defaultNow(),
 });
+
+// Groups table
+export const groups = pgTable("groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Group members table
+export const groupMembers = pgTable(
+  "group_members",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    role: groupRoleEnum("role").notNull().default("member"),
+    joinedAt: timestamp("joined_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueUserGroup: unique().on(table.groupId, table.userId),
+  })
+);
+
+// Group invitations table
+export const groupInvitations = pgTable(
+  "group_invitations",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    invitedBy: text("invited_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueEmailGroup: unique().on(table.groupId, table.email),
+  })
+);
 
 // Maps table for DnD maps
 export const maps = pgTable("maps", {
@@ -80,17 +136,11 @@ export const maps = pgTable("maps", {
   userId: text("user_id")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
+  groupId: text("group_id").references(() => groups.id, { onDelete: "cascade" }),
   data: jsonb("data").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
-
-// Permission level enum
-export const permissionLevelEnum = pgEnum("permission_level", [
-  "view",
-  "edit",
-  "owner",
-]);
 
 // Custom player permissions stored as JSON
 export interface PlayerPermissions {
@@ -106,8 +156,8 @@ export interface PlayerPermissions {
   canManagePlayers: boolean;
 }
 
-// Default permissions for each role
-export const DEFAULT_PERMISSIONS: Record<PermissionLevel, PlayerPermissions> = {
+// Default permissions for each access level
+export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermissions> = {
   view: {
     canCreateTokens: false,
     canEditOwnTokens: false,
@@ -146,52 +196,6 @@ export const DEFAULT_PERMISSIONS: Record<PermissionLevel, PlayerPermissions> = {
   },
 };
 
-// Map permissions table - for sharing maps with registered users
-export const mapPermissions = pgTable(
-  "map_permissions",
-  {
-    id: text("id").primaryKey(),
-    mapId: text("map_id")
-      .notNull()
-      .references(() => maps.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    permission: permissionLevelEnum("permission").notNull().default("view"),
-    customPermissions: jsonb("custom_permissions").$type<PlayerPermissions>(),
-    grantedBy: text("granted_by").references(() => user.id, {
-      onDelete: "set null",
-    }),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    uniqueUserMap: unique().on(table.mapId, table.userId),
-  })
-);
-
-// Map invitations table - for inviting users who may not have accounts yet
-export const mapInvitations = pgTable(
-  "map_invitations",
-  {
-    id: text("id").primaryKey(),
-    mapId: text("map_id")
-      .notNull()
-      .references(() => maps.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    permission: permissionLevelEnum("permission").notNull().default("view"),
-    invitedBy: text("invited_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    token: text("token").notNull().unique(),
-    expiresAt: timestamp("expires_at").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    uniqueEmailMap: unique().on(table.mapId, table.email),
-  })
-);
-
 // Map presence table - for tracking users currently viewing a map
 export const mapPresence = pgTable(
   "map_presence",
@@ -216,9 +220,42 @@ export const mapPresence = pgTable(
 // Drizzle relations for easier querying
 export const userRelations = relations(user, ({ many }) => ({
   maps: many(maps),
-  mapPermissions: many(mapPermissions),
-  sentInvitations: many(mapInvitations),
   mapPresence: many(mapPresence),
+  groupMemberships: many(groupMembers),
+  createdGroups: many(groups),
+  sentGroupInvitations: many(groupInvitations),
+}));
+
+export const groupsRelations = relations(groups, ({ one, many }) => ({
+  creator: one(user, {
+    fields: [groups.createdBy],
+    references: [user.id],
+  }),
+  members: many(groupMembers),
+  invitations: many(groupInvitations),
+  maps: many(maps),
+}));
+
+export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMembers.groupId],
+    references: [groups.id],
+  }),
+  user: one(user, {
+    fields: [groupMembers.userId],
+    references: [user.id],
+  }),
+}));
+
+export const groupInvitationsRelations = relations(groupInvitations, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupInvitations.groupId],
+    references: [groups.id],
+  }),
+  invitedByUser: one(user, {
+    fields: [groupInvitations.invitedBy],
+    references: [user.id],
+  }),
 }));
 
 export const mapsRelations = relations(maps, ({ one, many }) => ({
@@ -226,35 +263,11 @@ export const mapsRelations = relations(maps, ({ one, many }) => ({
     fields: [maps.userId],
     references: [user.id],
   }),
-  permissions: many(mapPermissions),
-  invitations: many(mapInvitations),
+  group: one(groups, {
+    fields: [maps.groupId],
+    references: [groups.id],
+  }),
   presence: many(mapPresence),
-}));
-
-export const mapPermissionsRelations = relations(mapPermissions, ({ one }) => ({
-  map: one(maps, {
-    fields: [mapPermissions.mapId],
-    references: [maps.id],
-  }),
-  user: one(user, {
-    fields: [mapPermissions.userId],
-    references: [user.id],
-  }),
-  grantedByUser: one(user, {
-    fields: [mapPermissions.grantedBy],
-    references: [user.id],
-  }),
-}));
-
-export const mapInvitationsRelations = relations(mapInvitations, ({ one }) => ({
-  map: one(maps, {
-    fields: [mapInvitations.mapId],
-    references: [maps.id],
-  }),
-  invitedByUser: one(user, {
-    fields: [mapInvitations.invitedBy],
-    references: [user.id],
-  }),
 }));
 
 export const mapPresenceRelations = relations(mapPresence, ({ one }) => ({
@@ -274,12 +287,15 @@ export type NewUser = typeof user.$inferInsert;
 export type Session = typeof session.$inferSelect;
 export type Account = typeof account.$inferSelect;
 export type Verification = typeof verification.$inferSelect;
+export type Group = typeof groups.$inferSelect;
+export type NewGroup = typeof groups.$inferInsert;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type NewGroupMember = typeof groupMembers.$inferInsert;
+export type GroupInvitation = typeof groupInvitations.$inferSelect;
+export type NewGroupInvitation = typeof groupInvitations.$inferInsert;
+export type { GroupRole } from "~/types/group";
 export type Map = typeof maps.$inferSelect;
 export type NewMap = typeof maps.$inferInsert;
-export type MapPermission = typeof mapPermissions.$inferSelect;
-export type NewMapPermission = typeof mapPermissions.$inferInsert;
-export type MapInvitation = typeof mapInvitations.$inferSelect;
-export type NewMapInvitation = typeof mapInvitations.$inferInsert;
 export type MapPresence = typeof mapPresence.$inferSelect;
 export type NewMapPresence = typeof mapPresence.$inferInsert;
 export type PermissionLevel = "view" | "edit" | "owner";

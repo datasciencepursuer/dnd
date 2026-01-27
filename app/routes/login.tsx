@@ -1,5 +1,5 @@
 import type { Route } from "./+types/login";
-import { redirect, useNavigate } from "react-router";
+import { redirect, useNavigate, useSearchParams } from "react-router";
 import { useState } from "react";
 import { authClient } from "~/lib/auth-client";
 import { auth } from "~/.server/auth/auth.server";
@@ -13,16 +13,23 @@ export async function loader({ request }: Route.LoaderArgs) {
     headers: request.headers,
   });
   if (session) {
-    throw redirect("/");
+    // If already logged in, redirect to the intended destination or home
+    const url = new URL(request.url);
+    const redirectTo = url.searchParams.get("redirect") || "/";
+    throw redirect(redirectTo);
   }
   return null;
 }
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Get the redirect URL from query params, default to home
+  const redirectTo = searchParams.get("redirect") || "/";
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,7 +64,7 @@ export default function Login() {
           return;
         }
       }
-      navigate("/");
+      navigate(redirectTo);
     } catch (err) {
       setError("An error occurred. Please try again.");
       setLoading(false);

@@ -1,0 +1,1 @@
+ALTER TABLE "rateLimit" ALTER COLUMN "expires_at" SET DEFAULT now();

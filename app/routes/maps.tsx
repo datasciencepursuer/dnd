@@ -1,7 +1,6 @@
 import type { Route } from "./+types/maps";
-import { useState, useEffect } from "react";
-import { Link, Form, useNavigate, useLoaderData } from "react-router";
-import { requireAuth } from "~/.server/auth/session";
+import { useState, useEffect, useMemo } from "react";
+import { Link, Form, useNavigate, useLoaderData, useSearchParams } from "react-router";
 import {
   createNewMap,
   DEFAULT_GRID,
@@ -15,14 +14,22 @@ interface MapListItem {
   id: string;
   name: string;
   userId: string;
+  groupId: string | null;
+  groupName: string | null;
   createdAt: string;
   updatedAt: string;
   permission: PermissionLevel;
 }
 
+interface GroupInfo {
+  id: string;
+  name: string;
+}
+
 interface LoaderData {
   owned: MapListItem[];
-  shared: MapListItem[];
+  group: MapListItem[];
+  groups: GroupInfo[];
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -33,31 +40,105 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  await requireAuth(request);
+  const { eq, desc, inArray, and, ne } = await import("drizzle-orm");
+  const { db } = await import("~/.server/db");
+  const { maps, groups, groupMembers } = await import("~/.server/db/schema");
+  const { requireAuth } = await import("~/.server/auth/session");
 
-  // Fetch maps from the API
-  const apiUrl = new URL("/api/maps", request.url);
-  const response = await fetch(apiUrl, {
-    headers: request.headers,
-  });
+  const session = await requireAuth(request);
+  const userId = session.user.id;
 
-  if (!response.ok) {
-    throw new Response("Failed to load maps", { status: response.status });
+  // Get user's group IDs
+  const userGroups = await db
+    .select({ groupId: groupMembers.groupId })
+    .from(groupMembers)
+    .where(eq(groupMembers.userId, userId));
+
+  const groupIds = userGroups.map((g) => g.groupId);
+
+  // Get maps where user is owner (including maps not in a group for backwards compatibility)
+  const ownedMaps = await db
+    .select({
+      id: maps.id,
+      name: maps.name,
+      userId: maps.userId,
+      groupId: maps.groupId,
+      createdAt: maps.createdAt,
+      updatedAt: maps.updatedAt,
+    })
+    .from(maps)
+    .where(eq(maps.userId, userId))
+    .orderBy(desc(maps.updatedAt));
+
+  // Get maps from user's groups (where user is not the owner)
+  let groupMapsData: typeof ownedMaps = [];
+  if (groupIds.length > 0) {
+    groupMapsData = await db
+      .select({
+        id: maps.id,
+        name: maps.name,
+        userId: maps.userId,
+        groupId: maps.groupId,
+        createdAt: maps.createdAt,
+        updatedAt: maps.updatedAt,
+      })
+      .from(maps)
+      .where(
+        and(
+          inArray(maps.groupId, groupIds),
+          ne(maps.userId, userId)
+        )
+      )
+      .orderBy(desc(maps.updatedAt));
   }
 
-  return response.json();
+  // Get groups info for the response
+  const groupsData =
+    groupIds.length > 0
+      ? await db
+          .select({
+            id: groups.id,
+            name: groups.name,
+          })
+          .from(groups)
+          .where(inArray(groups.id, groupIds))
+      : [];
+
+  // Build a map of group id to name
+  const groupNameMap = Object.fromEntries(
+    groupsData.map((g) => [g.id, g.name])
+  );
+
+  return {
+    owned: ownedMaps.map((m) => ({
+      ...m,
+      permission: "owner" as const,
+      groupName: m.groupId ? groupNameMap[m.groupId] : null,
+    })),
+    group: groupMapsData.map((m) => ({
+      ...m,
+      permission: "view" as const,
+      groupName: m.groupId ? groupNameMap[m.groupId] : null,
+    })),
+    groups: groupsData,
+  };
 }
 
 export default function Maps() {
   const navigate = useNavigate();
-  const { owned, shared } = useLoaderData<LoaderData>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { owned, group: groupMaps, groups } = useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
   const [gridWidth, setGridWidth] = useState(DEFAULT_GRID.width);
   const [gridHeight, setGridHeight] = useState(DEFAULT_GRID.height);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
   const [localMaps, setLocalMaps] = useState<MapIndexEntry[]>([]);
   const [migrationDismissed, setMigrationDismissed] = useState(false);
+
+  // Filter state
+  const activeFilter = searchParams.get("group") || "all";
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
@@ -69,6 +150,27 @@ export default function Maps() {
     const maps = getMapIndex();
     setLocalMaps(maps);
   }, []);
+
+  // Filter maps based on active tab
+  const filteredOwned = useMemo(() => {
+    if (activeFilter === "all") return owned;
+    if (activeFilter === "personal") return owned.filter((m) => !m.groupId);
+    return owned.filter((m) => m.groupId === activeFilter);
+  }, [owned, activeFilter]);
+
+  const filteredGroupMaps = useMemo(() => {
+    if (activeFilter === "all") return groupMaps;
+    if (activeFilter === "personal") return [];
+    return groupMaps.filter((m) => m.groupId === activeFilter);
+  }, [groupMaps, activeFilter]);
+
+  const handleFilterChange = (filter: string) => {
+    if (filter === "all") {
+      setSearchParams({});
+    } else {
+      setSearchParams({ group: filter });
+    }
+  };
 
   const openDeleteModal = (id: string, name: string) => {
     setDeleteModal({ id, name });
@@ -117,7 +219,11 @@ export default function Maps() {
       const response = await fetch("/api/maps", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: map.name, data: map }),
+        body: JSON.stringify({
+          name: map.name,
+          data: map,
+          groupId: selectedGroupId || null,
+        }),
       });
 
       if (response.ok) {
@@ -137,6 +243,8 @@ export default function Maps() {
     setNewMapName("Untitled Map");
     setGridWidth(DEFAULT_GRID.width);
     setGridHeight(DEFAULT_GRID.height);
+    // Pre-select the active filter group if it's a specific group
+    setSelectedGroupId(activeFilter !== "all" && activeFilter !== "personal" ? activeFilter : "");
     setShowCreateModal(true);
   };
 
@@ -145,17 +253,22 @@ export default function Maps() {
       key={map.id}
       className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
     >
-      <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+      <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center relative">
         <span className="text-4xl">🗺️</span>
+        {map.groupName && (
+          <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
+            {map.groupName}
+          </span>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 dark:text-white">
+          <h3 className="font-semibold text-gray-900 dark:text-white truncate">
             {map.name}
           </h3>
           {map.permission !== "owner" && (
             <span
-              className={`text-xs px-2 py-0.5 rounded ${
+              className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
                 map.permission === "edit"
                   ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
                   : "bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
@@ -191,11 +304,17 @@ export default function Maps() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             My Maps
           </h1>
           <div className="flex gap-4">
+            <Link
+              to="/groups"
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              Manage Groups
+            </Link>
             <button
               onClick={handleOpenModal}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
@@ -211,6 +330,43 @@ export default function Maps() {
               </button>
             </Form>
           </div>
+        </div>
+
+        {/* Group Filter Tabs */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <button
+            onClick={() => handleFilterChange("all")}
+            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+              activeFilter === "all"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+            }`}
+          >
+            All
+          </button>
+          <button
+            onClick={() => handleFilterChange("personal")}
+            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+              activeFilter === "personal"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+            }`}
+          >
+            Personal
+          </button>
+          {groups.map((group) => (
+            <button
+              key={group.id}
+              onClick={() => handleFilterChange(group.id)}
+              className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+                activeFilter === group.id
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              }`}
+            >
+              {group.name}
+            </button>
+          ))}
         </div>
 
         {/* Migration Prompt */}
@@ -246,6 +402,29 @@ export default function Maps() {
                     autoFocus
                   />
                 </div>
+
+                {groups.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Group (optional)
+                    </label>
+                    <select
+                      value={selectedGroupId}
+                      onChange={(e) => setSelectedGroupId(e.target.value)}
+                      className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Personal (no group)</option>
+                      {groups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Group members can view maps in the group.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -331,7 +510,7 @@ export default function Maps() {
 
               <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
                 <p className="text-sm text-red-800 dark:text-red-200">
-                  You are about to permanently delete <strong>"{deleteModal.name}"</strong> and all its data including tokens, drawings, and shared access.
+                  You are about to permanently delete <strong>"{deleteModal.name}"</strong> and all its data including tokens and drawings.
                 </p>
               </div>
 
@@ -374,10 +553,12 @@ export default function Maps() {
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             My Maps
           </h2>
-          {owned.length === 0 ? (
+          {filteredOwned.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
               <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No maps yet. Create your first map!
+                {activeFilter === "all"
+                  ? "No maps yet. Create your first map!"
+                  : "No maps in this category."}
               </p>
               <button
                 onClick={handleOpenModal}
@@ -388,19 +569,19 @@ export default function Maps() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {owned.map((map) => renderMapCard(map, true))}
+              {filteredOwned.map((map) => renderMapCard(map, true))}
             </div>
           )}
         </section>
 
-        {/* Shared with Me Section */}
-        {shared.length > 0 && (
-          <section>
+        {/* Group Maps Section (maps from groups where user is not the owner) */}
+        {filteredGroupMaps.length > 0 && (
+          <section className="mb-8">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              Shared with Me
+              Group Maps
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {shared.map((map) => renderMapCard(map, false))}
+              {filteredGroupMaps.map((map) => renderMapCard(map, false))}
             </div>
           </section>
         )}

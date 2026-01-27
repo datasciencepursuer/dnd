@@ -366,6 +366,8 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
   const draggingTokenRef = useRef<Token | null>(null);
+  const isDraggingRef = useRef(false);
+  const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
 
   // Create token-specific actions factory
   const createTokenActions = useCallback(
@@ -415,14 +417,12 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
     [moveToken, flipToken, updateToken, setSelectedElements, onEditTokenName]
   );
 
-  // Handle mouse move during drag
+  // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move
   useEffect(() => {
-    if (!dragState || !stageRef.current) return;
-
     const handleMouseMove = (e: MouseEvent) => {
-      const stage = stageRef.current;
-      if (!stage) return;
+      if (!isDraggingRef.current || !stageRef.current) return;
 
+      const stage = stageRef.current;
       const container = stage.container();
       const rect = container.getBoundingClientRect();
 
@@ -434,29 +434,42 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
       const mouseX = (e.clientX - rect.left - stageX) / scale;
       const mouseY = (e.clientY - rect.top - stageY) / scale;
 
+      // Store in ref for the mouseUp handler
+      dragPositionRef.current = { x: mouseX, y: mouseY };
+
+      // Update state for rendering (throttled by React's batching)
       setDragState((prev) =>
         prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null
       );
     };
 
     const handleMouseUp = () => {
-      if (dragState && draggingTokenRef.current) {
-        const token = draggingTokenRef.current;
+      if (!isDraggingRef.current) return;
+
+      const token = draggingTokenRef.current;
+      const position = dragPositionRef.current;
+
+      if (token && position) {
         const offset = (token.size * cellSize) / 2;
 
         // Snap to grid
-        const col = Math.round((dragState.currentX - offset) / cellSize);
-        const row = Math.round((dragState.currentY - offset) / cellSize);
+        const col = Math.round((position.x - offset) / cellSize);
+        const row = Math.round((position.y - offset) / cellSize);
 
         // Only move if user can edit this token
         if (canEditToken(token.ownerId)) {
           moveToken(token.id, { col, row });
         }
       }
-      setDragState(null);
+
+      // Clean up
+      isDraggingRef.current = false;
+      dragPositionRef.current = null;
       draggingTokenRef.current = null;
+      setDragState(null);
     };
 
+    // Set up listeners once on mount
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
     window.addEventListener("touchmove", handleMouseMove as any);
@@ -468,7 +481,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
       window.removeEventListener("touchmove", handleMouseMove as any);
       window.removeEventListener("touchend", handleMouseUp);
     };
-  }, [dragState, cellSize, moveToken, stageRef, canEditToken]);
+  }, [cellSize, moveToken, stageRef, canEditToken]); // Removed dragState from deps
 
   const handleMouseDown = useCallback(
     (token: Token, e: any) => {
@@ -487,7 +500,11 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
       const x = token.position.col * cellSize + offset;
       const y = token.position.row * cellSize + offset;
 
+      // Set refs for the drag handlers
+      isDraggingRef.current = true;
+      dragPositionRef.current = { x, y };
       draggingTokenRef.current = token;
+
       setDragState({
         tokenId: token.id,
         startX: x,

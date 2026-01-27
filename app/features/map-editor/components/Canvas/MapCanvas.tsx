@@ -16,7 +16,9 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
+  const isRightClickPanningRef = useRef(false); // Ref to avoid effect re-runs
   const lastMousePos = useRef<{ x: number; y: number } | null>(null);
+  const hasCenteredRef = useRef<string | null>(null); // Track which map we've centered
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -53,6 +55,30 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
+  // Center the grid on initial load
+  useEffect(() => {
+    if (!map || dimensions.width === 0 || dimensions.height === 0) return;
+
+    // Only center once per map (check if we've already centered this map)
+    if (hasCenteredRef.current === map.id) return;
+
+    const gridWidthPx = map.grid.width * map.grid.cellSize;
+    const gridHeightPx = map.grid.height * map.grid.cellSize;
+    const scale = map.viewport.scale;
+
+    // Calculate position to center the grid
+    const centerX = (dimensions.width - gridWidthPx * scale) / 2;
+    const centerY = (dimensions.height - gridHeightPx * scale) / 2;
+
+    // Only update if the viewport is at default position (0, 0)
+    // This preserves user's viewport if they've already panned
+    if (map.viewport.x === 0 && map.viewport.y === 0) {
+      setViewport(centerX, centerY, scale);
+    }
+
+    hasCenteredRef.current = map.id;
+  }, [map?.id, map?.grid.width, map?.grid.height, map?.grid.cellSize, map?.viewport.scale, dimensions.width, dimensions.height, setViewport]);
+
   // Set cursor during right-click panning (on body, container, and stage)
   useEffect(() => {
     if (isRightClickPanning) {
@@ -81,10 +107,10 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
     }
   }, [isRightClickPanning]);
 
-  // Handle right-click panning with mouse move
+  // Handle right-click panning with mouse move - use ref to avoid effect re-runs
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isRightClickPanning || !lastMousePos.current || !stageRef.current)
+      if (!isRightClickPanningRef.current || !lastMousePos.current || !stageRef.current)
         return;
 
       const dx = e.clientX - lastMousePos.current.x;
@@ -101,7 +127,8 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
     };
 
     const handleMouseUp = (e: MouseEvent) => {
-      if (e.button === 2 && isRightClickPanning) {
+      if (e.button === 2 && isRightClickPanningRef.current) {
+        isRightClickPanningRef.current = false;
         setIsRightClickPanning(false);
         setIsPanning(false);
         lastMousePos.current = null;
@@ -114,13 +141,14 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
       }
     };
 
+    // Set up listeners once on mount
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isRightClickPanning, setIsPanning, setViewport]);
+  }, [setIsPanning, setViewport]); // Removed isRightClickPanning from deps
 
   if (!map) return null;
 
@@ -156,6 +184,7 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
   const handleMouseDown = (e: any) => {
     // Right-click to pan
     if (e.evt.button === 2) {
+      isRightClickPanningRef.current = true;
       setIsRightClickPanning(true);
       setIsPanning(true);
       lastMousePos.current = { x: e.evt.clientX, y: e.evt.clientY };

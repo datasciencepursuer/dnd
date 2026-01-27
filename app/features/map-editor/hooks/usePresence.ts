@@ -1,9 +1,16 @@
 import { useEffect, useRef, useCallback } from "react";
 import { usePresenceStore } from "../store/presence-store";
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const BASE_RECONNECT_DELAY = 2000; // 2 seconds
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds
+
 export function usePresence(mapId: string | undefined) {
   const eventSourceRef = useRef<EventSource | null>(null);
   const connectionIdRef = useRef<string | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isUnmountedRef = useRef(false);
 
   const setUsers = usePresenceStore((s) => s.setUsers);
   const setConnected = usePresenceStore((s) => s.setConnected);
@@ -11,8 +18,15 @@ export function usePresence(mapId: string | undefined) {
   const setConnectionId = usePresenceStore((s) => s.setConnectionId);
   const reset = usePresenceStore((s) => s.reset);
 
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
   const connect = useCallback(() => {
-    if (!mapId || eventSourceRef.current) return;
+    if (!mapId || eventSourceRef.current || isUnmountedRef.current) return;
 
     const eventSource = new EventSource(`/api/maps/${mapId}/presence`);
     eventSourceRef.current = eventSource;
@@ -24,6 +38,8 @@ export function usePresence(mapId: string | undefined) {
         setConnectionId(data.connectionId);
         setConnected(true);
         setError(null);
+        // Reset retry count on successful connection
+        reconnectAttemptsRef.current = 0;
       } catch (error) {
         console.error("Failed to parse connected event:", error);
       }
@@ -40,31 +56,54 @@ export function usePresence(mapId: string | undefined) {
 
     eventSource.onerror = () => {
       setConnected(false);
-      setError("Connection lost. Reconnecting...");
 
-      // EventSource will auto-reconnect, but clean up our state
+      // Clean up current connection
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
 
-      // Try to reconnect after a short delay
-      setTimeout(() => {
-        if (document.visibilityState === "visible" && mapId) {
+      // Don't reconnect if unmounted or max attempts reached
+      if (isUnmountedRef.current) return;
+
+      reconnectAttemptsRef.current++;
+
+      if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
+        setError("Connection failed. Please refresh the page.");
+        return;
+      }
+
+      // Exponential backoff with jitter
+      const delay = Math.min(
+        BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current - 1) +
+          Math.random() * 1000,
+        MAX_RECONNECT_DELAY
+      );
+
+      setError(`Connection lost. Reconnecting in ${Math.round(delay / 1000)}s...`);
+
+      // Clear any existing reconnect timeout
+      clearReconnectTimeout();
+
+      // Try to reconnect after delay
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (document.visibilityState === "visible" && mapId && !isUnmountedRef.current) {
           connect();
         }
-      }, 2000);
+      }, delay);
     };
-  }, [mapId, setUsers, setConnected, setError, setConnectionId]);
+  }, [mapId, setUsers, setConnected, setError, setConnectionId, clearReconnectTimeout]);
 
   const disconnect = useCallback(() => {
+    clearReconnectTimeout();
+
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
     connectionIdRef.current = null;
     setConnected(false);
-  }, [setConnected]);
+  }, [setConnected, clearReconnectTimeout]);
 
   const sendLeaveBeacon = useCallback(() => {
     if (!mapId || !connectionIdRef.current) return;
@@ -79,6 +118,8 @@ export function usePresence(mapId: string | undefined) {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
+        // Reset retry count when user comes back
+        reconnectAttemptsRef.current = 0;
         connect();
       } else {
         // Don't disconnect immediately - let the SSE handle it
@@ -112,6 +153,8 @@ export function usePresence(mapId: string | undefined) {
 
   // Connect on mount, disconnect on unmount
   useEffect(() => {
+    isUnmountedRef.current = false;
+
     if (!mapId) {
       reset();
       return;
@@ -120,9 +163,11 @@ export function usePresence(mapId: string | undefined) {
     connect();
 
     return () => {
+      isUnmountedRef.current = true;
+      clearReconnectTimeout();
       sendLeaveBeacon();
       disconnect();
       reset();
     };
-  }, [mapId, connect, disconnect, sendLeaveBeacon, reset]);
+  }, [mapId, connect, disconnect, sendLeaveBeacon, reset, clearReconnectTimeout]);
 }

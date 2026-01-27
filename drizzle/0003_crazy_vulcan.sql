@@ -1,0 +1,1 @@
+ALTER TABLE "rateLimit" ADD COLUMN "last_request" integer NOT NULL;
