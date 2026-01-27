@@ -16,4 +16,7 @@ export const env = {
   get DATABASE_URL() {
     return getEnvVar("DATABASE_URL");
   },
+  get UPLOADTHING_TOKEN() {
+    return getEnvVar("UPLOADTHING_TOKEN");
+  },
 };

@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
 import { ShareDialog } from "../ShareDialog/ShareDialog";
 
-const tools: { id: EditorTool; label: string; icon: string }[] = [
-  { id: "select", label: "Select", icon: "↖" },
-  { id: "pan", label: "Pan", icon: "✋" },
-  { id: "token", label: "Token", icon: "●" },
+const tools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
+  { id: "select", label: "Select", icon: "↖", shortcut: "1" },
+  { id: "pan", label: "Pan", icon: "✋", shortcut: "2" },
+  { id: "draw", label: "Draw", icon: "✏", shortcut: "3" },
+  { id: "erase", label: "Erase", icon: "⌫", shortcut: "4" },
 ];
 
 interface ToolbarProps {
@@ -37,6 +38,37 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
       setHeight(map.grid.height);
     }
   }, [map?.id, map?.name, map?.grid.width, map?.grid.height]);
+
+  // Keyboard shortcuts for tools
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        case "1":
+          setTool("select");
+          break;
+        case "2":
+          setTool("pan");
+          break;
+        case "3":
+          setTool("draw");
+          break;
+        case "4":
+          setTool("erase");
+          break;
+      }
+    },
+    [setTool]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (readOnly) return;
@@ -89,16 +121,16 @@ export function Toolbar({ readOnly = false, permission = "owner", mapId }: Toolb
               <button
                 key={tool.id}
                 onClick={() => setTool(tool.id)}
-                disabled={readOnly && tool.id === "token"}
-                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                   selectedTool === tool.id
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
-                title={tool.label}
+                title={`${tool.label} (${tool.shortcut})`}
               >
                 <span className="mr-1">{tool.icon}</span>
                 {tool.label}
+                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
               </button>
             ))}
           </div>

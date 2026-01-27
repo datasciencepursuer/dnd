@@ -154,7 +154,7 @@ export default function Maps() {
             to={`/playground/${map.id}`}
             className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded text-center hover:bg-blue-700 cursor-pointer"
           >
-            {map.permission === "view" ? "View" : "Edit"}
+            {map.permission === "view" ? "View" : "Play"}
           </Link>
           {canDelete && (
             <button

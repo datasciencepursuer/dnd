@@ -2,16 +2,9 @@ import type { Route } from "./+types/invite.$token";
 import { eq, and, gt } from "drizzle-orm";
 import { redirect } from "react-router";
 import { db } from "~/.server/db";
-import { mapInvitations, mapPermissions, maps } from "~/.server/db/schema";
+import { mapInvitations, mapPermissions } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { nanoid } from "nanoid";
-
-export function meta({}: Route.MetaArgs) {
-  return [
-    { title: "Accept Invitation - DnD" },
-    { name: "description", content: "Accept map invitation" },
-  ];
-}
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -83,15 +76,4 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   // Redirect to the map
   throw redirect(`/playground/${inv.mapId}`);
-}
-
-export default function AcceptInvitation() {
-  // This should never render since loader always redirects
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <p className="text-gray-500 dark:text-gray-400">
-        Processing invitation...
-      </p>
-    </div>
-  );
 }

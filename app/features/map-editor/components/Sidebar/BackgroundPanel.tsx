@@ -1,8 +1,5 @@
 import { useMapStore } from "../../store";
-
-const backgrounds = [
-  { name: "Cellar", imageUrl: "/Cellar.png" },
-];
+import { BACKGROUND_PRESETS } from "../../constants";
 
 export function BackgroundPanel() {
   const map = useMapStore((s) => s.map);
@@ -14,7 +11,7 @@ export function BackgroundPanel() {
     <div className="p-4 space-y-4 border-b border-gray-200 dark:border-gray-700">
       <h3 className="font-semibold text-gray-900 dark:text-white">Map Background</h3>
       <div className="flex flex-wrap gap-2">
-        {backgrounds.map((bg) => (
+        {BACKGROUND_PRESETS.map((bg) => (
           <button
             key={bg.name}
             onClick={() => setBackground(bg.imageUrl)}

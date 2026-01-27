@@ -1,7 +1,8 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
+import { useImage } from "../../hooks";
 
 interface DragState {
   tokenId: string;
@@ -9,54 +10,6 @@ interface DragState {
   startY: number;
   currentX: number;
   currentY: number;
-}
-
-// Global cache for loaded images
-const imageCache = new Map<string, HTMLImageElement>();
-
-// Hook to load an image with caching
-function useImage(url: string | null): HTMLImageElement | null {
-  const [image, setImage] = useState<HTMLImageElement | null>(() => {
-    // Check cache on initial render
-    if (url && imageCache.has(url)) {
-      return imageCache.get(url) || null;
-    }
-    return null;
-  });
-
-  useEffect(() => {
-    if (!url) {
-      setImage(null);
-      return;
-    }
-
-    // Check cache first
-    if (imageCache.has(url)) {
-      setImage(imageCache.get(url) || null);
-      return;
-    }
-
-    const img = new window.Image();
-    img.src = url;
-
-    // Check if already loaded (from browser cache)
-    if (img.complete && img.naturalWidth > 0) {
-      imageCache.set(url, img);
-      setImage(img);
-      return;
-    }
-
-    img.onload = () => {
-      imageCache.set(url, img);
-      setImage(img);
-    };
-
-    return () => {
-      img.onload = null;
-    };
-  }, [url]);
-
-  return image;
 }
 
 /**
@@ -115,8 +68,8 @@ function TokenItem({
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2; // Fill most of the cell
 
-  // Hover highlight color - different for editable vs locked
-  const hoverStroke = isEditable ? "#60a5fa" : "#9ca3af"; // blue-400 or gray-400
+  // Hover highlight color - use token color for editable, gray for locked
+  const hoverStroke = isEditable ? token.color : "#9ca3af";
   const hoverStrokeWidth = 2;
 
   // Calculate dimensions preserving aspect ratio
@@ -145,7 +98,8 @@ function TokenItem({
   };
 
   const handleClick = (e: any) => {
-    if (selectedTool !== "select") return;
+    // Allow selection in select mode and draw mode (for color picking)
+    if (selectedTool !== "select" && selectedTool !== "draw") return;
     e.cancelBubble = true;
     actions.select();
   };
@@ -213,7 +167,7 @@ function TokenItem({
               height={imgHeight + 8}
               offsetX={imgWidth / 2 + 4}
               offsetY={imgHeight / 2 + 4}
-              stroke={isEditable ? "#3b82f6" : "#9ca3af"}
+              stroke={isEditable ? token.color : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -239,7 +193,7 @@ function TokenItem({
             >
               <Circle
                 radius={flipBtnSize / 2}
-                fill="#3b82f6"
+                fill={token.color}
                 stroke="#ffffff"
                 strokeWidth={2}
               />
@@ -266,7 +220,7 @@ function TokenItem({
           {isSelected && !isDragging && (
             <Circle
               radius={radius + 4}
-              stroke={isEditable ? "#3b82f6" : "#9ca3af"}
+              stroke={isEditable ? token.color : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -547,24 +501,26 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
     [selectedTool, cellSize, setSelectedElements, canEditToken]
   );
 
+  const isPanning = useEditorStore((s) => s.isPanning);
+
   const handleHoverStart = useCallback(
     (tokenId: string) => {
       setHoveredTokenId(tokenId);
-      // Change cursor to pointer
-      if (stageRef.current) {
+      // Change cursor to pointer (only if not panning)
+      if (stageRef.current && !isPanning) {
         stageRef.current.container().style.cursor = "pointer";
       }
     },
-    [stageRef]
+    [stageRef, isPanning]
   );
 
   const handleHoverEnd = useCallback(() => {
     setHoveredTokenId(null);
-    // Reset cursor
-    if (stageRef.current) {
+    // Reset cursor (only if not panning)
+    if (stageRef.current && !isPanning) {
       stageRef.current.container().style.cursor = "default";
     }
-  }, [stageRef]);
+  }, [stageRef, isPanning]);
 
   // Calculate L-shaped path points (move X first, then Y)
   const getPathPoints = (
@@ -608,7 +564,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
                     snapped.x,
                     snapped.y
                   )}
-                  stroke="#3b82f6"
+                  stroke={draggingTokenRef.current.color}
                   strokeWidth={3}
                   dash={[10, 5]}
                   lineCap="round"

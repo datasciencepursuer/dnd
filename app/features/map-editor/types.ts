@@ -181,6 +181,8 @@ export interface DnDMap {
 export type EditorTool =
   | "select"
   | "pan"
+  | "draw"
+  | "erase"
   | "token"
   | "wall"
   | "area"

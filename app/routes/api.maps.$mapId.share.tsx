@@ -1,15 +1,8 @@
 import type { Route } from "./+types/api.maps.$mapId.share";
 import { eq, and } from "drizzle-orm";
 import { db } from "~/.server/db";
-import {
-  maps,
-  mapPermissions,
-  mapInvitations,
-  user,
-  type PermissionLevel,
-  type PlayerPermissions,
-  DEFAULT_PERMISSIONS,
-} from "~/.server/db/schema";
+import type { PermissionLevel, PlayerPermissions } from "~/.server/db/schema";
+import { mapPermissions, mapInvitations, user } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { nanoid } from "nanoid";

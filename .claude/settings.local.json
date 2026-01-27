@@ -14,7 +14,9 @@
       "Bash(npx drizzle-kit generate:*)",
       "Bash(npx drizzle-kit push)",
       "WebFetch(domain:www.better-auth.com)",
-      "Bash(./node_modules/.bin/tsc:*)"
+      "Bash(./node_modules/.bin/tsc:*)",
+      "mcp__claude_ai_Ref__ref_search_documentation",
+      "mcp__claude_ai_Ref__ref_read_url"
     ]
   }
 }

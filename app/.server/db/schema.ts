@@ -6,6 +6,7 @@ import {
   jsonb,
   boolean,
   unique,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -182,11 +183,33 @@ export const mapInvitations = pgTable(
   })
 );
 
+// Map presence table - for tracking users currently viewing a map
+export const mapPresence = pgTable(
+  "map_presence",
+  {
+    id: text("id").primaryKey(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    lastSeen: timestamp("last_seen").notNull().defaultNow(),
+    connectionId: text("connection_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    unique().on(table.mapId, table.userId, table.connectionId),
+    index("map_presence_map_id_idx").on(table.mapId),
+  ]
+);
+
 // Drizzle relations for easier querying
 export const userRelations = relations(user, ({ many }) => ({
   maps: many(maps),
   mapPermissions: many(mapPermissions),
   sentInvitations: many(mapInvitations),
+  mapPresence: many(mapPresence),
 }));
 
 export const mapsRelations = relations(maps, ({ one, many }) => ({
@@ -196,6 +219,7 @@ export const mapsRelations = relations(maps, ({ one, many }) => ({
   }),
   permissions: many(mapPermissions),
   invitations: many(mapInvitations),
+  presence: many(mapPresence),
 }));
 
 export const mapPermissionsRelations = relations(mapPermissions, ({ one }) => ({
@@ -224,6 +248,17 @@ export const mapInvitationsRelations = relations(mapInvitations, ({ one }) => ({
   }),
 }));
 
+export const mapPresenceRelations = relations(mapPresence, ({ one }) => ({
+  map: one(maps, {
+    fields: [mapPresence.mapId],
+    references: [maps.id],
+  }),
+  user: one(user, {
+    fields: [mapPresence.userId],
+    references: [user.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -236,4 +271,6 @@ export type MapPermission = typeof mapPermissions.$inferSelect;
 export type NewMapPermission = typeof mapPermissions.$inferInsert;
 export type MapInvitation = typeof mapInvitations.$inferSelect;
 export type NewMapInvitation = typeof mapInvitations.$inferInsert;
+export type MapPresence = typeof mapPresence.$inferSelect;
+export type NewMapPresence = typeof mapPresence.$inferInsert;
 export type PermissionLevel = "view" | "edit" | "owner";

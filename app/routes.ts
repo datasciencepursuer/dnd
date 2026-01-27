@@ -12,5 +12,9 @@ export default [
   route("api/maps/:mapId", "routes/api.maps.$mapId.tsx"),
   route("api/maps/:mapId/share", "routes/api.maps.$mapId.share.tsx"),
   route("api/maps/:mapId/transfer", "routes/api.maps.$mapId.transfer.tsx"),
+  route("api/maps/:mapId/presence", "routes/api.maps.$mapId.presence.tsx"),
+  route("api/maps/:mapId/presence/leave", "routes/api.maps.$mapId.presence.leave.tsx"),
   route("invite/:token", "routes/invite.$token.tsx"),
+  route("api/uploadthing", "routes/api.uploadthing.ts"),
+  route("api/uploadthing/files", "routes/api.uploadthing.files.ts"),
 ] satisfies RouteConfig;

@@ -1,6 +1,6 @@
 import { Image } from "react-konva";
-import { useState, useEffect } from "react";
 import type { Background, GridSettings } from "../../types";
+import { useImage } from "../../hooks";
 
 interface BackgroundLayerProps {
   background: Background | null;
@@ -8,22 +8,7 @@ interface BackgroundLayerProps {
 }
 
 export function BackgroundLayer({ background, grid }: BackgroundLayerProps) {
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    if (!background?.imageUrl) {
-      setImage(null);
-      return;
-    }
-
-    const img = new window.Image();
-    img.src = background.imageUrl;
-    img.onload = () => setImage(img);
-
-    return () => {
-      img.onload = null;
-    };
-  }, [background?.imageUrl]);
+  const image = useImage(background?.imageUrl ?? null);
 
   if (!image || !background) return null;
 

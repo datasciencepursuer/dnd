@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath } from "../types";
 import { createNewMap } from "../constants";
 
 interface MapState {
@@ -17,6 +17,7 @@ interface MapState {
   removeToken: (id: string) => void;
   moveToken: (id: string, position: GridPosition) => void;
   flipToken: (id: string) => void;
+  reorderTokens: (fromIndex: number, toIndex: number) => void;
 
   // Grid actions
   updateGrid: (settings: Partial<GridSettings>) => void;
@@ -31,6 +32,11 @@ interface MapState {
   toggleFog: () => void;
   revealCell: (col: number, row: number) => void;
   hideCell: (col: number, row: number) => void;
+
+  // Drawing actions
+  addFreehandPath: (path: FreehandPath) => void;
+  removeFreehandPath: (id: string) => void;
+  clearAllDrawings: () => void;
 }
 
 export const useMapStore = create<MapState>()(
@@ -120,6 +126,21 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
+      reorderTokens: (fromIndex, toIndex) =>
+        set((state) => {
+          if (!state.map) return state;
+          const tokens = [...state.map.tokens];
+          const [removed] = tokens.splice(fromIndex, 1);
+          tokens.splice(toIndex, 0, removed);
+          return {
+            map: {
+              ...state.map,
+              tokens,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
       updateGrid: (settings) =>
         set((state) => {
           if (!state.map) return state;
@@ -202,6 +223,42 @@ export const useMapStore = create<MapState>()(
                   (k) => k !== key
                 ),
               },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      addFreehandPath: (path) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              freehand: [...state.map.freehand, path],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      removeFreehandPath: (id) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              freehand: state.map.freehand.filter((p) => p.id !== id),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      clearAllDrawings: () =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              freehand: [],
               updatedAt: new Date().toISOString(),
             },
           };

@@ -1,8 +1,11 @@
-import { useEffect, lazy, Suspense, useState } from "react";
+import { useEffect, lazy, Suspense, useState, useCallback } from "react";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
+import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { useMapStore, useEditorStore } from "../store";
+import { preloadImages } from "../hooks";
+import { PRESET_IMAGES } from "../constants";
 import type { Token, PlayerPermissions } from "../types";
 
 const MapCanvas = lazy(() =>
@@ -34,6 +37,44 @@ export function MapEditor({
   useEffect(() => {
     setEditorContext(userId, permission, customPermissions);
   }, [userId, permission, customPermissions, setEditorContext]);
+
+  // Preload preset images on mount
+  useEffect(() => {
+    preloadImages(Object.values(PRESET_IMAGES));
+  }, []);
+
+  // Undo/Redo - get stable references directly from temporal store
+  const temporalStore = useMapStore.temporal;
+  const undo = useCallback(() => temporalStore.getState().undo(), [temporalStore]);
+  const redo = useCallback(() => temporalStore.getState().redo(), [temporalStore]);
+
+  // Keyboard shortcuts for undo/redo
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Ctrl+Z / Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+
+      // Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y for redo
+      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+    },
+    [undo, redo]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   // Auto-save on map changes (only if not read-only)
   useEffect(() => {
@@ -77,6 +118,7 @@ export function MapEditor({
     <div className="flex flex-col h-full">
       <Toolbar readOnly={readOnly} permission={permission} mapId={mapId} />
       <div className="flex flex-1 overflow-hidden">
+        <Sidebar mapId={mapId} onEditToken={handleEditToken} />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -84,9 +126,9 @@ export function MapEditor({
             </div>
           }
         >
-          <MapCanvas onEditToken={handleEditToken} />
+          <MapCanvas />
         </Suspense>
-        <Sidebar />
+        <DiceHistoryBar />
       </div>
 
       {editingToken && (

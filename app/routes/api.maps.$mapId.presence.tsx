@@ -1,0 +1,129 @@
+import type { Route } from "./+types/api.maps.$mapId.presence";
+import { eq, and, lt } from "drizzle-orm";
+import { db } from "~/.server/db";
+import { mapPresence, user } from "~/.server/db/schema";
+import { requireAuth } from "~/.server/auth/session";
+import { requireMapPermission } from "~/.server/permissions/map-permissions";
+
+const POLL_INTERVAL = 5000; // 5 seconds
+const STALE_THRESHOLD = 45000; // 45 seconds
+
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const session = await requireAuth(request);
+  const { mapId } = params;
+
+  if (!mapId) {
+    return new Response("Map ID required", { status: 400 });
+  }
+
+  // Check permission to view the map
+  await requireMapPermission(mapId, session.user.id, "view");
+
+  // Generate a unique connection ID for this SSE connection
+  const connectionId = crypto.randomUUID();
+  const presenceId = crypto.randomUUID();
+
+  // Create a ReadableStream for SSE
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+
+      // Register presence
+      try {
+        await db.insert(mapPresence).values({
+          id: presenceId,
+          mapId,
+          userId: session.user.id,
+          connectionId,
+          lastSeen: new Date(),
+        });
+      } catch (error) {
+        console.error("Failed to register presence:", error);
+      }
+
+      // Send initial connection ID
+      controller.enqueue(
+        encoder.encode(`event: connected\ndata: ${JSON.stringify({ connectionId })}\n\n`)
+      );
+
+      // Function to send presence update
+      const sendPresenceUpdate = async () => {
+        try {
+          // Update our own heartbeat
+          await db
+            .update(mapPresence)
+            .set({ lastSeen: new Date() })
+            .where(eq(mapPresence.id, presenceId));
+
+          // Clean up stale records (older than STALE_THRESHOLD)
+          const staleTime = new Date(Date.now() - STALE_THRESHOLD);
+          await db
+            .delete(mapPresence)
+            .where(
+              and(
+                eq(mapPresence.mapId, mapId),
+                lt(mapPresence.lastSeen, staleTime)
+              )
+            );
+
+          // Get all active users for this map
+          const activePresence = await db
+            .select({
+              id: user.id,
+              name: user.name,
+              image: user.image,
+            })
+            .from(mapPresence)
+            .innerJoin(user, eq(mapPresence.userId, user.id))
+            .where(eq(mapPresence.mapId, mapId));
+
+          // Deduplicate users (a user might have multiple connections)
+          const uniqueUsers = Array.from(
+            new Map(activePresence.map((u) => [u.id, u])).values()
+          );
+
+          // Send presence event
+          controller.enqueue(
+            encoder.encode(`event: presence\ndata: ${JSON.stringify({ users: uniqueUsers })}\n\n`)
+          );
+        } catch (error) {
+          console.error("Failed to send presence update:", error);
+        }
+      };
+
+      // Send initial presence update
+      await sendPresenceUpdate();
+
+      // Set up polling interval
+      const intervalId = setInterval(sendPresenceUpdate, POLL_INTERVAL);
+
+      // Handle abort signal (client disconnect)
+      request.signal.addEventListener("abort", async () => {
+        clearInterval(intervalId);
+
+        // Remove our presence record
+        try {
+          await db
+            .delete(mapPresence)
+            .where(eq(mapPresence.id, presenceId));
+        } catch (error) {
+          console.error("Failed to clean up presence:", error);
+        }
+
+        try {
+          controller.close();
+        } catch {
+          // Stream may already be closed
+        }
+      });
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}

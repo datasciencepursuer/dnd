@@ -78,26 +78,29 @@ export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
             />
           </div>
 
-          {/* Color (only for non-image tokens) */}
-          {!token.imageUrl && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Color
-              </label>
-              <div className="flex flex-wrap gap-1">
-                {TOKEN_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setColor(c)}
-                    className={`w-8 h-8 rounded-full border-2 cursor-pointer ${
-                      color === c ? "border-blue-500" : "border-transparent"
-                    }`}
-                    style={{ backgroundColor: c }}
-                  />
-                ))}
-              </div>
+          {/* Color */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Color
+              {token.imageUrl && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                  (used for travel lines & drawing)
+                </span>
+              )}
+            </label>
+            <div className="flex flex-wrap gap-1">
+              {TOKEN_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`w-8 h-8 rounded-full border-2 cursor-pointer ${
+                    color === c ? "border-blue-500" : "border-transparent"
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
             </div>
-          )}
+          </div>
 
           {/* Size */}
           <div>

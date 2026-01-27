@@ -10,7 +10,7 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 
 - `pnpm run dev` - Start development server with HMR (http://localhost:5173)
 - `pnpm run typecheck` - Run TypeScript type checking and generate route types
-- `pnpm drizzle-kit push` - Push schema changes to database (requires DATABASE_URL in .env)
+- `pnpm drizzle-kit push` - Push schema changes to database
 
 **Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it.
 
@@ -33,29 +33,59 @@ Uses better-auth for email/password authentication.
 - Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders
 - Schema: Auth tables (user, session, account, verification) in `app/.server/db/schema.ts`
 
-**Required env vars:**
+### Required Environment Variables
 - `BETTER_AUTH_SECRET` - Generate with: `openssl rand -base64 32`
 - `BETTER_AUTH_URL` - App URL (defaults to http://localhost:5173)
 - `DATABASE_URL` - Neon PostgreSQL connection string
+- `UPLOADTHING_TOKEN` - UploadThing API token for image uploads
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
 
-**State Management** - Two Zustand stores with different purposes:
-- `map-store.ts` - Persisted map data (tokens, grid, fog). Wraps with `zundo` temporal middleware for undo/redo (50 history limit)
-- `editor-store.ts` - Ephemeral UI state (selected tool, selection, drawing state). No persistence or undo.
+**State Management** - Four Zustand stores:
+- `map-store.ts` - Persisted map data (tokens, grid, fog). Uses `zundo` temporal middleware for undo/redo (50 history limit)
+- `editor-store.ts` - Ephemeral UI state (selected tool, selection, permissions). No persistence.
+- `dice-store.ts` - Dice rolling state and history (keeps last 8 rolls)
+- `presence-store.ts` - Real-time user presence tracking for collaborative editing
 
 **Key Types** (`types.ts`):
 - `DnDMap` - Complete map document (grid, tokens, walls, areas, fog, viewport)
 - `Token` - Map token with position (`GridPosition`), layer, size, image/color
 - `GridSettings` - Grid config (type: square/hex, cellSize, dimensions)
-- `EditorTool` - Tool enum (select, pan, token, wall, area, text, fog-reveal, fog-hide)
+- `EditorTool` - Tool enum (select, pan, draw, erase, token, wall, area, text, fog-reveal, fog-hide)
+- `PlayerPermissions` - Granular permissions for token/map operations
+- `EditorContext` - Current user's permission context
 
 **Persistence**:
-- Currently LocalStorage via `utils/storage-utils.ts` (index + individual map storage)
-- Database schema ready in `app/.server/db/schema.ts` (Drizzle/Neon PostgreSQL)
+- LocalStorage via `features/map-editor/utils/storage-utils.ts`
+- Database: Drizzle/Neon PostgreSQL (`app/.server/db/schema.ts`)
 
-**Routes**: `/maps` (list), `/playground` (new), `/playground/:mapId` (edit)
+**Routes**:
+- `/maps` - Map list
+- `/playground` - New map
+- `/playground/:mapId` - Edit existing map
+- `/invite/:token` - Accept map invitation
+
+**API Routes**:
+- `/api/maps` - Map CRUD
+- `/api/maps/:mapId` - Single map operations
+- `/api/maps/:mapId/share` - Share map with users
+- `/api/maps/:mapId/transfer` - Transfer map ownership
+- `/api/maps/:mapId/presence` - Get/update user presence
+- `/api/maps/:mapId/presence/leave` - Remove user presence on disconnect
+- `/api/uploadthing` - Image upload endpoint
+
+### Map Sharing & Permissions
+Database tables in `app/.server/db/schema.ts`:
+- `mapPermissions` - User access levels (view/edit/owner) with optional custom permissions
+- `mapInvitations` - Email-based invites with tokens for users who may not have accounts
+- `mapPresence` - Tracks users currently viewing a map (connectionId-based)
+
+### File Uploads
+Uses UploadThing for image uploads (token images, map backgrounds).
+- Server config: `app/.server/uploadthing.ts`
+- Client utilities: `app/utils/uploadthing.ts`
+- Two uploaders: `imageUploader` (single, 4MB) and `tokenImageUploader` (up to 10 images, 4MB each)
 
 ### Styling
 - Tailwind CSS v4 with Vite plugin

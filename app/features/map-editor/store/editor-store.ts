@@ -55,7 +55,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   permission: "view",
   permissions: DEFAULT_PERMISSIONS.view,
 
-  setTool: (tool) => set({ selectedTool: tool, selectedElementIds: [] }),
+  setTool: (tool) =>
+    set((state) => ({
+      selectedTool: tool,
+      // Preserve selection when switching to draw tool (needs selected token for color)
+      selectedElementIds: tool === "draw" ? state.selectedElementIds : [],
+    })),
 
   setColor: (color) => set({ currentColor: color }),
 
