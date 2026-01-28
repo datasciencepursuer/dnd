@@ -137,20 +137,31 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
+  const { eq, and } = await import("drizzle-orm");
+  const { db } = await import("~/.server/db");
+  const { groupInvitations, groupMembers } = await import("~/.server/db/schema");
+  const { token } = params;
+
+  // Handle decline (DELETE)
+  if (request.method === "DELETE") {
+    try {
+      await db.delete(groupInvitations).where(eq(groupInvitations.token, token));
+      return Response.json({ success: true });
+    } catch (error) {
+      console.error("Failed to decline invitation:", error);
+      return Response.json({ error: "Failed to decline invitation" }, { status: 500 });
+    }
+  }
+
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const { eq, and } = await import("drizzle-orm");
-  const { db } = await import("~/.server/db");
-  const { groupInvitations, groupMembers } = await import("~/.server/db/schema");
   const { getSession } = await import("~/.server/auth/session");
   const { getUserGroupCount, MAX_GROUPS_PER_USER } = await import(
     "~/.server/permissions/group-permissions"
   );
   const { nanoid } = await import("nanoid");
-
-  const { token } = params;
 
   // Get session - require login
   const session = await getSession(request);
@@ -202,15 +213,25 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   // Add user to group and delete invitation
   // Note: Neon HTTP driver doesn't support transactions, so we do sequential operations
-  await db.insert(groupMembers).values({
-    id: nanoid(),
-    groupId: inv.groupId,
-    userId,
-    role: "member",
-    joinedAt: new Date(),
-  });
+  try {
+    await db.insert(groupMembers).values({
+      id: nanoid(),
+      groupId: inv.groupId,
+      userId,
+      role: "member",
+      joinedAt: new Date(),
+    });
+  } catch (error) {
+    console.error("Failed to add member to group:", error);
+    return Response.json({ error: "Failed to accept invitation" }, { status: 500 });
+  }
 
-  await db.delete(groupInvitations).where(eq(groupInvitations.id, inv.id));
+  // Delete invitation (non-fatal if this fails since user is already added)
+  try {
+    await db.delete(groupInvitations).where(eq(groupInvitations.id, inv.id));
+  } catch (error) {
+    console.error("Failed to delete invitation (non-fatal):", error);
+  }
 
   return Response.json({ success: true, groupId: inv.groupId });
 }
@@ -220,10 +241,44 @@ export default function InviteGroupToken() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isDeclining, setIsDeclining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Build login URL with redirect back to this invitation page
   const loginUrl = `/login?redirect=${encodeURIComponent(location.pathname)}`;
+
+  const handleDecline = async () => {
+    setIsDeclining(true);
+    setError(null);
+
+    try {
+      const response = await fetch(window.location.pathname, {
+        method: "DELETE",
+        headers: {
+          "Accept": "application/json",
+        },
+      });
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        navigate("/maps");
+        return;
+      }
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        navigate("/maps");
+      } else {
+        setError(result.error || "Failed to decline invitation");
+        setIsDeclining(false);
+      }
+    } catch (err) {
+      console.error("Decline invitation error:", err);
+      setError("Failed to decline invitation");
+      setIsDeclining(false);
+    }
+  };
 
   const handleAccept = async () => {
     setIsAccepting(true);
@@ -232,7 +287,18 @@ export default function InviteGroupToken() {
     try {
       const response = await fetch(window.location.pathname, {
         method: "POST",
+        headers: {
+          "Accept": "application/json",
+        },
       });
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        // Response is not JSON, might be HTML - navigate to groups and let user check
+        console.error("Unexpected response type:", contentType);
+        navigate("/groups");
+        return;
+      }
 
       const result = await response.json();
 
@@ -242,7 +308,8 @@ export default function InviteGroupToken() {
         setError(result.error || "Failed to accept invitation");
         setIsAccepting(false);
       }
-    } catch {
+    } catch (err) {
+      console.error("Accept invitation error:", err);
       setError("Failed to accept invitation");
       setIsAccepting(false);
     }
@@ -401,15 +468,16 @@ export default function InviteGroupToken() {
               </div>
             )}
             <div className="flex gap-3">
-              <Link
-                to="/maps"
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-center rounded hover:bg-gray-50 dark:hover:bg-gray-700"
+              <button
+                onClick={handleDecline}
+                disabled={isDeclining || isAccepting}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-center rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 cursor-pointer"
               >
-                Decline
-              </Link>
+                {isDeclining ? "Declining..." : "Decline"}
+              </button>
               <button
                 onClick={handleAccept}
-                disabled={isAccepting}
+                disabled={isAccepting || isDeclining}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
               >
                 {isAccepting ? "Joining..." : "Accept Invitation"}

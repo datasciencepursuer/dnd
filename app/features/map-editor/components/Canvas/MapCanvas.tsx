@@ -10,9 +10,10 @@ import type { Token, FreehandPath } from "../../types";
 
 interface MapCanvasProps {
   onEditToken?: (token: Token) => void;
+  onTokenMoved?: () => void;
 }
 
-export function MapCanvas({ onEditToken }: MapCanvasProps) {
+export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -315,6 +316,7 @@ export function MapCanvas({ onEditToken }: MapCanvasProps) {
             cellSize={map.grid.cellSize}
             stageRef={stageRef}
             onEditTokenName={onEditToken}
+            onTokenMoved={onTokenMoved}
           />
         </Layer>
       </Stage>

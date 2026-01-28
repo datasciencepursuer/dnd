@@ -32,12 +32,12 @@ export const auth = betterAuth({
   rateLimit: {
     enabled: true,
     storage: "database",
-    window: 60, // default: 60 seconds
-    max: 100, // default: 100 requests per window
+    window: 60,
+    max: 10000, // Effectively disable global rate limit
     customRules: {
-      // Limit account creation: 3 per IP per 24 hours
+      // Limit account creation: 3 per IP per 12 hours
       "/sign-up/email": {
-        window: 86400, // 24 hours in seconds
+        window: 43200, // 12 hours in seconds
         max: 3,
       },
     },

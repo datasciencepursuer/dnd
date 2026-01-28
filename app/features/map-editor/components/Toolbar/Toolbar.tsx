@@ -3,9 +3,12 @@ import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
 
-const tools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
+const viewTools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
   { id: "select", label: "Select", icon: "↖", shortcut: "1" },
   { id: "pan", label: "Pan", icon: "✋", shortcut: "2" },
+];
+
+const editTools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
   { id: "draw", label: "Draw", icon: "✏", shortcut: "3" },
   { id: "erase", label: "Erase", icon: "⌫", shortcut: "4" },
 ];
@@ -51,14 +54,14 @@ export function Toolbar({ readOnly = false }: ToolbarProps) {
           setTool("pan");
           break;
         case "3":
-          setTool("draw");
+          if (!readOnly) setTool("draw");
           break;
         case "4":
-          setTool("erase");
+          if (!readOnly) setTool("erase");
           break;
       }
     },
-    [setTool]
+    [setTool, readOnly]
   );
 
   useEffect(() => {
@@ -111,7 +114,23 @@ export function Toolbar({ readOnly = false }: ToolbarProps) {
           )}
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <div className="flex gap-1">
-            {tools.map((tool) => (
+            {viewTools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => setTool(tool.id)}
+                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                  selectedTool === tool.id
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+                title={`${tool.label} (${tool.shortcut})`}
+              >
+                <span className="mr-1">{tool.icon}</span>
+                {tool.label}
+                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
+              </button>
+            ))}
+            {!readOnly && editTools.map((tool) => (
               <button
                 key={tool.id}
                 onClick={() => setTool(tool.id)}

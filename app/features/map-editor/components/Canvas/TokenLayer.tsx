@@ -39,6 +39,7 @@ interface TokenItemProps {
   isSelected: boolean;
   isHovered: boolean;
   isEditable: boolean;
+  isMovable: boolean;
   selectedTool: string;
   isDragging: boolean;
   actions: TokenItemActions;
@@ -53,6 +54,7 @@ function TokenItem({
   isSelected,
   isHovered,
   isEditable,
+  isMovable,
   selectedTool,
   isDragging,
   actions,
@@ -68,8 +70,8 @@ function TokenItem({
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2; // Fill most of the cell
 
-  // Hover highlight color - use token color for editable, gray for locked
-  const hoverStroke = isEditable ? token.color : "#9ca3af";
+  // Hover highlight color - use token color for movable, gray for locked
+  const hoverStroke = isMovable ? token.color : "#9ca3af";
   const hoverStrokeWidth = 2;
 
   // Calculate dimensions preserving aspect ratio
@@ -137,8 +139,8 @@ function TokenItem({
       y={y}
       rotation={token.rotation}
       opacity={isDragging ? 0.5 : 1}
-      onMouseDown={isEditable ? onMouseDown : undefined}
-      onTouchStart={isEditable ? onMouseDown : undefined}
+      onMouseDown={isMovable ? onMouseDown : undefined}
+      onTouchStart={isMovable ? onMouseDown : undefined}
       onClick={handleClick}
       onTap={handleClick}
       onDblClick={handleDoubleClick}
@@ -167,7 +169,7 @@ function TokenItem({
               height={imgHeight + 8}
               offsetX={imgWidth / 2 + 4}
               offsetY={imgHeight / 2 + 4}
-              stroke={isEditable ? token.color : "#9ca3af"}
+              stroke={isMovable ? token.color : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -220,7 +222,7 @@ function TokenItem({
           {isSelected && !isDragging && (
             <Circle
               radius={radius + 4}
-              stroke={isEditable ? token.color : "#9ca3af"}
+              stroke={isMovable ? token.color : "#9ca3af"}
               strokeWidth={3}
               dash={[5, 5]}
             />
@@ -238,8 +240,8 @@ function TokenItem({
         </>
       )}
 
-      {/* Lock indicator for non-editable tokens */}
-      {!isEditable && isHovered && (
+      {/* Lock indicator for non-movable tokens */}
+      {!isMovable && isHovered && (
         <Group y={lockY}>
           <Rect
             width={50}
@@ -352,9 +354,10 @@ interface TokenLayerProps {
   cellSize: number;
   stageRef: React.RefObject<any>;
   onEditTokenName?: (token: Token) => void;
+  onTokenMoved?: () => void;
 }
 
-export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: TokenLayerProps) {
+export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onTokenMoved }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
   const updateToken = useMapStore((s) => s.updateToken);
@@ -362,6 +365,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const canEditToken = useEditorStore((s) => s.canEditToken);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
@@ -456,9 +460,11 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
         const col = Math.round((position.x - offset) / cellSize);
         const row = Math.round((position.y - offset) / cellSize);
 
-        // Only move if user can edit this token
-        if (canEditToken(token.ownerId)) {
+        // Only move if user can move this token
+        if (canMoveToken(token.ownerId)) {
           moveToken(token.id, { col, row });
+          // Trigger immediate sync for real-time updates
+          onTokenMoved?.();
         }
       }
 
@@ -481,13 +487,13 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
       window.removeEventListener("touchmove", handleMouseMove as any);
       window.removeEventListener("touchend", handleMouseUp);
     };
-  }, [cellSize, moveToken, stageRef, canEditToken]); // Removed dragState from deps
+  }, [cellSize, moveToken, stageRef, canMoveToken, onTokenMoved]); // Removed dragState from deps
 
   const handleMouseDown = useCallback(
     (token: Token, e: any) => {
       if (selectedTool !== "select") return;
-      // Check if user can edit this token
-      if (!canEditToken(token.ownerId)) return;
+      // Check if user can move this token
+      if (!canMoveToken(token.ownerId)) return;
 
       e.cancelBubble = true;
 
@@ -515,7 +521,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
 
       setSelectedElements([token.id]);
     },
-    [selectedTool, cellSize, setSelectedElements, canEditToken]
+    [selectedTool, cellSize, setSelectedElements, canMoveToken]
   );
 
   const isPanning = useEditorStore((s) => s.isPanning);
@@ -604,6 +610,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
         if (!token.visible) return null;
 
         const isEditable = canEditToken(token.ownerId);
+        const isMovable = canMoveToken(token.ownerId);
         const actions = createTokenActions(token, isEditable);
 
         return (
@@ -614,6 +621,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName }: Toke
             isSelected={selectedIds.includes(token.id)}
             isHovered={hoveredTokenId === token.id}
             isEditable={isEditable}
+            isMovable={isMovable}
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
             actions={actions}

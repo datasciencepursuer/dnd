@@ -64,7 +64,7 @@ export const DEFAULT_PERMISSIONS: Record<MapPermission, PlayerPermissions> = {
     canEditAllTokens: false,
     canDeleteOwnTokens: false,
     canDeleteAllTokens: false,
-    canMoveOwnTokens: false,
+    canMoveOwnTokens: true, // View users can move their own tokens
     canMoveAllTokens: false,
     canViewMap: true,
     canEditMap: false,

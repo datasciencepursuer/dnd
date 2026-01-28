@@ -53,7 +53,7 @@ export async function getMapAccess(
   // Check if user is a member of the map's group
   if (map[0].groupId) {
     const groupMembership = await db
-      .select()
+      .select({ role: groupMembers.role })
       .from(groupMembers)
       .where(
         and(
@@ -64,7 +64,21 @@ export async function getMapAccess(
       .limit(1);
 
     if (groupMembership.length > 0) {
-      // Group members get view permission by default
+      const role = groupMembership[0].role;
+
+      // Group owners and admins get edit permission
+      if (role === "owner" || role === "admin") {
+        return {
+          mapId,
+          userId,
+          permission: "edit",
+          customPermissions: DEFAULT_PERMISSIONS.edit,
+          isOwner: false,
+          isGroupMember: true,
+        };
+      }
+
+      // Regular members get view permission
       return {
         mapId,
         userId,

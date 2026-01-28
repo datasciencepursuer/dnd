@@ -3,12 +3,26 @@ import { useMapStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import type { Token, TokenLayer } from "../types";
 
+interface GroupMemberInfo {
+  id: string;
+  name: string;
+}
+
 interface TokenEditDialogProps {
   token: Token;
   onClose: () => void;
+  groupMembers?: GroupMemberInfo[];
+  canAssignOwner?: boolean;
+  onSave?: () => void;
 }
 
-export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
+export function TokenEditDialog({
+  token,
+  onClose,
+  groupMembers = [],
+  canAssignOwner = false,
+  onSave,
+}: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
 
   const [name, setName] = useState(token.name);
@@ -16,6 +30,7 @@ export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
   const [size, setSize] = useState(token.size);
   const [layer, setLayer] = useState<TokenLayer>(token.layer);
   const [visible, setVisible] = useState(token.visible);
+  const [ownerId, setOwnerId] = useState<string | null>(token.ownerId);
 
   // Update local state if token changes
   useEffect(() => {
@@ -24,6 +39,7 @@ export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
     setSize(token.size);
     setLayer(token.layer);
     setVisible(token.visible);
+    setOwnerId(token.ownerId);
   }, [token]);
 
   const handleSave = () => {
@@ -33,7 +49,10 @@ export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
       size,
       layer,
       visible,
+      ownerId,
     });
+    // Trigger immediate sync for real-time updates
+    onSave?.();
     onClose();
   };
 
@@ -162,6 +181,30 @@ export function TokenEditDialog({ token, onClose }: TokenEditDialogProps) {
               Visible on map
             </label>
           </div>
+
+          {/* Owner - only shown if canAssignOwner and there are group members */}
+          {canAssignOwner && groupMembers.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Owner
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                  (can move this token)
+                </span>
+              </label>
+              <select
+                value={ownerId || ""}
+                onChange={(e) => setOwnerId(e.target.value || null)}
+                className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              >
+                <option value="">No owner (DM only)</option>
+                {groupMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">

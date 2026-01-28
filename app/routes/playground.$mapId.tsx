@@ -6,6 +6,11 @@ import { MapEditor, useMapStore } from "~/features/map-editor";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
 
+interface GroupMemberInfo {
+  id: string;
+  name: string;
+}
+
 interface LoaderData {
   id: string;
   name: string;
@@ -13,6 +18,7 @@ interface LoaderData {
   permission: PermissionLevel;
   customPermissions: PlayerPermissions;
   userId: string;
+  groupMembers: GroupMemberInfo[];
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -78,6 +84,7 @@ export default function PlaygroundWithMap() {
         permission={data.permission}
         customPermissions={data.customPermissions}
         userId={data.userId}
+        groupMembers={data.groupMembers}
       />
     </div>
   );

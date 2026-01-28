@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { usePresenceStore } from "../store/presence-store";
+import { useMapStore } from "../store/map-store";
+import type { DnDMap } from "../types";
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BASE_RECONNECT_DELAY = 2000; // 2 seconds
@@ -11,12 +13,14 @@ export function usePresence(mapId: string | undefined) {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUnmountedRef = useRef(false);
+  const lastMapUpdateRef = useRef<string | null>(null);
 
   const setUsers = usePresenceStore((s) => s.setUsers);
   const setConnected = usePresenceStore((s) => s.setConnected);
   const setError = usePresenceStore((s) => s.setError);
   const setConnectionId = usePresenceStore((s) => s.setConnectionId);
   const reset = usePresenceStore((s) => s.reset);
+  const loadMap = useMapStore((s) => s.loadMap);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -51,6 +55,21 @@ export function usePresence(mapId: string | undefined) {
         setUsers(data.users);
       } catch (error) {
         console.error("Failed to parse presence event:", error);
+      }
+    });
+
+    eventSource.addEventListener("mapSync", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const serverUpdatedAt = data.updatedAt;
+
+        // Only update if server has a different version than what we last received
+        if (lastMapUpdateRef.current !== serverUpdatedAt) {
+          lastMapUpdateRef.current = serverUpdatedAt;
+          loadMap(data.data as DnDMap);
+        }
+      } catch (error) {
+        console.error("Failed to parse mapSync event:", error);
       }
     });
 
@@ -92,7 +111,7 @@ export function usePresence(mapId: string | undefined) {
         }
       }, delay);
     };
-  }, [mapId, setUsers, setConnected, setError, setConnectionId, clearReconnectTimeout]);
+  }, [mapId, setUsers, setConnected, setError, setConnectionId, clearReconnectTimeout, loadMap]);
 
   const disconnect = useCallback(() => {
     clearReconnectTimeout();

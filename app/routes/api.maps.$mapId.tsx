@@ -1,12 +1,17 @@
 import type { Route } from "./+types/api.maps.$mapId";
 import { eq } from "drizzle-orm";
 import { db } from "~/.server/db";
-import { maps } from "~/.server/db/schema";
+import { maps, groupMembers, user } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import {
   requireMapPermission,
   getEffectivePermissions,
 } from "~/.server/permissions/map-permissions";
+
+interface GroupMemberInfo {
+  id: string;
+  name: string;
+}
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -30,10 +35,26 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     return new Response("Map not found", { status: 404 });
   }
 
+  // Get group members if map belongs to a group (for token owner assignment)
+  let groupMembersData: GroupMemberInfo[] = [];
+  if (mapData[0].groupId) {
+    const members = await db
+      .select({
+        id: user.id,
+        name: user.name,
+      })
+      .from(groupMembers)
+      .innerJoin(user, eq(groupMembers.userId, user.id))
+      .where(eq(groupMembers.groupId, mapData[0].groupId));
+
+    groupMembersData = members;
+  }
+
   return Response.json({
     ...mapData[0],
     permission: access.isOwner ? "owner" : access.permission,
     customPermissions: getEffectivePermissions(access),
+    groupMembers: groupMembersData,
   });
 }
 

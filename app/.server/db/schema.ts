@@ -8,8 +8,9 @@ import {
   unique,
   index,
   integer,
+  bigint,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // Group role enum
 export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
@@ -73,8 +74,8 @@ export const rateLimit = pgTable("rateLimit", {
   id: text("id").primaryKey(),
   key: text("key").notNull(),
   count: integer("count").notNull(),
-  lastRequest: integer("last_request").notNull(),
-  expiresAt: timestamp("expires_at").notNull().defaultNow(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
+  expiresAt: timestamp("expires_at").notNull().default(sql`now() + interval '12 hours'`),
 });
 
 // Groups table
@@ -164,7 +165,7 @@ export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermis
     canEditAllTokens: false,
     canDeleteOwnTokens: false,
     canDeleteAllTokens: false,
-    canMoveOwnTokens: false,
+    canMoveOwnTokens: true, // View users can move their own tokens
     canMoveAllTokens: false,
     canViewMap: true,
     canEditMap: false,

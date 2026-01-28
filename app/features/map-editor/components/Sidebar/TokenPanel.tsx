@@ -6,9 +6,10 @@ import type { Token } from "../../types";
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
   mode?: "create" | "list";
+  readOnly?: boolean;
 }
 
-export function TokenPanel({ onEditToken, mode = "list" }: TokenPanelProps) {
+export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);

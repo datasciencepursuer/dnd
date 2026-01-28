@@ -4,7 +4,7 @@ import { Sidebar } from "./Sidebar/Sidebar";
 import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { useMapStore, useEditorStore } from "../store";
-import { preloadImages } from "../hooks";
+import { preloadImages, useMapSync } from "../hooks";
 import { PRESET_IMAGES } from "../constants";
 import type { Token, PlayerPermissions } from "../types";
 
@@ -14,12 +14,18 @@ const MapCanvas = lazy(() =>
   import("./Canvas/MapCanvas").then((mod) => ({ default: mod.MapCanvas }))
 );
 
+interface GroupMemberInfo {
+  id: string;
+  name: string;
+}
+
 interface MapEditorProps {
   mapId?: string;
   readOnly?: boolean;
   permission?: "view" | "edit" | "owner";
   customPermissions?: PlayerPermissions | null;
   userId?: string | null;
+  groupMembers?: GroupMemberInfo[];
 }
 
 export function MapEditor({
@@ -28,10 +34,12 @@ export function MapEditor({
   permission = "owner",
   customPermissions = null,
   userId = null,
+  groupMembers = [],
 }: MapEditorProps) {
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
+  const { syncNow } = useMapSync(mapId);
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -153,7 +161,7 @@ export function MapEditor({
     <div className="flex flex-col h-full">
       <Toolbar readOnly={readOnly} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar mapId={mapId} onEditToken={handleEditToken} />
+        <Sidebar mapId={mapId} onEditToken={readOnly ? undefined : handleEditToken} readOnly={readOnly} />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -161,13 +169,22 @@ export function MapEditor({
             </div>
           }
         >
-          <MapCanvas />
+          <MapCanvas
+            onEditToken={readOnly ? undefined : handleEditToken}
+            onTokenMoved={readOnly ? undefined : syncNow}
+          />
         </Suspense>
         <DiceHistoryBar />
       </div>
 
-      {editingToken && (
-        <TokenEditDialog token={editingToken} onClose={handleCloseEditDialog} />
+      {editingToken && !readOnly && (
+        <TokenEditDialog
+          token={editingToken}
+          onClose={handleCloseEditDialog}
+          groupMembers={groupMembers}
+          canAssignOwner={permission === "owner" || permission === "edit"}
+          onSave={syncNow}
+        />
       )}
     </div>
   );

@@ -1,12 +1,13 @@
 import type { Route } from "./+types/api.maps.$mapId.presence";
 import { eq, and, lt } from "drizzle-orm";
 import { db } from "~/.server/db";
-import { mapPresence, user } from "~/.server/db/schema";
+import { mapPresence, user, maps } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 
 const POLL_INTERVAL = 5000; // 5 seconds
 const STALE_THRESHOLD = 45000; // 45 seconds
+const MAP_SYNC_INTERVAL = 2000; // 2 seconds for map sync
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -91,15 +92,56 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         }
       };
 
-      // Send initial presence update
-      await sendPresenceUpdate();
+      // Track last known map update time
+      let lastMapUpdate: Date | null = null;
 
-      // Set up polling interval
-      const intervalId = setInterval(sendPresenceUpdate, POLL_INTERVAL);
+      // Function to check and send map updates
+      const sendMapUpdate = async () => {
+        try {
+          const mapData = await db
+            .select({
+              data: maps.data,
+              updatedAt: maps.updatedAt,
+            })
+            .from(maps)
+            .where(eq(maps.id, mapId))
+            .limit(1);
+
+          if (mapData.length === 0) return;
+
+          const currentUpdate = mapData[0].updatedAt;
+
+          // Only send if the map has been updated since last check
+          if (lastMapUpdate === null || currentUpdate > lastMapUpdate) {
+            lastMapUpdate = currentUpdate;
+
+            // Send map sync event
+            controller.enqueue(
+              encoder.encode(
+                `event: mapSync\ndata: ${JSON.stringify({
+                  data: mapData[0].data,
+                  updatedAt: currentUpdate.toISOString(),
+                })}\n\n`
+              )
+            );
+          }
+        } catch (error) {
+          console.error("Failed to send map update:", error);
+        }
+      };
+
+      // Send initial updates
+      await sendPresenceUpdate();
+      await sendMapUpdate();
+
+      // Set up polling intervals
+      const presenceIntervalId = setInterval(sendPresenceUpdate, POLL_INTERVAL);
+      const mapSyncIntervalId = setInterval(sendMapUpdate, MAP_SYNC_INTERVAL);
 
       // Handle abort signal (client disconnect)
       request.signal.addEventListener("abort", async () => {
-        clearInterval(intervalId);
+        clearInterval(presenceIntervalId);
+        clearInterval(mapSyncIntervalId);
 
         // Remove our presence record
         try {

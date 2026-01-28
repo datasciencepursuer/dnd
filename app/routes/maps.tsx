@@ -30,6 +30,7 @@ interface LoaderData {
   owned: MapListItem[];
   group: MapListItem[];
   groups: GroupInfo[];
+  userName: string;
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -121,13 +122,14 @@ export async function loader({ request }: Route.LoaderArgs) {
       groupName: m.groupId ? groupNameMap[m.groupId] : null,
     })),
     groups: groupsData,
+    userName: session.user.name,
   };
 }
 
 export default function Maps() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { owned, group: groupMaps, groups } = useLoaderData<LoaderData>();
+  const { owned, group: groupMaps, groups, userName } = useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
   const [gridWidth, setGridWidth] = useState(DEFAULT_GRID.width);
@@ -286,7 +288,7 @@ export default function Maps() {
             to={`/playground/${map.id}`}
             className="flex-1 px-3 py-1.5 bg-blue-600 text-white text-sm rounded text-center hover:bg-blue-700 cursor-pointer"
           >
-            {map.permission === "view" ? "View" : "Play"}
+Play
           </Link>
           {canDelete && (
             <button
@@ -306,7 +308,7 @@ export default function Maps() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            My Maps
+            Hello, {userName}
           </h1>
           <div className="flex gap-4">
             <Link
