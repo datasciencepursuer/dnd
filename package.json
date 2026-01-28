@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm drizzle-kit generate && node -e \"if(process.env.VERCEL_ENV==='production'){require('child_process').execSync('pnpm drizzle-kit migrate',{stdio:'inherit'})}\" && react-router build",
+    "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc"
