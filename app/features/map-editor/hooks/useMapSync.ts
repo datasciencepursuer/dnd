@@ -119,10 +119,10 @@ export function useMapSync(mapId: string | undefined) {
 
   /**
    * Sync after a short delay (for batching rapid changes).
-   * Use this for less critical updates.
+   * Use this for less critical updates. Increased delay for better performance.
    */
   const syncDebounced = useCallback(
-    (delay = 500) => {
+    (delay = 1000) => { // Increased from 500ms to 1s for better batching
       if (!mapId) return;
 
       // Cancel any pending sync

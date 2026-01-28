@@ -17,7 +17,14 @@
       "Bash(./node_modules/.bin/tsc:*)",
       "mcp__claude_ai_Ref__ref_search_documentation",
       "mcp__claude_ai_Ref__ref_read_url",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(curl:*)",
+      "Bash(bash)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(npm --version)",
+      "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
+      "Bash(bun:*)"
     ]
   }
 }
