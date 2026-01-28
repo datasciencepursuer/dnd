@@ -5,8 +5,8 @@ import { mapPresence, user, maps } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 
-const POLL_INTERVAL = 5000; // 5 seconds
-const STALE_THRESHOLD = 45000; // 45 seconds
+const POLL_INTERVAL = 2000; // 2 seconds for more responsive presence updates
+const STALE_THRESHOLD = 30000; // 30 seconds (reduced to match faster polling)
 const MAP_SYNC_INTERVAL = 1000; // 1 second for map sync
 
 export async function loader({ request, params }: Route.LoaderArgs) {

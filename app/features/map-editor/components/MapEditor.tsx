@@ -41,7 +41,12 @@ export function MapEditor({
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
-  const { syncNow, syncTokenMove } = useMapSync(mapId);
+  const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate } = useMapSync(mapId);
+
+  // Sync after token flip with 500ms debounce
+  const handleTokenFlip = useCallback(() => {
+    syncDebounced(500);
+  }, [syncDebounced]);
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -95,7 +100,7 @@ export function MapEditor({
   mapRef.current = map; // Always keep current map in ref
 
   useEffect(() => {
-    if (!map || !mapId || readOnly) return;
+    if (!map || !mapId) return;
 
     // Create a hash of the map to detect actual changes
     const mapHash = JSON.stringify({ name: map.name, updatedAt: map.updatedAt });
@@ -134,7 +139,7 @@ export function MapEditor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [map?.updatedAt, mapId, readOnly]); // Only trigger on updatedAt changes, not entire map
+  }, [map?.updatedAt, mapId]); // Only trigger on updatedAt changes, not entire map
 
   // Create new map if none loaded
   useEffect(() => {
@@ -163,7 +168,7 @@ export function MapEditor({
     <div className="flex flex-col h-full">
       <Toolbar readOnly={readOnly} userName={userName} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar mapId={mapId} onEditToken={readOnly ? undefined : handleEditToken} readOnly={readOnly} />
+        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={syncTokenDelete} />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -172,20 +177,22 @@ export function MapEditor({
           }
         >
           <MapCanvas
-            onEditToken={readOnly ? undefined : handleEditToken}
+            onEditToken={handleEditToken}
             onTokenMoved={syncTokenMove}
+            onTokenFlip={handleTokenFlip}
           />
         </Suspense>
         <DiceHistoryBar onRoll={syncNow} userName={userName} userId={userId} />
       </div>
 
-      {editingToken && !readOnly && (
+      {editingToken && (
         <TokenEditDialog
           token={editingToken}
           onClose={handleCloseEditDialog}
           groupMembers={groupMembers}
           canAssignOwner={permission === "owner" || permission === "edit"}
           onSave={syncNow}
+          onTokenUpdate={syncTokenUpdate}
         />
       )}
     </div>

@@ -14,6 +14,7 @@ interface TokenEditDialogProps {
   groupMembers?: GroupMemberInfo[];
   canAssignOwner?: boolean;
   onSave?: () => void;
+  onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
 }
 
 export function TokenEditDialog({
@@ -22,6 +23,7 @@ export function TokenEditDialog({
   groupMembers = [],
   canAssignOwner = false,
   onSave,
+  onTokenUpdate,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
 
@@ -43,15 +45,21 @@ export function TokenEditDialog({
   }, [token]);
 
   const handleSave = () => {
-    updateToken(token.id, {
+    const updates = {
       name: name.trim() || "Unnamed Token",
       color,
       size,
       layer,
       visible,
       ownerId,
-    });
-    // Trigger immediate sync for real-time updates
+    };
+
+    // Update locally first for responsive UI
+    updateToken(token.id, updates);
+
+    // Then sync to server via callback
+    onTokenUpdate?.(token.id, updates);
+
     onSave?.();
     onClose();
   };

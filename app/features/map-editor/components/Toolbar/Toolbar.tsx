@@ -3,14 +3,13 @@ import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
 
-const viewTools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
-  { id: "select", label: "Select", icon: "↖", shortcut: "1" },
-  { id: "pan", label: "Pan", icon: "✋", shortcut: "2" },
+const viewTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
+  { id: "select", label: "Select", icon: "↖", shortcut: "1", hint: "Left click: select · Right click: pan" },
 ];
 
 const editTools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
-  { id: "draw", label: "Draw", icon: "✏", shortcut: "3" },
-  { id: "erase", label: "Erase", icon: "⌫", shortcut: "4" },
+  { id: "draw", label: "Draw", icon: "✏", shortcut: "2" },
+  { id: "erase", label: "Erase", icon: "⌫", shortcut: "3" },
 ];
 
 interface ToolbarProps {
@@ -52,12 +51,9 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
           setTool("select");
           break;
         case "2":
-          setTool("pan");
-          break;
-        case "3":
           if (!readOnly) setTool("draw");
           break;
-        case "4":
+        case "3":
           if (!readOnly) setTool("erase");
           break;
       }
@@ -130,7 +126,7 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
-                title={`${tool.label} (${tool.shortcut})`}
+                title={tool.hint || `${tool.label} (${tool.shortcut})`}
               >
                 <span className="mr-1">{tool.icon}</span>
                 {tool.label}
@@ -154,6 +150,9 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
               </button>
             ))}
           </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+            Right-click to pan
+          </span>
         </div>
 
         <div className="flex items-center gap-3">

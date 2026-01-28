@@ -11,6 +11,8 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 - `pnpm run dev` - Start development server with HMR (http://localhost:5173)
 - `pnpm run typecheck` - Run TypeScript type checking and generate route types
 - `pnpm drizzle-kit push` - Push schema changes to database
+- `pnpm drizzle-kit generate` - Generate migration files
+- `pnpm drizzle-kit migrate` - Apply pending migrations
 
 **Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it.
 
@@ -24,6 +26,12 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 ### Server-Side Code
 - Files in `app/.server/` are server-only (never bundled to client)
 - Environment variables: `app/.server/env.ts`
+
+### Database
+Drizzle ORM with Neon PostgreSQL serverless.
+- Schema: `app/.server/db/schema.ts`
+- Client: `app/.server/db/index.ts`
+- Config: `drizzle.config.ts`
 
 ### Authentication
 Uses better-auth for email/password authentication.
@@ -60,26 +68,39 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - LocalStorage via `features/map-editor/utils/storage-utils.ts`
 - Database: Drizzle/Neon PostgreSQL (`app/.server/db/schema.ts`)
 
-**Routes**:
+**Page Routes**:
 - `/maps` - Map list
 - `/playground` - New map
 - `/playground/:mapId` - Edit existing map
-- `/invite/:token` - Accept map invitation
+- `/groups` - Group list
+- `/groups/:groupId` - Group detail with maps
+- `/invite/group/:token` - Accept group invitation
 
-**API Routes**:
-- `/api/maps` - Map CRUD
-- `/api/maps/:mapId` - Single map operations
-- `/api/maps/:mapId/share` - Share map with users
-- `/api/maps/:mapId/transfer` - Transfer map ownership
+**Map API Routes**:
+- `/api/maps` - Map CRUD (GET list, POST create)
+- `/api/maps/:mapId` - Single map operations (GET, PUT, DELETE)
 - `/api/maps/:mapId/presence` - Get/update user presence
 - `/api/maps/:mapId/presence/leave` - Remove user presence on disconnect
+- `/api/maps/:mapId/tokens/:tokenId/move` - Token movement
 - `/api/uploadthing` - Image upload endpoint
 
-### Map Sharing & Permissions
-Database tables in `app/.server/db/schema.ts`:
-- `mapPermissions` - User access levels (view/edit/owner) with optional custom permissions
-- `mapInvitations` - Email-based invites with tokens for users who may not have accounts
+**Group API Routes**:
+- `/api/groups` - Group CRUD (GET list, POST create)
+- `/api/groups/:groupId` - Single group operations
+- `/api/groups/:groupId/members` - Group member management
+- `/api/groups/:groupId/members/:userId` - Individual member operations
+- `/api/groups/:groupId/invite` - Send group invitations
+- `/api/groups/:groupId/leave` - Leave a group
+
+### Groups & Team Collaboration
+- `groups` - Team organizations with name and owner
+- `groupMembers` - Membership with roles (owner/admin/member)
+- `groupInvitations` - Email-based invites with tokens
+- Permission helpers: `app/.server/permissions/group-permissions.ts`
+
+### Map Presence
 - `mapPresence` - Tracks users currently viewing a map (connectionId-based)
+- Permission helpers: `app/.server/permissions/map-permissions.ts`
 
 ### File Uploads
 Uses UploadThing for image uploads (token images, map backgrounds).

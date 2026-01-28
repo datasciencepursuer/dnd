@@ -11,9 +11,10 @@ import type { Token, FreehandPath, GridPosition } from "../../types";
 interface MapCanvasProps {
   onEditToken?: (token: Token) => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
+  onTokenFlip?: (tokenId: string) => void;
 }
 
-export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {
+export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -56,7 +57,7 @@ export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, []);
 
-  // Center the grid on initial load
+  // Center the grid on initial load - always center for each client session
   useEffect(() => {
     if (!map || dimensions.width === 0 || dimensions.height === 0) return;
 
@@ -67,16 +68,11 @@ export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {
     const gridHeightPx = map.grid.height * map.grid.cellSize;
     const scale = map.viewport.scale;
 
-    // Calculate position to center the grid
+    // Calculate position to center the grid on screen
     const centerX = (dimensions.width - gridWidthPx * scale) / 2;
     const centerY = (dimensions.height - gridHeightPx * scale) / 2;
 
-    // Only update if the viewport is at default position (0, 0)
-    // This preserves user's viewport if they've already panned
-    if (map.viewport.x === 0 && map.viewport.y === 0) {
-      setViewport(centerX, centerY, scale);
-    }
-
+    setViewport(centerX, centerY, scale);
     hasCenteredRef.current = map.id;
   }, [map?.id, map?.grid.width, map?.grid.height, map?.grid.cellSize, map?.viewport.scale, dimensions.width, dimensions.height, setViewport]);
 
@@ -317,6 +313,7 @@ export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {
             stageRef={stageRef}
             onEditTokenName={onEditToken}
             onTokenMoved={onTokenMoved}
+            onTokenFlip={onTokenFlip}
           />
         </Layer>
       </Stage>

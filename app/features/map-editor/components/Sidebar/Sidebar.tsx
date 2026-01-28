@@ -10,9 +10,10 @@ interface SidebarProps {
   mapId?: string;
   onEditToken?: (token: Token) => void;
   readOnly?: boolean;
+  onTokenDelete?: (tokenId: string) => void;
 }
 
-export function Sidebar({ mapId, onEditToken, readOnly = false }: SidebarProps) {
+export function Sidebar({ mapId, onEditToken, readOnly = false, onTokenDelete }: SidebarProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("none");
 
   const togglePanel = (panel: ActivePanel) => {
@@ -50,11 +51,11 @@ export function Sidebar({ mapId, onEditToken, readOnly = false }: SidebarProps) 
       {/* Collapsible Panels / Units List */}
       <div className="flex-1 overflow-y-auto">
         {!readOnly && activePanel === "editMap" && <BackgroundPanel />}
-        {!readOnly && activePanel === "createUnit" && <TokenPanel onEditToken={onEditToken} mode="create" />}
+        {!readOnly && activePanel === "createUnit" && <TokenPanel onEditToken={onEditToken} mode="create" mapId={mapId} onTokenDelete={onTokenDelete} />}
 
         {/* Token List - Always visible when no panel is open or in readOnly mode */}
         {(activePanel === "none" || readOnly) && (
-          <TokenPanel onEditToken={readOnly ? undefined : onEditToken} mode="list" readOnly={readOnly} />
+          <TokenPanel onEditToken={onEditToken} mode="list" readOnly={readOnly} mapId={mapId} onTokenDelete={onTokenDelete} />
         )}
       </div>
 

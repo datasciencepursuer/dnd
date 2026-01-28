@@ -355,9 +355,10 @@ interface TokenLayerProps {
   stageRef: React.RefObject<any>;
   onEditTokenName?: (token: Token) => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
+  onTokenFlip?: (tokenId: string) => void;
 }
 
-export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onTokenMoved }: TokenLayerProps) {
+export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onTokenMoved, onTokenFlip }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
   const updateToken = useMapStore((s) => s.updateToken);
@@ -380,7 +381,10 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
         if (isEditable) moveToken(token.id, position);
       },
       flip: () => {
-        if (isEditable) flipToken(token.id);
+        if (isEditable) {
+          flipToken(token.id);
+          onTokenFlip?.(token.id);
+        }
       },
       select: () => setSelectedElements([token.id]),
       setName: (name: string) => {
@@ -418,7 +422,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
             toggleInteractable: () => console.log("Toggle interactable"),
           },
     }),
-    [moveToken, flipToken, updateToken, setSelectedElements, onEditTokenName]
+    [moveToken, flipToken, updateToken, setSelectedElements, onEditTokenName, onTokenFlip]
   );
 
   // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move

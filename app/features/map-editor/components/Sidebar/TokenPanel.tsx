@@ -7,9 +7,11 @@ interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
   mode?: "create" | "list";
   readOnly?: boolean;
+  mapId?: string;
+  onTokenDelete?: (tokenId: string) => void;
 }
 
-export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: TokenPanelProps) {
+export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId, onTokenDelete }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);
@@ -85,7 +87,12 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: Tok
 
   const handleDeleteToken = (e: React.MouseEvent, tokenId: string) => {
     e.stopPropagation(); // Prevent opening edit dialog
+
+    // Delete locally first for responsive UI
     removeToken(tokenId);
+
+    // Then sync to server via callback
+    onTokenDelete?.(tokenId);
   };
 
   // Mouse-based drag handlers for immediate response

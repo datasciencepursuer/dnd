@@ -68,17 +68,64 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   switch (request.method) {
     case "PUT": {
-      // Check edit permission
-      await requireMapPermission(mapId, session.user.id, "edit");
+      // Check at least view permission
+      const access = await requireMapPermission(mapId, session.user.id, "view");
+      const canFullEdit = access.permission === "edit" || access.permission === "owner" || access.isOwner;
 
       const body = await request.json();
       const { name, data } = body;
+
+      // View users can only update tokens they own
+      if (!canFullEdit && data) {
+        // Get current map data to validate changes
+        const currentMap = await db
+          .select({ data: maps.data })
+          .from(maps)
+          .where(eq(maps.id, mapId))
+          .limit(1);
+
+        if (currentMap.length === 0) {
+          return new Response("Map not found", { status: 404 });
+        }
+
+        const currentData = currentMap[0].data as { tokens?: Array<{ id: string; ownerId: string | null }> };
+        const newData = data as { tokens?: Array<{ id: string; ownerId: string | null }> };
+
+        // Check that view user only modified/deleted their own tokens
+        const currentTokens = currentData.tokens || [];
+        const newTokens = newData.tokens || [];
+
+        // Find deleted tokens - must be owned by this user
+        const newTokenIds = new Set(newTokens.map(t => t.id));
+        for (const token of currentTokens) {
+          if (!newTokenIds.has(token.id)) {
+            // Token was deleted - check if user owns it
+            if (token.ownerId !== session.user.id) {
+              return new Response("Cannot delete tokens you don't own", { status: 403 });
+            }
+          }
+        }
+
+        // Find modified tokens - must be owned by this user
+        const currentTokenMap = new Map(currentTokens.map(t => [t.id, t]));
+        for (const newToken of newTokens) {
+          const currentToken = currentTokenMap.get(newToken.id);
+          if (currentToken) {
+            // Check if token was modified (simple JSON comparison)
+            if (JSON.stringify(currentToken) !== JSON.stringify(newToken)) {
+              if (currentToken.ownerId !== session.user.id) {
+                return new Response("Cannot edit tokens you don't own", { status: 403 });
+              }
+            }
+          }
+        }
+      }
 
       const updateData: { name?: string; data?: unknown; updatedAt: Date } = {
         updatedAt: new Date(),
       };
 
-      if (name !== undefined) {
+      if (name !== undefined && canFullEdit) {
         updateData.name = name;
       }
       if (data !== undefined) {

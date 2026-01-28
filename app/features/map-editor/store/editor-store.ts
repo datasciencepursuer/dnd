@@ -99,9 +99,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Can edit all tokens?
     if (perms.canEditAllTokens) return true;
 
-    // Can edit own tokens?
+    // Token owners can always edit their own tokens
+    if (tokenOwnerId === state.userId && state.userId !== null) return true;
+
+    // Can edit own tokens based on permissions?
     if (perms.canEditOwnTokens) {
-      // Check if this is user's token
       if (tokenOwnerId === state.userId) return true;
     }
 
@@ -130,7 +132,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Can delete all tokens?
     if (perms.canDeleteAllTokens) return true;
 
-    // Can delete own tokens?
+    // Token owners can always delete their own tokens
+    if (tokenOwnerId === state.userId && state.userId !== null) return true;
+
+    // Can delete own tokens based on permissions?
     if (perms.canDeleteOwnTokens) {
       if (tokenOwnerId === state.userId) return true;
     }

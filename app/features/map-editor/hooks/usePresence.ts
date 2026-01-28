@@ -65,9 +65,21 @@ export function usePresence(mapId: string | undefined) {
 
         // Only update if server has a different version than what we last received
         if (lastMapUpdateRef.current !== serverUpdatedAt) {
-          lastMapUpdateRef.current = serverUpdatedAt;
-          // Use syncMap to preserve the current viewport
-          syncMap(data.data as DnDMap);
+          // Check if server data is newer than our local data
+          const localMap = useMapStore.getState().map;
+          const localUpdatedAt = localMap?.updatedAt;
+
+          // Only apply server sync if server is newer or within 2 seconds (clock tolerance)
+          // This prevents stale SSE data from overwriting local optimistic updates
+          const serverTime = new Date(serverUpdatedAt).getTime();
+          const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+          const clockTolerance = 2000; // 2 seconds
+
+          if (!localUpdatedAt || serverTime >= localTime - clockTolerance) {
+            lastMapUpdateRef.current = serverUpdatedAt;
+            // Use syncMap to preserve the current viewport
+            syncMap(data.data as DnDMap);
+          }
         }
       } catch (error) {
         console.error("Failed to parse mapSync event:", error);

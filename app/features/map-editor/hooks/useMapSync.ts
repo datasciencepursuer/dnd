@@ -70,6 +70,54 @@ export function useMapSync(mapId: string | undefined) {
   );
 
   /**
+   * Sync a token deletion to the server.
+   * Uses a dedicated endpoint that allows token owners to delete their tokens.
+   */
+  const syncTokenDelete = useCallback(
+    async (tokenId: string) => {
+      if (!mapId) return;
+
+      try {
+        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+          method: "DELETE",
+        });
+
+        if (!response.ok) {
+          console.error("Failed to sync token delete:", await response.text());
+        }
+      } catch (error) {
+        console.error("Failed to sync token delete:", error);
+      }
+    },
+    [mapId]
+  );
+
+  /**
+   * Sync a token update to the server.
+   * Uses a dedicated endpoint that allows token owners to edit their tokens.
+   */
+  const syncTokenUpdate = useCallback(
+    async (tokenId: string, updates: Record<string, unknown>) => {
+      if (!mapId) return;
+
+      try {
+        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) {
+          console.error("Failed to sync token update:", await response.text());
+        }
+      } catch (error) {
+        console.error("Failed to sync token update:", error);
+      }
+    },
+    [mapId]
+  );
+
+  /**
    * Sync after a short delay (for batching rapid changes).
    * Use this for less critical updates.
    */
@@ -90,5 +138,5 @@ export function useMapSync(mapId: string | undefined) {
     [mapId, syncNow]
   );
 
-  return { syncNow, syncDebounced, syncTokenMove };
+  return { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate };
 }
