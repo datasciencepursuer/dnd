@@ -172,16 +172,16 @@ export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermis
     canManagePlayers: false,
   },
   edit: {
-    canCreateTokens: false,
+    canCreateTokens: true, // Admins can create tokens
     canEditOwnTokens: true,
-    canEditAllTokens: false,
+    canEditAllTokens: true, // Admins can edit all tokens
     canDeleteOwnTokens: true,
-    canDeleteAllTokens: false,
+    canDeleteAllTokens: true, // Admins can delete all tokens
     canMoveOwnTokens: true,
-    canMoveAllTokens: false,
+    canMoveAllTokens: true, // Admins can move all tokens
     canViewMap: true,
-    canEditMap: false,
-    canManagePlayers: false,
+    canEditMap: true, // Admins can edit map
+    canManagePlayers: false, // Only owners can manage players
   },
   owner: {
     canCreateTokens: true,

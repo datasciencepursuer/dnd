@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1769462040961,
-      "tag": "0000_living_pixie",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1769544651337,
-      "tag": "0001_jazzy_vapor",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1769551204587,
-      "tag": "0002_colossal_gorilla_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1769552983696,
-      "tag": "0003_crazy_vulcan",
+      "when": 1769568249920,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]

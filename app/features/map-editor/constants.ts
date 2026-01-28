@@ -91,6 +91,7 @@ export function createNewMap(options: CreateMapOptions | string): DnDMap {
     labels: [],
     freehand: [],
     fogOfWar: { ...DEFAULT_FOG },
+    rollHistory: [],
     viewport: { ...DEFAULT_VIEWPORT },
   };
 }

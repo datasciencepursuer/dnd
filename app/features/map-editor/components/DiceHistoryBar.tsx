@@ -1,5 +1,6 @@
-import { useDiceStore } from "../store/dice-store";
+import { useState } from "react";
 import { useMapStore, useEditorStore } from "../store";
+import type { RollResult } from "../types";
 
 interface DiceType {
   name: string;
@@ -17,10 +18,22 @@ const DICE_TYPES: DiceType[] = [
   { name: "d100", sides: 100, color: "bg-pink-600 hover:bg-pink-700" },
 ];
 
-export function DiceHistoryBar() {
+interface DiceHistoryBarProps {
+  onRoll?: () => void;
+  userName?: string | null;
+  userId?: string | null;
+}
+
+export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps) {
   const map = useMapStore((s) => s.map);
+  const addRollResult = useMapStore((s) => s.addRollResult);
+  const clearRollHistory = useMapStore((s) => s.clearRollHistory);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
-  const { diceCount, results, isRolling, setDiceCount, rollDice, clearHistory } = useDiceStore();
+
+  const [diceCount, setDiceCount] = useState(1);
+  const [isRolling, setIsRolling] = useState(false);
+
+  const results = map?.rollHistory || [];
 
   // Get the selected token
   const selectedToken = selectedIds.length === 1
@@ -31,7 +44,33 @@ export function DiceHistoryBar() {
 
   const handleRoll = (dice: DiceType) => {
     if (!selectedToken) return;
-    rollDice(dice.name, dice.sides, selectedToken);
+    setIsRolling(true);
+
+    setTimeout(() => {
+      const rolls: number[] = [];
+      for (let i = 0; i < diceCount; i++) {
+        rolls.push(Math.floor(Math.random() * dice.sides) + 1);
+      }
+
+      const result: RollResult = {
+        id: crypto.randomUUID(),
+        dice: dice.name,
+        count: diceCount,
+        rolls,
+        total: rolls.reduce((a, b) => a + b, 0),
+        timestamp: Date.now(),
+        rollerId: userId || "",
+        rollerName: userName || "Unknown",
+        tokenId: selectedToken.id,
+        tokenName: selectedToken.name,
+        tokenColor: selectedToken.color,
+      };
+
+      addRollResult(result);
+      setIsRolling(false);
+      // Trigger sync to other users
+      onRoll?.();
+    }, 150);
   };
 
   return (
@@ -107,7 +146,10 @@ export function DiceHistoryBar() {
         </span>
         {results.length > 0 && (
           <button
-            onClick={clearHistory}
+            onClick={() => {
+              clearRollHistory();
+              onRoll?.();
+            }}
             className="text-sm text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer transition-colors"
           >
             Clear

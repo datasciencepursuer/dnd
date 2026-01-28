@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult } from "../types";
 import { createNewMap } from "../constants";
 
 interface MapState {
@@ -38,6 +38,10 @@ interface MapState {
   addFreehandPath: (path: FreehandPath) => void;
   removeFreehandPath: (id: string) => void;
   clearAllDrawings: () => void;
+
+  // Roll history actions
+  addRollResult: (result: RollResult) => void;
+  clearRollHistory: () => void;
 }
 
 export const useMapStore = create<MapState>()(
@@ -273,6 +277,32 @@ export const useMapStore = create<MapState>()(
             map: {
               ...state.map,
               freehand: [],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      addRollResult: (result) =>
+        set((state) => {
+          if (!state.map) return state;
+          // Keep only the 8 most recent rolls
+          const rollHistory = [result, ...(state.map.rollHistory || [])].slice(0, 8);
+          return {
+            map: {
+              ...state.map,
+              rollHistory,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      clearRollHistory: () =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              rollHistory: [],
               updatedAt: new Date().toISOString(),
             },
           };

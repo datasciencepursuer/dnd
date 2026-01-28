@@ -71,16 +71,16 @@ export const DEFAULT_PERMISSIONS: Record<MapPermission, PlayerPermissions> = {
     canManagePlayers: false,
   },
   edit: {
-    canCreateTokens: false,
+    canCreateTokens: true, // Admins can create tokens
     canEditOwnTokens: true,
-    canEditAllTokens: false,
+    canEditAllTokens: true, // Admins can edit all tokens
     canDeleteOwnTokens: true,
-    canDeleteAllTokens: false,
+    canDeleteAllTokens: true, // Admins can delete all tokens
     canMoveOwnTokens: true,
-    canMoveAllTokens: false,
+    canMoveAllTokens: true, // Admins can move all tokens
     canViewMap: true,
-    canEditMap: false,
-    canManagePlayers: false,
+    canEditMap: true, // Admins can edit map
+    canManagePlayers: false, // Only owners can manage players
   },
   owner: {
     canCreateTokens: true,
@@ -156,6 +156,21 @@ export interface Background {
   rotation: number;
 }
 
+// Roll Result (for shared dice history)
+export interface RollResult {
+  id: string;
+  dice: string;
+  count: number;
+  rolls: number[];
+  total: number;
+  timestamp: number;
+  rollerId: string;
+  rollerName: string;
+  tokenId: string;
+  tokenName: string;
+  tokenColor: string;
+}
+
 // Complete Map
 export interface DnDMap {
   id: string;
@@ -170,6 +185,7 @@ export interface DnDMap {
   labels: TextLabel[];
   freehand: FreehandPath[];
   fogOfWar: FogOfWar;
+  rollHistory: RollResult[];
   viewport: {
     x: number;
     y: number;

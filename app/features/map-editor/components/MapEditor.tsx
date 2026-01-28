@@ -176,7 +176,7 @@ export function MapEditor({
             onTokenMoved={syncTokenMove}
           />
         </Suspense>
-        <DiceHistoryBar />
+        <DiceHistoryBar onRoll={syncNow} userName={userName} userId={userId} />
       </div>
 
       {editingToken && !readOnly && (

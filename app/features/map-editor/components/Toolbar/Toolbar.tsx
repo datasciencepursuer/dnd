@@ -27,8 +27,8 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
   const updateMapName = useMapStore((s) => s.updateMapName);
 
   const [mapName, setMapName] = useState(map?.name ?? "");
-  const [width, setWidth] = useState(map?.grid.width ?? 30);
-  const [height, setHeight] = useState(map?.grid.height ?? 20);
+  const [width, setWidth] = useState<number | string>(map?.grid.width ?? 30);
+  const [height, setHeight] = useState<number | string>(map?.grid.height ?? 20);
 
   // Sync local state when map changes
   useEffect(() => {
@@ -79,15 +79,21 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
 
   const handleApply = () => {
     if (readOnly) return;
-    const newWidth = Math.max(5, Math.min(100, width));
-    const newHeight = Math.max(5, Math.min(100, height));
+    // Parse and validate - use current map values as fallback if invalid
+    const parsedWidth = typeof width === "string" ? parseInt(width) : width;
+    const parsedHeight = typeof height === "string" ? parseInt(height) : height;
+    const newWidth = Math.max(5, Math.min(100, isNaN(parsedWidth) ? map?.grid.width ?? 30 : parsedWidth));
+    const newHeight = Math.max(5, Math.min(100, isNaN(parsedHeight) ? map?.grid.height ?? 20 : parsedHeight));
     setWidth(newWidth);
     setHeight(newHeight);
     updateGrid({ width: newWidth, height: newHeight });
   };
 
+  // Check if values differ from map (handle both string and number)
+  const currentWidth = typeof width === "string" ? parseInt(width) : width;
+  const currentHeight = typeof height === "string" ? parseInt(height) : height;
   const hasChanges =
-    map && (width !== map.grid.width || height !== map.grid.height);
+    map && (currentWidth !== map.grid.width || currentHeight !== map.grid.height || width === "" || height === "");
 
   return (
     <>
@@ -158,7 +164,7 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
                 <input
                   type="number"
                   value={width}
-                  onChange={(e) => setWidth(parseInt(e.target.value) || 5)}
+                  onChange={(e) => setWidth(e.target.value === "" ? "" : parseInt(e.target.value))}
                   min={5}
                   max={100}
                   className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -168,7 +174,7 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
                 <input
                   type="number"
                   value={height}
-                  onChange={(e) => setHeight(parseInt(e.target.value) || 5)}
+                  onChange={(e) => setHeight(e.target.value === "" ? "" : parseInt(e.target.value))}
                   min={5}
                   max={100}
                   className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
