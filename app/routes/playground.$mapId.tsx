@@ -18,6 +18,7 @@ interface LoaderData {
   permission: PermissionLevel;
   customPermissions: PlayerPermissions;
   userId: string;
+  userName: string;
   groupMembers: GroupMemberInfo[];
 }
 
@@ -60,6 +61,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return {
     ...mapData,
     userId: session.user.id,
+    userName: session.user.name,
   };
 }
 
@@ -84,6 +86,7 @@ export default function PlaygroundWithMap() {
         permission={data.permission}
         customPermissions={data.customPermissions}
         userId={data.userId}
+        userName={data.userName}
         groupMembers={data.groupMembers}
       />
     </div>

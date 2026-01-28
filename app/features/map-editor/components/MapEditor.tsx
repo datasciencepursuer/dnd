@@ -25,6 +25,7 @@ interface MapEditorProps {
   permission?: "view" | "edit" | "owner";
   customPermissions?: PlayerPermissions | null;
   userId?: string | null;
+  userName?: string | null;
   groupMembers?: GroupMemberInfo[];
 }
 
@@ -34,12 +35,13 @@ export function MapEditor({
   permission = "owner",
   customPermissions = null,
   userId = null,
+  userName = null,
   groupMembers = [],
 }: MapEditorProps) {
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
-  const { syncNow } = useMapSync(mapId);
+  const { syncNow, syncTokenMove } = useMapSync(mapId);
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -159,7 +161,7 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar readOnly={readOnly} />
+      <Toolbar readOnly={readOnly} userName={userName} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar mapId={mapId} onEditToken={readOnly ? undefined : handleEditToken} readOnly={readOnly} />
         <Suspense
@@ -171,7 +173,7 @@ export function MapEditor({
         >
           <MapCanvas
             onEditToken={readOnly ? undefined : handleEditToken}
-            onTokenMoved={readOnly ? undefined : syncNow}
+            onTokenMoved={syncTokenMove}
           />
         </Suspense>
         <DiceHistoryBar />

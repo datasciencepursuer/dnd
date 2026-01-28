@@ -20,7 +20,7 @@ export function usePresence(mapId: string | undefined) {
   const setError = usePresenceStore((s) => s.setError);
   const setConnectionId = usePresenceStore((s) => s.setConnectionId);
   const reset = usePresenceStore((s) => s.reset);
-  const loadMap = useMapStore((s) => s.loadMap);
+  const syncMap = useMapStore((s) => s.syncMap);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -66,7 +66,8 @@ export function usePresence(mapId: string | undefined) {
         // Only update if server has a different version than what we last received
         if (lastMapUpdateRef.current !== serverUpdatedAt) {
           lastMapUpdateRef.current = serverUpdatedAt;
-          loadMap(data.data as DnDMap);
+          // Use syncMap to preserve the current viewport
+          syncMap(data.data as DnDMap);
         }
       } catch (error) {
         console.error("Failed to parse mapSync event:", error);
@@ -111,7 +112,7 @@ export function usePresence(mapId: string | undefined) {
         }
       }, delay);
     };
-  }, [mapId, setUsers, setConnected, setError, setConnectionId, clearReconnectTimeout, loadMap]);
+  }, [mapId, setUsers, setConnected, setError, setConnectionId, clearReconnectTimeout, syncMap]);
 
   const disconnect = useCallback(() => {
     clearReconnectTimeout();

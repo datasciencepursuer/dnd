@@ -27,6 +27,7 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: Tok
   const userId = useEditorStore((s) => s.userId);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
   const canEditToken = useEditorStore((s) => s.canEditToken);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
   const isOwner = useEditorStore((s) => s.isOwner);
 
   const handleAddToken = () => {
@@ -175,7 +176,8 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: Tok
           </h4>
           <div ref={listRef} className="space-y-1 max-h-60 overflow-y-auto">
             {map.tokens.map((token, index) => {
-              const isOwnToken = canEditToken(token.ownerId);
+              const isOwnToken = canMoveToken(token.ownerId);
+              const canEdit = canEditToken(token.ownerId);
               const canDelete = canDeleteToken(token.ownerId);
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index && draggedIndex !== index;
@@ -184,12 +186,12 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: Tok
               return (
                 <div
                   key={token.id}
-                  onClick={() => isOwnToken && onEditToken?.(token)}
+                  onClick={() => canEdit && onEditToken?.(token)}
                   className={`group flex items-center gap-2 p-2 rounded text-sm transition-all select-none ${
                     selectedIds.includes(token.id)
                       ? "bg-blue-100 dark:bg-blue-900"
                       : "bg-gray-50 dark:bg-gray-700"
-                  } ${isOwnToken ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" : ""} ${
+                  } ${canEdit ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" : ""} ${
                     isDragging ? "opacity-50" : ""
                   } ${showTopBorder ? "border-t-2 border-blue-500" : ""} ${showBottomBorder ? "border-b-2 border-blue-500" : ""}`}
                 >
@@ -212,7 +214,7 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false }: Tok
                   <span className="text-gray-900 dark:text-white flex-1 truncate cursor-pointer">
                     {token.name}
                   </span>
-                  {isOwnToken && onEditToken && (
+                  {canEdit && onEditToken && (
                     <span className="text-xs text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       Edit
                     </span>

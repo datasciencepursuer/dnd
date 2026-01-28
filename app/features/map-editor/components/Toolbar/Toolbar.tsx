@@ -15,9 +15,10 @@ const editTools: { id: EditorTool; label: string; icon: string; shortcut: string
 
 interface ToolbarProps {
   readOnly?: boolean;
+  userName?: string | null;
 }
 
-export function Toolbar({ readOnly = false }: ToolbarProps) {
+export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
 
@@ -182,7 +183,20 @@ export function Toolbar({ readOnly = false }: ToolbarProps) {
                   Apply
                 </button>
               )}
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
             </>
+          )}
+          {userName && (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+                <span className="text-sm font-medium text-white">
+                  {userName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {userName}
+              </span>
+            </div>
           )}
         </div>
       </div>

@@ -6,11 +6,11 @@ import { TokenLayer } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
-import type { Token, FreehandPath } from "../../types";
+import type { Token, FreehandPath, GridPosition } from "../../types";
 
 interface MapCanvasProps {
   onEditToken?: (token: Token) => void;
-  onTokenMoved?: () => void;
+  onTokenMoved?: (tokenId: string, position: GridPosition) => void;
 }
 
 export function MapCanvas({ onEditToken, onTokenMoved }: MapCanvasProps) {

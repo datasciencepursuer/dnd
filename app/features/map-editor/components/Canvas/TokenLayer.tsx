@@ -240,7 +240,7 @@ function TokenItem({
         </>
       )}
 
-      {/* Lock indicator for non-movable tokens */}
+      {/* Lock indicator for non-movable tokens only */}
       {!isMovable && isHovered && (
         <Group y={lockY}>
           <Rect
@@ -354,7 +354,7 @@ interface TokenLayerProps {
   cellSize: number;
   stageRef: React.RefObject<any>;
   onEditTokenName?: (token: Token) => void;
-  onTokenMoved?: () => void;
+  onTokenMoved?: (tokenId: string, position: GridPosition) => void;
 }
 
 export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onTokenMoved }: TokenLayerProps) {
@@ -464,7 +464,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
         if (canMoveToken(token.ownerId)) {
           moveToken(token.id, { col, row });
           // Trigger immediate sync for real-time updates
-          onTokenMoved?.();
+          onTokenMoved?.(token.id, { col, row });
         }
       }
 

@@ -8,6 +8,7 @@ interface MapState {
 
   // Map actions
   loadMap: (map: DnDMap) => void;
+  syncMap: (map: DnDMap) => void;
   newMap: (name: string) => void;
   updateMapName: (name: string) => void;
 
@@ -45,6 +46,19 @@ export const useMapStore = create<MapState>()(
       map: null,
 
       loadMap: (map) => set({ map }),
+
+      // Sync map data from server while preserving local viewport
+      syncMap: (newMap) =>
+        set((state) => {
+          if (!state.map) return { map: newMap };
+          // Preserve current viewport position
+          return {
+            map: {
+              ...newMap,
+              viewport: state.map.viewport,
+            },
+          };
+        }),
 
       newMap: (name) => set({ map: createNewMap(name) }),
 
