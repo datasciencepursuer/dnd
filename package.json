@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm drizzle-kit generate && pnpm drizzle-kit migrate && react-router build",
+    "build": "pnpm exec drizzle-kit generate && pnpm exec drizzle-kit migrate && pnpm exec react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc"
