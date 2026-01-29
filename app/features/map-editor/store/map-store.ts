@@ -3,8 +3,15 @@ import { temporal } from "zundo";
 import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult } from "../types";
 import { createNewMap } from "../constants";
 
+// Timeout for dirty tokens - after this time, server updates will overwrite local changes
+const DIRTY_TOKEN_STALE_MS = 10000; // 10 seconds
+
 interface MapState {
   map: DnDMap | null;
+
+  // Dirty token tracking for optimistic updates
+  dirtyTokens: Set<string>;
+  dirtyTimestamps: Map<string, number>;
 
   // Map actions
   loadMap: (map: DnDMap) => void;
@@ -19,6 +26,11 @@ interface MapState {
   moveToken: (id: string, position: GridPosition) => void;
   flipToken: (id: string) => void;
   reorderTokens: (fromIndex: number, toIndex: number) => void;
+
+  // Dirty token management
+  markTokenDirty: (tokenId: string) => void;
+  clearDirtyToken: (tokenId: string) => void;
+  clearStaleDirtyTokens: () => void;
 
   // Grid actions
   updateGrid: (settings: Partial<GridSettings>) => void;
@@ -46,21 +58,57 @@ interface MapState {
 
 export const useMapStore = create<MapState>()(
   temporal(
-    (set) => ({
+    (set, get) => ({
       map: null,
+      dirtyTokens: new Set<string>(),
+      dirtyTimestamps: new Map<string, number>(),
 
-      loadMap: (map) => set({ map }),
+      loadMap: (map) => set({ map, dirtyTokens: new Set(), dirtyTimestamps: new Map() }),
 
-      // Sync map data from server while preserving local viewport
-      syncMap: (newMap) =>
+      // Sync map data from server while preserving local dirty tokens and viewport
+      syncMap: (serverMap) =>
         set((state) => {
-          if (!state.map) return { map: newMap };
-          // Preserve current viewport position
+          if (!state.map) return { map: serverMap };
+
+          const now = Date.now();
+
+          // Filter out stale dirty tokens
+          const activeDirtyTokens = new Set<string>();
+          for (const tokenId of state.dirtyTokens) {
+            const timestamp = state.dirtyTimestamps.get(tokenId);
+            if (timestamp && now - timestamp < DIRTY_TOKEN_STALE_MS) {
+              activeDirtyTokens.add(tokenId);
+            }
+          }
+
+          // Merge tokens: keep local dirty tokens, take server's for others
+          const mergedTokens = serverMap.tokens.map((serverToken) => {
+            // If this token is dirty locally, keep our version
+            if (activeDirtyTokens.has(serverToken.id)) {
+              const localToken = state.map!.tokens.find((t) => t.id === serverToken.id);
+              if (localToken) {
+                return localToken;
+              }
+            }
+            return serverToken;
+          });
+
+          // Also preserve any local-only tokens that are dirty but not yet on server
+          const serverTokenIds = new Set(serverMap.tokens.map((t) => t.id));
+          const localOnlyDirtyTokens = state.map.tokens.filter(
+            (t) => activeDirtyTokens.has(t.id) && !serverTokenIds.has(t.id)
+          );
+
           return {
             map: {
-              ...newMap,
-              viewport: state.map.viewport,
+              ...serverMap,
+              tokens: [...mergedTokens, ...localOnlyDirtyTokens],
+              viewport: state.map.viewport, // Preserve viewport
             },
+            dirtyTokens: activeDirtyTokens,
+            dirtyTimestamps: new Map(
+              [...state.dirtyTimestamps].filter(([id]) => activeDirtyTokens.has(id))
+            ),
           };
         }),
 
@@ -81,18 +129,24 @@ export const useMapStore = create<MapState>()(
       addToken: (token) =>
         set((state) => {
           if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(token.id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(token.id, Date.now());
           return {
             map: {
               ...state.map,
               tokens: [...state.map.tokens, token],
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 
       updateToken: (id, updates) =>
         set((state) => {
           if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(id, Date.now());
           return {
             map: {
               ...state.map,
@@ -101,24 +155,35 @@ export const useMapStore = create<MapState>()(
               ),
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 
       removeToken: (id) =>
         set((state) => {
           if (!state.map) return state;
+          // Remove from dirty tracking when deleted
+          const newDirtyTokens = new Set(state.dirtyTokens);
+          newDirtyTokens.delete(id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps);
+          newDirtyTimestamps.delete(id);
           return {
             map: {
               ...state.map,
               tokens: state.map.tokens.filter((t) => t.id !== id),
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 
       moveToken: (id, position) =>
         set((state) => {
           if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(id, Date.now());
           return {
             map: {
               ...state.map,
@@ -127,12 +192,16 @@ export const useMapStore = create<MapState>()(
               ),
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 
       flipToken: (id) =>
         set((state) => {
           if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(id, Date.now());
           return {
             map: {
               ...state.map,
@@ -141,6 +210,8 @@ export const useMapStore = create<MapState>()(
               ),
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 
@@ -150,12 +221,59 @@ export const useMapStore = create<MapState>()(
           const tokens = [...state.map.tokens];
           const [removed] = tokens.splice(fromIndex, 1);
           tokens.splice(toIndex, 0, removed);
+          // Mark reordered token as dirty
+          const newDirtyTokens = new Set(state.dirtyTokens).add(removed.id);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(removed.id, Date.now());
           return {
             map: {
               ...state.map,
               tokens,
               updatedAt: new Date().toISOString(),
             },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      // Dirty token management
+      markTokenDirty: (tokenId) =>
+        set((state) => {
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+          return {
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      clearDirtyToken: (tokenId) =>
+        set((state) => {
+          const newDirtyTokens = new Set(state.dirtyTokens);
+          newDirtyTokens.delete(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps);
+          newDirtyTimestamps.delete(tokenId);
+          return {
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      clearStaleDirtyTokens: () =>
+        set((state) => {
+          const now = Date.now();
+          const newDirtyTokens = new Set<string>();
+          const newDirtyTimestamps = new Map<string, number>();
+
+          for (const [tokenId, timestamp] of state.dirtyTimestamps) {
+            if (now - timestamp < DIRTY_TOKEN_STALE_MS) {
+              newDirtyTokens.add(tokenId);
+              newDirtyTimestamps.set(tokenId, timestamp);
+            }
+          }
+
+          return {
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
 

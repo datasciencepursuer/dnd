@@ -5,19 +5,24 @@ import type { GridPosition } from "../types";
 /**
  * Hook for syncing map changes to the server.
  * Provides both debounced and immediate sync options.
+ * Handles dirty token tracking for optimistic updates.
  */
 export function useMapSync(mapId: string | undefined) {
   const pendingSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncRef = useRef<string | null>(null);
+  // Track tokens being synced so we can clear them after success
+  const pendingTokenSyncsRef = useRef<Set<string>>(new Set());
 
   /**
    * Immediately sync the current map state to the server.
    * Use this for high-priority changes (requires edit permission).
+   * Clears all dirty tokens on success since full map state is synced.
    */
   const syncNow = useCallback(async () => {
     if (!mapId) return;
 
-    const map = useMapStore.getState().map;
+    const state = useMapStore.getState();
+    const map = state.map;
     if (!map) return;
 
     // Cancel any pending debounced sync
@@ -30,13 +35,23 @@ export function useMapSync(mapId: string | undefined) {
     const mapHash = map.updatedAt;
     if (lastSyncRef.current === mapHash) return;
 
+    // Capture dirty tokens before sync
+    const tokensToClear = new Set(state.dirtyTokens);
+
     try {
-      await fetch(`/api/maps/${mapId}`, {
+      const response = await fetch(`/api/maps/${mapId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: map.name, data: map }),
       });
-      lastSyncRef.current = mapHash;
+
+      if (response.ok) {
+        lastSyncRef.current = mapHash;
+        // Clear all dirty tokens that were part of this sync
+        for (const tokenId of tokensToClear) {
+          useMapStore.getState().clearDirtyToken(tokenId);
+        }
+      }
     } catch (error) {
       console.error("Failed to sync map:", error);
     }
@@ -45,6 +60,7 @@ export function useMapSync(mapId: string | undefined) {
   /**
    * Sync a token movement to the server.
    * Uses a dedicated endpoint that allows token owners to move their tokens.
+   * Clears the dirty flag on success so server updates can apply.
    */
   const syncTokenMove = useCallback(
     async (tokenId: string, position: GridPosition) => {
@@ -57,7 +73,10 @@ export function useMapSync(mapId: string | undefined) {
           body: JSON.stringify({ col: position.col, row: position.row }),
         });
 
-        if (!response.ok) {
+        if (response.ok) {
+          // Clear dirty flag on successful sync
+          useMapStore.getState().clearDirtyToken(tokenId);
+        } else {
           // Fall back to full sync if token move endpoint fails
           // (e.g., user has full edit permission)
           await syncNow();
@@ -95,6 +114,7 @@ export function useMapSync(mapId: string | undefined) {
   /**
    * Sync a token update to the server.
    * Uses a dedicated endpoint that allows token owners to edit their tokens.
+   * Clears the dirty flag on success so server updates can apply.
    */
   const syncTokenUpdate = useCallback(
     async (tokenId: string, updates: Record<string, unknown>) => {
@@ -107,7 +127,10 @@ export function useMapSync(mapId: string | undefined) {
           body: JSON.stringify(updates),
         });
 
-        if (!response.ok) {
+        if (response.ok) {
+          // Clear dirty flag on successful sync
+          useMapStore.getState().clearDirtyToken(tokenId);
+        } else {
           console.error("Failed to sync token update:", await response.text());
         }
       } catch (error) {

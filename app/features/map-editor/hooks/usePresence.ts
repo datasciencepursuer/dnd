@@ -63,34 +63,26 @@ export function usePresence(mapId: string | undefined) {
         const data = JSON.parse(event.data);
         const serverUpdatedAt = data.updatedAt;
 
-        // Only update if server has a different version than what we last received
+        // Only process if server has a different version than what we last received
         if (lastMapUpdateRef.current !== serverUpdatedAt) {
-          // Check if server data is newer than our local data
+          lastMapUpdateRef.current = serverUpdatedAt;
+
           const localMap = useMapStore.getState().map;
-          const localUpdatedAt = localMap?.updatedAt;
 
-          // Only apply server sync if server is newer or within 3 seconds (increased tolerance)
-          // This prevents stale SSE data from overwriting local optimistic updates
-          const serverTime = new Date(serverUpdatedAt).getTime();
-          const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
-          const clockTolerance = 3000; // 3 seconds - matches new sync interval
-
-          if (!localUpdatedAt || serverTime >= localTime - clockTolerance) {
-            lastMapUpdateRef.current = serverUpdatedAt;
-
-            // Handle selective sync - merge token updates for players, full sync for DMs
-            if (data.syncType === "tokens" && localMap) {
-              // Merge token updates into existing map for players
-              const updatedMap = {
-                ...localMap,
-                tokens: data.data.tokens,
-                updatedAt: data.data.updatedAt,
-              };
-              syncMap(updatedMap as DnDMap);
-            } else {
-              // Full map sync for DMs or initial load
-              syncMap(data.data as DnDMap);
-            }
+          // Handle selective sync - merge token updates for players, full sync for DMs
+          if (data.syncType === "tokens" && localMap) {
+            // Merge token updates into existing map for players
+            // The syncMap function in the store handles dirty token merging
+            const updatedMap = {
+              ...localMap,
+              tokens: data.data.tokens,
+              updatedAt: data.data.updatedAt,
+            };
+            syncMap(updatedMap as DnDMap);
+          } else {
+            // Full map sync for DMs or initial load
+            // The syncMap function in the store handles dirty token merging
+            syncMap(data.data as DnDMap);
           }
         }
       } catch (error) {

@@ -24,7 +24,8 @@
       "Bash(sudo apt install:*)",
       "Bash(npm --version)",
       "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
-      "Bash(bun:*)"
+      "Bash(bun:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

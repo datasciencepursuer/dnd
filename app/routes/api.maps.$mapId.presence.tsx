@@ -7,7 +7,7 @@ import { requireMapPermission } from "~/.server/permissions/map-permissions";
 
 const POLL_INTERVAL = 5000; // 5 seconds - optimized for D&D sessions (8 users max)
 const STALE_THRESHOLD = 60000; // 60 seconds - improved connection stability
-const MAP_SYNC_INTERVAL = 3000; // 3 seconds - balanced responsiveness vs performance
+const MAP_SYNC_INTERVAL = 2000; // 2 seconds - balanced responsiveness vs performance
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const session = await requireAuth(request);

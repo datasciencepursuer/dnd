@@ -146,49 +146,58 @@ export const maps = pgTable("maps", {
 // D&D role enum - simplified for tabletop gaming
 export const dndRoleEnum = pgEnum("dnd_role", ["dm", "player", "observer"]);
 
-// Simplified D&D permissions - optimized for 7 players + 1 DM use case
+// D&D permissions - optimized for 7 players + 1 DM use case
 export interface PlayerPermissions {
-  canMoveOwnTokens: boolean;
+  canCreateTokens: boolean;
   canEditOwnTokens: boolean;
-  canMoveAllTokens: boolean;
   canEditAllTokens: boolean;
+  canDeleteOwnTokens: boolean;
+  canDeleteAllTokens: boolean;
+  canMoveOwnTokens: boolean;
+  canMoveAllTokens: boolean;
   canViewMap: boolean;
   canEditMap: boolean;
+  canManagePlayers: boolean;
 }
 
-// Simplified D&D role permissions - maps to traditional tabletop roles
-export const DND_PERMISSIONS: Record<"observer" | "player" | "dm", PlayerPermissions> = {
-  observer: {
-    canMoveOwnTokens: false,
+// Default permissions for each role (matches frontend types.ts exactly)
+export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermissions> = {
+  view: {
+    canCreateTokens: false,
     canEditOwnTokens: false,
-    canMoveAllTokens: false,
     canEditAllTokens: false,
+    canDeleteOwnTokens: false,
+    canDeleteAllTokens: false,
+    canMoveOwnTokens: true, // View users can move their own tokens
+    canMoveAllTokens: false,
     canViewMap: true,
     canEditMap: false,
+    canManagePlayers: false,
   },
-  player: {
-    canMoveOwnTokens: true,
+  edit: {
+    canCreateTokens: true, // Admins can create tokens
     canEditOwnTokens: true,
-    canMoveAllTokens: false,
-    canEditAllTokens: false,
+    canEditAllTokens: true, // Admins can edit all tokens
+    canDeleteOwnTokens: true,
+    canDeleteAllTokens: true, // Admins can delete all tokens
+    canMoveOwnTokens: true,
+    canMoveAllTokens: true, // Admins can move all tokens
     canViewMap: true,
-    canEditMap: false,
+    canEditMap: true, // Admins can edit map
+    canManagePlayers: false, // Only owners can manage players
   },
-  dm: {
-    canMoveOwnTokens: true,
+  owner: {
+    canCreateTokens: true,
     canEditOwnTokens: true,
-    canMoveAllTokens: true,
     canEditAllTokens: true,
+    canDeleteOwnTokens: true,
+    canDeleteAllTokens: true,
+    canMoveOwnTokens: true,
+    canMoveAllTokens: true,
     canViewMap: true,
     canEditMap: true,
+    canManagePlayers: true,
   },
-};
-
-// Legacy compatibility - map old permission levels to new D&D roles
-export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermissions> = {
-  view: DND_PERMISSIONS.observer,
-  edit: DND_PERMISSIONS.player,
-  owner: DND_PERMISSIONS.dm,
 };
 
 // Map presence table - optimized for D&D sessions (one record per user per map)
