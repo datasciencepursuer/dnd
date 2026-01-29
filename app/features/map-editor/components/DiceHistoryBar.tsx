@@ -31,6 +31,7 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
 
   const [diceCount, setDiceCount] = useState(1);
+  const [modifier, setModifier] = useState(0);
   const [isRolling, setIsRolling] = useState(false);
 
   const results = map?.rollHistory || [];
@@ -52,12 +53,15 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
         rolls.push(Math.floor(Math.random() * dice.sides) + 1);
       }
 
+      const rollSum = rolls.reduce((a, b) => a + b, 0);
+
       const result: RollResult = {
         id: crypto.randomUUID(),
         dice: dice.name,
         count: diceCount,
         rolls,
-        total: rolls.reduce((a, b) => a + b, 0),
+        modifier,
+        total: rollSum + modifier,
         timestamp: Date.now(),
         rollerId: userId || "",
         rollerName: userName || "Unknown",
@@ -97,30 +101,33 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
         )}
 
         {/* Dice Count */}
-        <div className="flex items-center justify-center gap-3">
-          <button
-            onClick={() => setDiceCount(Math.max(1, diceCount - 1))}
-            disabled={!canRoll}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            -
-          </button>
-          <input
-            type="number"
-            min="1"
-            max="99"
-            value={diceCount}
-            disabled={!canRoll}
-            onChange={(e) => setDiceCount(Math.max(1, Math.min(99, parseInt(e.target.value) || 1)))}
-            className="w-16 px-2 py-2 text-center text-xl font-bold rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
-          />
-          <button
-            onClick={() => setDiceCount(Math.min(99, diceCount + 1))}
-            disabled={!canRoll}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            +
-          </button>
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-400"># of dice</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDiceCount(Math.max(1, diceCount - 1))}
+              disabled={!canRoll}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              min="1"
+              max="99"
+              value={diceCount}
+              disabled={!canRoll}
+              onChange={(e) => setDiceCount(Math.max(1, Math.min(99, parseInt(e.target.value) || 1)))}
+              className="w-14 px-2 py-1.5 text-center text-lg font-bold rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+            />
+            <button
+              onClick={() => setDiceCount(Math.min(99, diceCount + 1))}
+              disabled={!canRoll}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              +
+            </button>
+          </div>
         </div>
 
         {/* Dice Buttons */}
@@ -130,12 +137,40 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
               key={dice.name}
               onClick={() => handleRoll(dice)}
               disabled={isRolling || !canRoll}
-              title={canRoll ? `Roll ${diceCount}${dice.name}` : "Select a unit first"}
+              title={canRoll ? `Roll ${diceCount}${dice.name}${modifier !== 0 ? (modifier > 0 ? `+${modifier}` : modifier) : ""}` : "Select a unit first"}
               className={`${dice.color} text-white font-bold py-2.5 rounded-lg text-sm font-mono tracking-tight active:scale-95 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm`}
             >
               {dice.name.toUpperCase()}
             </button>
           ))}
+        </div>
+
+        {/* Modifier */}
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Modifier</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setModifier(modifier - 1)}
+              disabled={!canRoll}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              -
+            </button>
+            <input
+              type="number"
+              value={modifier}
+              disabled={!canRoll}
+              onChange={(e) => setModifier(parseInt(e.target.value) || 0)}
+              className="w-14 px-2 py-1.5 text-center text-lg font-bold rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+            />
+            <button
+              onClick={() => setModifier(modifier + 1)}
+              disabled={!canRoll}
+              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
 
@@ -181,7 +216,7 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {result.count}{result.dice}
+                      {result.count}{result.dice}{result.modifier !== 0 && result.modifier !== undefined ? (result.modifier > 0 ? `+${result.modifier}` : result.modifier) : ""}
                     </span>
                     <span className={`text-xl font-bold ${
                       index === 0
@@ -191,9 +226,9 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
                       {result.total}
                     </span>
                   </div>
-                  {result.rolls.length > 1 && (
+                  {(result.rolls.length > 1 || (result.modifier !== 0 && result.modifier !== undefined)) && (
                     <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                      {result.rolls.join(" + ")}
+                      {result.rolls.join(" + ")}{result.modifier !== 0 && result.modifier !== undefined ? (result.modifier > 0 ? ` + ${result.modifier}` : ` - ${Math.abs(result.modifier)}`) : ""}
                     </div>
                   )}
                 </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useMapStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
+import { ImageLibraryPicker } from "./ImageLibraryPicker";
+import { useUploadThing } from "~/utils/uploadthing";
 import type { Token, TokenLayer } from "../types";
 
 interface GroupMemberInfo {
@@ -15,6 +17,7 @@ interface TokenEditDialogProps {
   canAssignOwner?: boolean;
   onSave?: () => void;
   onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
+  mapId?: string;
 }
 
 export function TokenEditDialog({
@@ -24,6 +27,7 @@ export function TokenEditDialog({
   canAssignOwner = false,
   onSave,
   onTokenUpdate,
+  mapId,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
 
@@ -33,6 +37,24 @@ export function TokenEditDialog({
   const [layer, setLayer] = useState<TokenLayer>(token.layer);
   const [visible, setVisible] = useState(token.visible);
   const [ownerId, setOwnerId] = useState<string | null>(token.ownerId);
+  const [imageUrl, setImageUrl] = useState<string | null>(token.imageUrl);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const { startUpload } = useUploadThing("tokenImageUploader", {
+    onClientUploadComplete: (res) => {
+      if (res?.[0]?.url) {
+        setImageUrl(res[0].url);
+      }
+      setIsUploading(false);
+      setUploadError(null);
+    },
+    onUploadError: (error) => {
+      setUploadError(error.message);
+      setIsUploading(false);
+    },
+  });
 
   // Update local state if token changes
   useEffect(() => {
@@ -42,6 +64,7 @@ export function TokenEditDialog({
     setLayer(token.layer);
     setVisible(token.visible);
     setOwnerId(token.ownerId);
+    setImageUrl(token.imageUrl);
   }, [token]);
 
   const handleSave = () => {
@@ -52,6 +75,7 @@ export function TokenEditDialog({
       layer,
       visible,
       ownerId,
+      imageUrl,
     };
 
     // Update locally first for responsive UI
@@ -62,6 +86,28 @@ export function TokenEditDialog({
 
     onSave?.();
     onClose();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    await startUpload([file]);
+
+    // Reset input so the same file can be selected again
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    setImageUrl(null);
+  };
+
+  const handleLibrarySelect = (url: string) => {
+    setImageUrl(url);
+    setShowLibrary(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -90,7 +136,7 @@ export function TokenEditDialog({
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
           {/* Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -105,11 +151,83 @@ export function TokenEditDialog({
             />
           </div>
 
+          {/* Image */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Image
+            </label>
+
+            {/* Current image preview */}
+            {imageUrl && (
+              <div className="relative inline-block mb-2">
+                <img
+                  src={imageUrl}
+                  alt="Token"
+                  className="w-16 h-16 object-cover rounded border border-gray-300 dark:border-gray-600"
+                />
+                <button
+                  onClick={handleRemoveImage}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 cursor-pointer"
+                  title="Remove image"
+                >
+                  &times;
+                </button>
+              </div>
+            )}
+
+            {/* Upload */}
+            <div className="space-y-2">
+              <label className="block">
+                <span className="text-xs text-gray-600 dark:text-gray-400">Upload new image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  disabled={isUploading}
+                  className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-400
+                    file:mr-4 file:py-1.5 file:px-3
+                    file:rounded file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    dark:file:bg-blue-900 dark:file:text-blue-300
+                    hover:file:bg-blue-100 dark:hover:file:bg-blue-800
+                    file:cursor-pointer cursor-pointer
+                    disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </label>
+              {isUploading && (
+                <p className="text-xs text-blue-600 dark:text-blue-400">Uploading...</p>
+              )}
+              {uploadError && (
+                <p className="text-xs text-red-600 dark:text-red-400">{uploadError}</p>
+              )}
+            </div>
+
+            {/* Library toggle */}
+            <button
+              onClick={() => setShowLibrary(!showLibrary)}
+              className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+            >
+              {showLibrary ? "Hide library" : "Choose from my uploads"}
+            </button>
+
+            {/* Image library picker */}
+            {showLibrary && (
+              <div className="mt-2 p-2 border border-gray-200 dark:border-gray-700 rounded">
+                <ImageLibraryPicker
+                  type="token"
+                  onSelect={handleLibrarySelect}
+                  selectedUrl={imageUrl}
+                />
+              </div>
+            )}
+          </div>
+
           {/* Color */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Color
-              {token.imageUrl && (
+              {imageUrl && (
                 <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
                   (used for travel lines & drawing)
                 </span>

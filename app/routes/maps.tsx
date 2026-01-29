@@ -19,6 +19,8 @@ interface MapListItem {
   createdAt: string;
   updatedAt: string;
   permission: PermissionLevel;
+  gridWidth: number;
+  gridHeight: number;
 }
 
 interface GroupInfo {
@@ -66,6 +68,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       groupId: maps.groupId,
       createdAt: maps.createdAt,
       updatedAt: maps.updatedAt,
+      data: maps.data,
     })
     .from(maps)
     .where(eq(maps.userId, userId))
@@ -82,6 +85,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         groupId: maps.groupId,
         createdAt: maps.createdAt,
         updatedAt: maps.updatedAt,
+        data: maps.data,
       })
       .from(maps)
       .where(
@@ -110,17 +114,46 @@ export async function loader({ request }: Route.LoaderArgs) {
     groupsData.map((g) => [g.id, g.name])
   );
 
+  // Helper to extract grid dimensions from map data
+  const getGridDimensions = (data: unknown) => {
+    const mapData = data as { grid?: { width?: number; height?: number } } | null;
+    return {
+      gridWidth: mapData?.grid?.width ?? 20,
+      gridHeight: mapData?.grid?.height ?? 15,
+    };
+  };
+
   return {
-    owned: ownedMaps.map((m) => ({
-      ...m,
-      permission: "owner" as const,
-      groupName: m.groupId ? groupNameMap[m.groupId] : null,
-    })),
-    group: groupMapsData.map((m) => ({
-      ...m,
-      permission: "view" as const,
-      groupName: m.groupId ? groupNameMap[m.groupId] : null,
-    })),
+    owned: ownedMaps.map((m) => {
+      const { gridWidth, gridHeight } = getGridDimensions(m.data);
+      return {
+        id: m.id,
+        name: m.name,
+        userId: m.userId,
+        groupId: m.groupId,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        permission: "owner" as const,
+        groupName: m.groupId ? groupNameMap[m.groupId] : null,
+        gridWidth,
+        gridHeight,
+      };
+    }),
+    group: groupMapsData.map((m) => {
+      const { gridWidth, gridHeight } = getGridDimensions(m.data);
+      return {
+        id: m.id,
+        name: m.name,
+        userId: m.userId,
+        groupId: m.groupId,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        permission: "view" as const,
+        groupName: m.groupId ? groupNameMap[m.groupId] : null,
+        gridWidth,
+        gridHeight,
+      };
+    }),
     groups: groupsData,
     userName: session.user.name,
   };
@@ -280,9 +313,11 @@ export default function Maps() {
             </span>
           )}
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-          Updated {new Date(map.updatedAt).toLocaleDateString()}
-        </p>
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-3">
+          <span>{map.gridWidth}x{map.gridHeight}</span>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <span>Updated {new Date(map.updatedAt).toLocaleDateString()}</span>
+        </div>
         <div className="flex gap-2">
           <Link
             to={`/playground/${map.id}`}

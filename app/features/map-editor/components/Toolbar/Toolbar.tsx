@@ -7,9 +7,21 @@ const viewTools: { id: EditorTool; label: string; icon: string; shortcut: string
   { id: "select", label: "Select", icon: "↖", shortcut: "1", hint: "Left click: select · Right click: pan" },
 ];
 
-const editTools: { id: EditorTool; label: string; icon: string; shortcut: string }[] = [
-  { id: "draw", label: "Draw", icon: "✏", shortcut: "2" },
-  { id: "erase", label: "Erase", icon: "⌫", shortcut: "3" },
+// Tools available to everyone (require selected token)
+const drawTool: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string } =
+  { id: "draw", label: "Draw", icon: "✏", shortcut: "2", hint: "Select a token then draw with its color" };
+
+const pingTool: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string } =
+  { id: "ping", label: "Ping", icon: "📍", shortcut: "P", hint: "Select a token then click to ping (4 per 10s)" };
+
+// Tools requiring edit permission
+const editTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
+  { id: "erase", label: "Erase", icon: "⌫", shortcut: "3", hint: "Drag to erase fog and drawings" },
+];
+
+// Tools requiring map edit permission (DM only)
+const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
+  { id: "fog", label: "Fog", icon: "🌫", shortcut: "4", hint: "Drag to paint fog" },
 ];
 
 interface ToolbarProps {
@@ -20,6 +32,7 @@ interface ToolbarProps {
 export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
+  const canEditMap = useEditorStore((s) => s.canEditMap);
 
   const map = useMapStore((s) => s.map);
   const updateGrid = useMapStore((s) => s.updateGrid);
@@ -51,14 +64,22 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
           setTool("select");
           break;
         case "2":
-          if (!readOnly) setTool("draw");
+          // Draw available to everyone (like ping)
+          setTool("draw");
           break;
         case "3":
           if (!readOnly) setTool("erase");
           break;
+        case "4":
+          if (!readOnly && canEditMap()) setTool("fog");
+          break;
+        case "p":
+        case "P":
+          setTool("ping");
+          break;
       }
     },
-    [setTool, readOnly]
+    [setTool, readOnly, canEditMap]
   );
 
   useEffect(() => {
@@ -133,6 +154,20 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
                 <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
               </button>
             ))}
+            {/* Draw tool - available to everyone */}
+            <button
+              onClick={() => setTool(drawTool.id)}
+              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                selectedTool === drawTool.id
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+              title={drawTool.hint || `${drawTool.label} (${drawTool.shortcut})`}
+            >
+              <span className="mr-1">{drawTool.icon}</span>
+              {drawTool.label}
+              <span className="ml-1 text-xs opacity-60">({drawTool.shortcut})</span>
+            </button>
             {!readOnly && editTools.map((tool) => (
               <button
                 key={tool.id}
@@ -142,13 +177,42 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
-                title={`${tool.label} (${tool.shortcut})`}
+                title={tool.hint || `${tool.label} (${tool.shortcut})`}
               >
                 <span className="mr-1">{tool.icon}</span>
                 {tool.label}
                 <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
               </button>
             ))}
+            {!readOnly && canEditMap() && mapEditTools.map((tool) => (
+              <button
+                key={tool.id}
+                onClick={() => setTool(tool.id)}
+                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                  selectedTool === tool.id
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
+                title={tool.hint || `${tool.label} (${tool.shortcut})`}
+              >
+                <span className="mr-1">{tool.icon}</span>
+                {tool.label}
+                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
+              </button>
+            ))}
+            <button
+              onClick={() => setTool(pingTool.id)}
+              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                selectedTool === pingTool.id
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+              title={pingTool.hint || `${pingTool.label} (${pingTool.shortcut})`}
+            >
+              <span className="mr-1">{pingTool.icon}</span>
+              {pingTool.label}
+              <span className="ml-1 text-xs opacity-60">({pingTool.shortcut})</span>
+            </button>
           </div>
           <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
             Right-click to pan
@@ -160,23 +224,25 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
             <>
               <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
               <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400">W</span>
                 <input
                   type="number"
                   value={width}
                   onChange={(e) => setWidth(e.target.value === "" ? "" : parseInt(e.target.value))}
                   min={5}
                   max={100}
-                  className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   title="Grid width (cells)"
                 />
-                <span className="text-gray-500 dark:text-gray-400">x</span>
+                <span className="text-gray-400 dark:text-gray-500">×</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400">H</span>
                 <input
                   type="number"
                   value={height}
                   onChange={(e) => setHeight(e.target.value === "" ? "" : parseInt(e.target.value))}
                   min={5}
                   max={100}
-                  className="w-16 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   title="Grid height (cells)"
                 />
               </div>

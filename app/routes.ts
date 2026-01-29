@@ -24,4 +24,5 @@ export default [
   route("invite/group/:token", "routes/invite.group.$token.tsx"),
   route("api/uploadthing", "routes/api.uploadthing.ts"),
   route("api/uploadthing/files", "routes/api.uploadthing.files.ts"),
+  route("api/uploads", "routes/api.uploads.tsx"),
 ] satisfies RouteConfig;

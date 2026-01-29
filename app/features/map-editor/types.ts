@@ -143,9 +143,15 @@ export interface FreehandPath {
 }
 
 // Fog of War
+export interface FogCell {
+  key: string; // "col,row" format
+  creatorId: string; // User who painted this fog
+}
+
 export interface FogOfWar {
   enabled: boolean;
-  revealedCells: string[];
+  revealedCells: string[]; // Legacy - cells revealed through fog
+  paintedCells: FogCell[]; // Painted fog cells with creator info
 }
 
 // Background
@@ -162,6 +168,7 @@ export interface RollResult {
   dice: string;
   count: number;
   rolls: number[];
+  modifier: number;
   total: number;
   timestamp: number;
   rollerId: string;
@@ -199,12 +206,24 @@ export type EditorTool =
   | "pan"
   | "draw"
   | "erase"
+  | "fog"
+  | "ping"
   | "token"
   | "wall"
   | "area"
   | "text"
   | "fog-reveal"
   | "fog-hide";
+
+// Ping for real-time signaling
+export interface Ping {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+  userId: string;
+  timestamp: number;
+}
 
 export interface EditorState {
   selectedTool: EditorTool;

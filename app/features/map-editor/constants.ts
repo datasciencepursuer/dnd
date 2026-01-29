@@ -13,6 +13,7 @@ export const DEFAULT_GRID: GridSettings = {
 export const DEFAULT_FOG: FogOfWar = {
   enabled: false,
   revealedCells: [],
+  paintedCells: [],
 };
 
 export const DEFAULT_VIEWPORT = {
@@ -46,20 +47,6 @@ export const GRID_COLORS = [
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 3;
 export const ZOOM_STEP = 0.1;
-
-// Preset images (hosted on UploadThing)
-export const PRESET_IMAGES = {
-  FIGHTER: "https://utfs.io/f/dWzugQGhzDaSj0aNR69EkbMDrNlC9Uj1sZWea2mTOGhVHP4w",
-  CELLAR: "https://utfs.io/f/dWzugQGhzDaS0aM3o8KjBIRfWepT3qESOG21oALCj9twKylQ",
-} as const;
-
-export const TOKEN_PRESETS = [
-  { name: "Fighter", imageUrl: PRESET_IMAGES.FIGHTER },
-];
-
-export const BACKGROUND_PRESETS = [
-  { name: "Cellar", imageUrl: PRESET_IMAGES.CELLAR },
-];
 
 export interface CreateMapOptions {
   name: string;

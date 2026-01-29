@@ -15,6 +15,9 @@ import { relations, sql } from "drizzle-orm";
 // Group role enum
 export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
 
+// Upload type enum
+export const uploadTypeEnum = pgEnum("upload_type", ["token", "map"]);
+
 // better-auth user table
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -229,6 +232,7 @@ export const userRelations = relations(user, ({ many }) => ({
   groupMemberships: many(groupMembers),
   createdGroups: many(groups),
   sentGroupInvitations: many(groupInvitations),
+  uploads: many(uploads),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -286,6 +290,34 @@ export const mapPresenceRelations = relations(mapPresence, ({ one }) => ({
   }),
 }));
 
+// Uploads table for user image library
+export const uploads = pgTable(
+  "uploads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    type: uploadTypeEnum("type").notNull(),
+    fileName: text("file_name").notNull(),
+    fileSize: integer("file_size").notNull(),
+    mimeType: text("mime_type").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("uploads_user_id_idx").on(table.userId),
+    index("uploads_type_idx").on(table.type),
+  ]
+);
+
+export const uploadsRelations = relations(uploads, ({ one }) => ({
+  user: one(user, {
+    fields: [uploads.userId],
+    references: [user.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -304,3 +336,6 @@ export type NewMap = typeof maps.$inferInsert;
 export type MapPresence = typeof mapPresence.$inferSelect;
 export type NewMapPresence = typeof mapPresence.$inferInsert;
 export type PermissionLevel = "view" | "edit" | "owner";
+export type Upload = typeof uploads.$inferSelect;
+export type NewUpload = typeof uploads.$inferInsert;
+export type UploadType = "token" | "map";

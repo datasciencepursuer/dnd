@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell } from "../types";
 import { createNewMap } from "../constants";
 
 // Timeout for dirty tokens - after this time, server updates will overwrite local changes
@@ -45,6 +45,11 @@ interface MapState {
   toggleFog: () => void;
   revealCell: (col: number, row: number) => void;
   hideCell: (col: number, row: number) => void;
+  paintFogCell: (col: number, row: number, creatorId: string) => void;
+  eraseFogCell: (col: number, row: number) => void;
+  paintFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;
+  eraseFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number) => void;
+  clearAllFog: () => void;
 
   // Drawing actions
   addFreehandPath: (path: FreehandPath) => void;
@@ -358,6 +363,127 @@ export const useMapStore = create<MapState>()(
                 revealedCells: state.map.fogOfWar.revealedCells.filter(
                   (k) => k !== key
                 ),
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      paintFogCell: (col, row, creatorId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const key = `${col},${row}`;
+          const paintedCells = state.map.fogOfWar.paintedCells || [];
+          // Don't add if already exists
+          if (paintedCells.some((c) => c.key === key)) return state;
+          const newCell: FogCell = { key, creatorId };
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: {
+                ...state.map.fogOfWar,
+                paintedCells: [...paintedCells, newCell],
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      eraseFogCell: (col, row) =>
+        set((state) => {
+          if (!state.map) return state;
+          const key = `${col},${row}`;
+          const paintedCells = state.map.fogOfWar.paintedCells || [];
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: {
+                ...state.map.fogOfWar,
+                paintedCells: paintedCells.filter((c) => c.key !== key),
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      paintFogInRange: (startCol, startRow, endCol, endRow, creatorId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const paintedCells = state.map.fogOfWar.paintedCells || [];
+          const existingKeys = new Set(paintedCells.map((c) => c.key));
+          const newCells: FogCell[] = [];
+
+          // Normalize range (handle any drag direction)
+          const minCol = Math.min(startCol, endCol);
+          const maxCol = Math.max(startCol, endCol);
+          const minRow = Math.min(startRow, endRow);
+          const maxRow = Math.max(startRow, endRow);
+
+          for (let col = minCol; col <= maxCol; col++) {
+            for (let row = minRow; row <= maxRow; row++) {
+              const key = `${col},${row}`;
+              if (!existingKeys.has(key)) {
+                newCells.push({ key, creatorId });
+              }
+            }
+          }
+
+          if (newCells.length === 0) return state;
+
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: {
+                ...state.map.fogOfWar,
+                paintedCells: [...paintedCells, ...newCells],
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      eraseFogInRange: (startCol, startRow, endCol, endRow) =>
+        set((state) => {
+          if (!state.map) return state;
+          const paintedCells = state.map.fogOfWar.paintedCells || [];
+
+          // Normalize range
+          const minCol = Math.min(startCol, endCol);
+          const maxCol = Math.max(startCol, endCol);
+          const minRow = Math.min(startRow, endRow);
+          const maxRow = Math.max(startRow, endRow);
+
+          const keysToRemove = new Set<string>();
+          for (let col = minCol; col <= maxCol; col++) {
+            for (let row = minRow; row <= maxRow; row++) {
+              keysToRemove.add(`${col},${row}`);
+            }
+          }
+
+          const filteredCells = paintedCells.filter((c) => !keysToRemove.has(c.key));
+          if (filteredCells.length === paintedCells.length) return state;
+
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: {
+                ...state.map.fogOfWar,
+                paintedCells: filteredCells,
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      clearAllFog: () =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: {
+                ...state.map.fogOfWar,
+                paintedCells: [],
               },
               updatedAt: new Date().toISOString(),
             },

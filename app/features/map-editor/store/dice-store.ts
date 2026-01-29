@@ -4,6 +4,7 @@ export interface RollResult {
   dice: string;
   count: number;
   rolls: number[];
+  modifier: number;
   total: number;
   timestamp: number;
   tokenId: string;
@@ -20,7 +21,8 @@ interface DiceState {
   rollDice: (
     diceName: string,
     sides: number,
-    token: { id: string; name: string; color: string }
+    token: { id: string; name: string; color: string },
+    modifier?: number
   ) => void;
   clearHistory: () => void;
 }
@@ -32,7 +34,7 @@ export const useDiceStore = create<DiceState>((set, get) => ({
 
   setDiceCount: (count) => set({ diceCount: count }),
 
-  rollDice: (diceName, sides, token) => {
+  rollDice: (diceName, sides, token, modifier = 0) => {
     const { diceCount } = get();
     set({ isRolling: true });
 
@@ -42,11 +44,14 @@ export const useDiceStore = create<DiceState>((set, get) => ({
         rolls.push(Math.floor(Math.random() * sides) + 1);
       }
 
+      const rollSum = rolls.reduce((a, b) => a + b, 0);
+
       const result: RollResult = {
         dice: diceName,
         count: diceCount,
         rolls,
-        total: rolls.reduce((a, b) => a + b, 0),
+        modifier,
+        total: rollSum + modifier,
         timestamp: Date.now(),
         tokenId: token.id,
         tokenName: token.name,

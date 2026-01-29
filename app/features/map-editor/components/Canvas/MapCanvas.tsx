@@ -1,20 +1,28 @@
-import { Stage, Layer } from "react-konva";
+import { Stage, Layer, Rect } from "react-konva";
 import { useEffect, useRef, useState } from "react";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { TokenLayer } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
+import { FogLayer } from "./FogLayer";
+import { PingLayer } from "./PingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
-import type { Token, FreehandPath, GridPosition } from "../../types";
+import type { Token, FreehandPath, GridPosition, Ping } from "../../types";
 
 interface MapCanvasProps {
   onEditToken?: (token: Token) => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
+  onFogPaint?: (col: number, row: number, creatorId: string) => void;
+  onFogErase?: (col: number, row: number) => void;
+  onFogPaintRange?: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;
+  onFogEraseRange?: (startCol: number, startRow: number, endCol: number, endRow: number) => void;
+  onPing?: (ping: Ping) => void;
+  activePings?: Ping[];
 }
 
-export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasProps) {
+export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, activePings = [] }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -26,14 +34,25 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<number[] | null>(null);
 
+  // Drag rectangle state for fog and erase tools
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingRect, setIsDraggingRect] = useState(false);
+  const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
+
   const map = useMapStore((s) => s.map);
   const setViewport = useMapStore((s) => s.setViewport);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
+  const paintFogInRange = useMapStore((s) => s.paintFogInRange);
+  const eraseFogInRange = useMapStore((s) => s.eraseFogInRange);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const setIsPanning = useEditorStore((s) => s.setIsPanning);
   const clearSelection = useEditorStore((s) => s.clearSelection);
+  const userId = useEditorStore((s) => s.userId);
+  const canPing = useEditorStore((s) => s.canPing);
+  const recordPing = useEditorStore((s) => s.recordPing);
 
   const stageRef = useRef<any>(null);
 
@@ -178,6 +197,13 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
     setViewport(newPos.x, newPos.y, newScale);
   };
 
+  // Helper to get grid cell from canvas position
+  const getCellFromPosition = (pos: { x: number; y: number }) => {
+    const col = Math.floor(pos.x / map!.grid.cellSize);
+    const row = Math.floor(pos.y / map!.grid.cellSize);
+    return { col, row };
+  };
+
   const handleMouseDown = (e: any) => {
     // Right-click to pan
     if (e.evt.button === 2) {
@@ -185,6 +211,28 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
       setIsRightClickPanning(true);
       setIsPanning(true);
       lastMousePos.current = { x: e.evt.clientX, y: e.evt.clientY };
+      return;
+    }
+
+    // Fog tool: drag to paint rectangle
+    if (selectedTool === "fog" && e.evt.button === 0 && userId) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setDragStart(pos);
+      setDragEnd(pos);
+      setIsDraggingRect(true);
+      setDragMode("fog");
+      return;
+    }
+
+    // Erase tool: drag to create erase rectangle
+    if (selectedTool === "erase" && e.evt.button === 0) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setDragStart(pos);
+      setDragEnd(pos);
+      setIsDraggingRect(true);
+      setDragMode("erase");
       return;
     }
 
@@ -198,6 +246,14 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
   };
 
   const handleMouseMove = (e: any) => {
+    // Update drag rectangle
+    if (isDraggingRect && dragStart) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setDragEnd(pos);
+      return;
+    }
+
     if (!isDrawing || selectedTool !== "draw" || !currentPath) return;
 
     const stage = stageRef.current;
@@ -206,6 +262,46 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
   };
 
   const handleMouseUp = (e: any) => {
+    // Complete drag rectangle operation
+    if (isDraggingRect && dragStart && dragEnd && dragMode) {
+      const { col: startCol, row: startRow } = getCellFromPosition(dragStart);
+      const { col: endCol, row: endRow } = getCellFromPosition(dragEnd);
+
+      if (dragMode === "fog" && userId) {
+        // Paint fog in range
+        paintFogInRange(startCol, startRow, endCol, endRow, userId);
+        onFogPaintRange?.(startCol, startRow, endCol, endRow, userId);
+      } else if (dragMode === "erase") {
+        // Erase fog in range
+        eraseFogInRange(startCol, startRow, endCol, endRow);
+        onFogEraseRange?.(startCol, startRow, endCol, endRow);
+
+        // Also erase drawings that fall within the rectangle
+        const minX = Math.min(dragStart.x, dragEnd.x);
+        const maxX = Math.max(dragStart.x, dragEnd.x);
+        const minY = Math.min(dragStart.y, dragEnd.y);
+        const maxY = Math.max(dragStart.y, dragEnd.y);
+
+        // Find and remove paths that have any point within the rectangle
+        map?.freehand.forEach((path) => {
+          for (let i = 0; i < path.points.length; i += 2) {
+            const px = path.points[i];
+            const py = path.points[i + 1];
+            if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
+              removeFreehandPath(path.id);
+              break;
+            }
+          }
+        });
+      }
+
+      setDragStart(null);
+      setDragEnd(null);
+      setIsDraggingRect(false);
+      setDragMode(null);
+      return;
+    }
+
     if (isDrawing && currentPath && currentPath.length >= 4) {
       // Save the path
       const path: FreehandPath = {
@@ -235,6 +331,30 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
   };
 
   const handleClick = (e: any) => {
+    // Ping tool click handler
+    if (selectedTool === "ping" && selectedToken && userId) {
+      // Check rate limit
+      if (!canPing()) {
+        return;
+      }
+
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+
+      const ping: Ping = {
+        id: crypto.randomUUID(),
+        x: pos.x,
+        y: pos.y,
+        color: selectedToken.color,
+        userId,
+        timestamp: Date.now(),
+      };
+
+      recordPing();
+      onPing?.(ping);
+      return;
+    }
+
     // If clicking on empty canvas, clear selection
     if (e.target === e.target.getStage()) {
       clearSelection();
@@ -256,7 +376,13 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
           : "not-allowed"
         : selectedTool === "erase"
           ? "crosshair"
-          : "default";
+          : selectedTool === "fog"
+            ? "crosshair"
+            : selectedTool === "ping"
+              ? selectedToken
+                ? "crosshair"
+                : "not-allowed"
+              : "default";
 
   return (
     <div
@@ -269,6 +395,30 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
       {selectedTool === "draw" && !selectedToken && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
           Select a token to use its color for drawing
+        </div>
+      )}
+      {/* Fog tool hint */}
+      {selectedTool === "fog" && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Click and drag to paint fog
+        </div>
+      )}
+      {/* Erase tool hint */}
+      {selectedTool === "erase" && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Drag to erase fog and drawings | Click on drawing to erase
+        </div>
+      )}
+      {/* Ping tool warning when no token selected */}
+      {selectedTool === "ping" && !selectedToken && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Select a token to use its color for pinging
+        </div>
+      )}
+      {/* Ping tool hint */}
+      {selectedTool === "ping" && selectedToken && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Click to ping (4 per 10s limit)
         </div>
       )}
       <Stage
@@ -316,6 +466,32 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip }: MapCanvasP
             onTokenFlip={onTokenFlip}
           />
         </Layer>
+        <Layer name="fog">
+          <FogLayer
+            paintedCells={map.fogOfWar.paintedCells || []}
+            grid={map.grid}
+            currentUserId={userId}
+          />
+        </Layer>
+        <Layer name="pings">
+          <PingLayer pings={activePings} />
+        </Layer>
+        {/* Drag rectangle overlay */}
+        {isDraggingRect && dragStart && dragEnd && (
+          <Layer name="drag-rect">
+            <Rect
+              x={Math.min(dragStart.x, dragEnd.x)}
+              y={Math.min(dragStart.y, dragEnd.y)}
+              width={Math.abs(dragEnd.x - dragStart.x)}
+              height={Math.abs(dragEnd.y - dragStart.y)}
+              fill={dragMode === "fog" ? "#1a1a2e" : "#ef4444"}
+              opacity={0.3}
+              stroke={dragMode === "fog" ? "#4a4a6e" : "#dc2626"}
+              strokeWidth={2}
+              dash={[5, 5]}
+            />
+          </Layer>
+        )}
       </Stage>
     </div>
   );

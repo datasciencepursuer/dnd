@@ -4,9 +4,9 @@ import { Sidebar } from "./Sidebar/Sidebar";
 import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { useMapStore, useEditorStore } from "../store";
-import { preloadImages, useMapSync } from "../hooks";
-import { PRESET_IMAGES } from "../constants";
-import type { Token, PlayerPermissions } from "../types";
+import { useMapSync } from "../hooks";
+import { usePartySync } from "../hooks/usePartySync";
+import type { Token, PlayerPermissions, GridPosition, Ping } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -41,12 +41,105 @@ export function MapEditor({
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
+
+  // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate } = useMapSync(mapId);
 
-  // Sync after token flip with 500ms debounce
-  const handleTokenFlip = useCallback(() => {
-    syncDebounced(500);
-  }, [syncDebounced]);
+  // WebSocket sync for real-time updates to other clients
+  const {
+    broadcastTokenMove,
+    broadcastTokenUpdate,
+    broadcastTokenDelete,
+    broadcastMapSync,
+    broadcastFogPaint,
+    broadcastFogErase,
+    broadcastFogPaintRange,
+    broadcastFogEraseRange,
+    broadcastPing,
+    activePings,
+  } = usePartySync({
+    mapId,
+    userId,
+    userName,
+    enabled: !!mapId && !!userId,
+  });
+
+  // Combined handler: broadcast via WebSocket + persist to DB
+  const handleTokenMoved = useCallback(
+    (tokenId: string, position: GridPosition) => {
+      // 1. Broadcast instantly to other clients via WebSocket
+      broadcastTokenMove(tokenId, position);
+      // 2. Persist to database
+      syncTokenMove(tokenId, position);
+    },
+    [broadcastTokenMove, syncTokenMove]
+  );
+
+  // Combined handler for token deletion
+  const handleTokenDelete = useCallback(
+    (tokenId: string) => {
+      broadcastTokenDelete(tokenId);
+      syncTokenDelete(tokenId);
+    },
+    [broadcastTokenDelete, syncTokenDelete]
+  );
+
+  // Combined handler for token updates
+  const handleTokenUpdate = useCallback(
+    (tokenId: string, updates: Record<string, unknown>) => {
+      broadcastTokenUpdate(tokenId, updates as Partial<Token>);
+      syncTokenUpdate(tokenId, updates);
+    },
+    [broadcastTokenUpdate, syncTokenUpdate]
+  );
+
+  // Sync after token flip with 500ms debounce + broadcast
+  const handleTokenFlip = useCallback(
+    (tokenId: string) => {
+      const token = map?.tokens.find((t) => t.id === tokenId);
+      if (token) {
+        broadcastTokenUpdate(tokenId, { flipped: !token.flipped });
+      }
+      syncDebounced(500);
+    },
+    [map?.tokens, broadcastTokenUpdate, syncDebounced]
+  );
+
+  // Combined handler for fog painting: broadcast + debounced sync
+  const handleFogPaint = useCallback(
+    (col: number, row: number, creatorId: string) => {
+      broadcastFogPaint(col, row, creatorId);
+      syncDebounced(1000); // Debounce fog syncs to reduce DB writes
+    },
+    [broadcastFogPaint, syncDebounced]
+  );
+
+  // Combined handler for fog erasing: broadcast + debounced sync
+  const handleFogErase = useCallback(
+    (col: number, row: number) => {
+      broadcastFogErase(col, row);
+      syncDebounced(1000);
+    },
+    [broadcastFogErase, syncDebounced]
+  );
+
+  // Combined handler for fog painting in range: broadcast + debounced sync
+  const handleFogPaintRange = useCallback(
+    (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => {
+      broadcastFogPaintRange(startCol, startRow, endCol, endRow, creatorId);
+      syncDebounced(1000);
+    },
+    [broadcastFogPaintRange, syncDebounced]
+  );
+
+  // Combined handler for fog erasing in range: broadcast + debounced sync
+  const handleFogEraseRange = useCallback(
+    (startCol: number, startRow: number, endCol: number, endRow: number) => {
+      broadcastFogEraseRange(startCol, startRow, endCol, endRow);
+      syncDebounced(1000);
+    },
+    [broadcastFogEraseRange, syncDebounced]
+  );
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -54,11 +147,6 @@ export function MapEditor({
   useEffect(() => {
     setEditorContext(userId, permission, customPermissions);
   }, [userId, permission, customPermissions, setEditorContext]);
-
-  // Preload preset images on mount
-  useEffect(() => {
-    preloadImages(Object.values(PRESET_IMAGES));
-  }, []);
 
   // Undo/Redo - get stable references directly from temporal store
   const temporalStore = useMapStore.temporal;
@@ -168,7 +256,7 @@ export function MapEditor({
     <div className="flex flex-col h-full">
       <Toolbar readOnly={readOnly} userName={userName} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={syncTokenDelete} />
+        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={handleTokenDelete} onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -178,8 +266,14 @@ export function MapEditor({
         >
           <MapCanvas
             onEditToken={handleEditToken}
-            onTokenMoved={syncTokenMove}
+            onTokenMoved={handleTokenMoved}
             onTokenFlip={handleTokenFlip}
+            onFogPaint={handleFogPaint}
+            onFogErase={handleFogErase}
+            onFogPaintRange={handleFogPaintRange}
+            onFogEraseRange={handleFogEraseRange}
+            onPing={broadcastPing}
+            activePings={activePings}
           />
         </Suspense>
         <DiceHistoryBar onRoll={syncNow} userName={userName} userId={userId} />
@@ -192,7 +286,8 @@ export function MapEditor({
           groupMembers={groupMembers}
           canAssignOwner={permission === "owner" || permission === "edit"}
           onSave={syncNow}
-          onTokenUpdate={syncTokenUpdate}
+          onTokenUpdate={handleTokenUpdate}
+          mapId={mapId}
         />
       )}
     </div>

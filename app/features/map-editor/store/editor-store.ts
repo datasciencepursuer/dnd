@@ -16,6 +16,9 @@ interface EditorState {
   permission: MapPermission;
   permissions: PlayerPermissions;
 
+  // Ping rate limiting (4 pings per 10 seconds)
+  pingTimestamps: number[];
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -32,6 +35,11 @@ interface EditorState {
     customPermissions?: PlayerPermissions | null
   ) => void;
 
+  // Ping rate limiting
+  canPing: () => boolean;
+  recordPing: () => void;
+  getPingsRemaining: () => number;
+
   // Permission helpers
   isOwner: () => boolean;
   canEditToken: (tokenOwnerId: string | null) => boolean;
@@ -42,6 +50,9 @@ interface EditorState {
   canManagePlayers: () => boolean;
   getPermissions: () => PlayerPermissions;
 }
+
+const PING_RATE_LIMIT = 4; // Max pings
+const PING_RATE_WINDOW = 10000; // 10 seconds in ms
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   selectedTool: "select",
@@ -54,12 +65,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   userId: null,
   permission: "view",
   permissions: DEFAULT_PERMISSIONS.view,
+  pingTimestamps: [],
 
   setTool: (tool) =>
     set((state) => ({
       selectedTool: tool,
-      // Preserve selection when switching to draw tool (needs selected token for color)
-      selectedElementIds: tool === "draw" ? state.selectedElementIds : [],
+      // Preserve selection when switching to draw or ping tool (needs selected token for color)
+      selectedElementIds: tool === "draw" || tool === "ping" ? state.selectedElementIds : [],
     })),
 
   setColor: (color) => set({ currentColor: color }),
@@ -85,6 +97,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     // Use custom permissions if provided, otherwise use defaults for the permission level
     const permissions = customPermissions || DEFAULT_PERMISSIONS[permission];
     set({ userId, permission, permissions });
+  },
+
+  // Ping rate limiting
+  canPing: () => {
+    const now = Date.now();
+    const recentPings = get().pingTimestamps.filter(
+      (ts) => now - ts < PING_RATE_WINDOW
+    );
+    return recentPings.length < PING_RATE_LIMIT;
+  },
+
+  recordPing: () => {
+    const now = Date.now();
+    set((state) => ({
+      pingTimestamps: [
+        ...state.pingTimestamps.filter((ts) => now - ts < PING_RATE_WINDOW),
+        now,
+      ],
+    }));
+  },
+
+  getPingsRemaining: () => {
+    const now = Date.now();
+    const recentPings = get().pingTimestamps.filter(
+      (ts) => now - ts < PING_RATE_WINDOW
+    );
+    return Math.max(0, PING_RATE_LIMIT - recentPings.length);
   },
 
   // Permission helpers

@@ -1,13 +1,12 @@
 import { usePresenceStore } from "../../store/presence-store";
-import { usePresence } from "../../hooks/usePresence";
 
 interface PresenceListProps {
   mapId: string | undefined;
 }
 
 export function PresenceList({ mapId }: PresenceListProps) {
-  // Connect to presence system
-  usePresence(mapId);
+  // Presence is now handled by usePartySync in MapEditor
+  // This component just displays the presence store data
 
   const users = usePresenceStore((s) => s.users);
   const isConnected = usePresenceStore((s) => s.isConnected);

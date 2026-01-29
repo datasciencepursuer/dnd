@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useMapStore, useEditorStore } from "../../store";
-import { TOKEN_COLORS, TOKEN_PRESETS } from "../../constants";
+import { TOKEN_COLORS } from "../../constants";
+import { useUploadThing } from "~/utils/uploadthing";
+import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import type { Token } from "../../types";
 
 interface TokenPanelProps {
@@ -15,6 +17,10 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);
+  const [tokenImageUrl, setTokenImageUrl] = useState<string | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
@@ -32,13 +38,49 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
   const isOwner = useEditorStore((s) => s.isOwner);
 
+  const { startUpload } = useUploadThing("tokenImageUploader", {
+    onClientUploadComplete: (res) => {
+      if (res?.[0]?.url) {
+        setTokenImageUrl(res[0].url);
+      }
+      setIsUploading(false);
+      setUploadError(null);
+    },
+    onUploadError: (error) => {
+      setUploadError(error.message);
+      setIsUploading(false);
+    },
+  });
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    await startUpload([file]);
+
+    // Reset input so the same file can be selected again
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = () => {
+    setTokenImageUrl(null);
+  };
+
+  const handleLibrarySelect = (url: string) => {
+    setTokenImageUrl(url);
+    setShowLibrary(false);
+  };
+
   const handleAddToken = () => {
     if (!tokenName.trim() || !map || !canCreateToken()) return;
 
     const token: Token = {
       id: crypto.randomUUID(),
       name: tokenName.trim(),
-      imageUrl: null,
+      imageUrl: tokenImageUrl,
       color: tokenColor,
       size: tokenSize,
       position: {
@@ -54,33 +96,8 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
 
     addToken(token);
     setTokenName("");
+    setTokenImageUrl(null);
   };
-
-
-  const handleAddPreset = (preset: { name: string; imageUrl: string }) => {
-    if (!map || !canCreateToken()) return;
-
-    const token: Token = {
-      id: crypto.randomUUID(),
-      name: preset.name,
-      imageUrl: preset.imageUrl,
-      color: tokenColor,
-      size: tokenSize,
-      position: {
-        col: Math.floor(map.grid.width / 2),
-        row: Math.floor(map.grid.height / 2),
-      },
-      rotation: 0,
-      flipped: false,
-      visible: true,
-      layer: "character",
-      ownerId: isOwner() ? null : userId,
-    };
-
-    addToken(token);
-  };
-
-  const presets = TOKEN_PRESETS;
 
   const canCreate = canCreateToken();
   const canDeleteToken = useEditorStore((s) => s.canDeleteToken);
@@ -271,28 +288,7 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
     <div className="p-4 space-y-4">
       {canCreate && (
         <>
-          <h3 className="font-semibold text-gray-900 dark:text-white">Presets</h3>
-          <div className="flex flex-wrap gap-2">
-            {presets.map((preset) => (
-              <button
-                key={preset.name}
-                onClick={() => handleAddPreset(preset)}
-                className="flex flex-col items-center gap-1 p-2 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-                title={`Add ${preset.name}`}
-              >
-                <img
-                  src={preset.imageUrl}
-                  alt={preset.name}
-                  className="w-10 h-10 object-contain"
-                />
-                <span className="text-xs text-gray-700 dark:text-gray-300">
-                  {preset.name}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <h3 className="font-semibold text-gray-900 dark:text-white pt-2">Custom Unit</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white">Create Unit</h3>
 
           <div className="space-y-3">
             <input
@@ -303,9 +299,85 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
               className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
 
+            {/* Image */}
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                Image
+              </label>
+
+              {/* Current image preview */}
+              {tokenImageUrl && (
+                <div className="relative inline-block mb-2">
+                  <img
+                    src={tokenImageUrl}
+                    alt="Token"
+                    className="w-12 h-12 object-cover rounded border border-gray-300 dark:border-gray-600"
+                  />
+                  <button
+                    onClick={handleRemoveImage}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 cursor-pointer"
+                    title="Remove image"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+
+              {/* Upload */}
+              <div className="space-y-2">
+                <label className="block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400
+                      file:mr-4 file:py-1.5 file:px-3
+                      file:rounded file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      dark:file:bg-blue-900 dark:file:text-blue-300
+                      hover:file:bg-blue-100 dark:hover:file:bg-blue-800
+                      file:cursor-pointer cursor-pointer
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </label>
+                {isUploading && (
+                  <p className="text-xs text-blue-600 dark:text-blue-400">Uploading...</p>
+                )}
+                {uploadError && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{uploadError}</p>
+                )}
+              </div>
+
+              {/* Library toggle */}
+              <button
+                onClick={() => setShowLibrary(!showLibrary)}
+                className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                {showLibrary ? "Hide library" : "Choose from my uploads"}
+              </button>
+
+              {/* Image library picker */}
+              {showLibrary && (
+                <div className="mt-2 p-2 border border-gray-200 dark:border-gray-700 rounded">
+                  <ImageLibraryPicker
+                    type="token"
+                    onSelect={handleLibrarySelect}
+                    selectedUrl={tokenImageUrl}
+                  />
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                 Color
+                {tokenImageUrl && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                    (used for travel lines)
+                  </span>
+                )}
               </label>
               <div className="flex flex-wrap gap-1">
                 {TOKEN_COLORS.map((color) => (

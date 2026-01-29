@@ -5,6 +5,9 @@
   "scripts": {
     "build": "pnpm exec drizzle-kit generate && pnpm exec drizzle-kit migrate && pnpm exec react-router build",
     "dev": "react-router dev",
+    "dev:party": "partykit dev",
+    "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:party\"",
+    "party:deploy": "partykit deploy",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc"
   },
@@ -19,6 +22,8 @@
     "isbot": "^5.1.31",
     "konva": "^10.2.0",
     "nanoid": "^5.1.6",
+    "partykit": "^0.0.115",
+    "partysocket": "^1.1.10",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-konva": "^19.2.1",
