@@ -160,8 +160,25 @@ export function MapEditor({
 
   // Undo/Redo - get stable references directly from temporal store
   const temporalStore = useMapStore.temporal;
-  const undo = useCallback(() => temporalStore.getState().undo(), [temporalStore]);
-  const redo = useCallback(() => temporalStore.getState().redo(), [temporalStore]);
+  const undo = useCallback(() => {
+    temporalStore.getState().undo();
+    // Sync changes after undo
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncDebounced(500);
+    }
+  }, [temporalStore, broadcastMapSync, syncDebounced]);
+
+  const redo = useCallback(() => {
+    temporalStore.getState().redo();
+    // Sync changes after redo
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncDebounced(500);
+    }
+  }, [temporalStore, broadcastMapSync, syncDebounced]);
 
   // Keyboard shortcuts for undo/redo
   const handleKeyDown = useCallback(

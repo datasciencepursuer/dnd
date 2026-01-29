@@ -296,7 +296,9 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
       {/* Base fog layer */}
       {regions.map((region, idx) => {
         const isCreator = currentUserId && region.creatorId === currentUserId;
-        const baseOpacity = isCreator ? 0.55 : 0.95;
+        // Creator sees semi-transparent fog, others see fully opaque
+        const baseOpacity = isCreator ? 0.35 : 1;
+        const fillColor = isCreator ? "#e8e8e8" : "#c8c8c8";
 
         return (
           <Shape
@@ -346,9 +348,9 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
                 ctx.fill();
               }
             }}
-            fill="#f0f0f0"
+            fill={fillColor}
             opacity={baseOpacity}
-            shadowColor="rgba(60, 60, 60, 0.4)"
+            shadowColor="rgba(40, 40, 40, 0.5)"
             shadowBlur={cellSize * 0.25}
             shadowOffset={{ x: cellSize * 0.03, y: cellSize * 0.05 }}
             listening={false}
@@ -359,7 +361,7 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
       {/* Fluffy cloud puffs layer */}
       {showFluffyClouds && regions.map((region, idx) => {
         const isCreator = currentUserId && region.creatorId === currentUserId;
-        const cloudOpacity = isCreator ? 0.5 : 0.9;
+        const cloudOpacity = isCreator ? 0.3 : 1;
         const fluffs = regionClouds[idx] || [];
 
         if (fluffs.length === 0) return null;
@@ -367,6 +369,10 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
         // Calculate bounds for gradient
         const minY = region.minRow * cellSize;
         const maxY = (region.maxRow + 1) * cellSize;
+
+        // Use darker colors for non-creators to ensure opacity
+        const gradientTop = isCreator ? "#ffffff" : "#e0e0e0";
+        const gradientBottom = isCreator ? "#f8f8f8" : "#d0d0d0";
 
         return (
           <Shape
@@ -383,9 +389,9 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
 
               // Create gradient fill like the cloud example
               const gradient = ctx.createLinearGradient(0, minY, 0, maxY);
-              gradient.addColorStop(0, "#ffffff");
-              gradient.addColorStop(0.5, "#ffffff");
-              gradient.addColorStop(1, "#f8f8f8");
+              gradient.addColorStop(0, gradientTop);
+              gradient.addColorStop(0.5, gradientTop);
+              gradient.addColorStop(1, gradientBottom);
 
               ctx.fillStyle = gradient;
 
@@ -406,7 +412,7 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
       {/* Soft outer glow layer */}
       {regions.map((region, idx) => {
         const isCreator = currentUserId && region.creatorId === currentUserId;
-        const glowOpacity = isCreator ? 0.15 : 0.25;
+        const glowOpacity = isCreator ? 0.1 : 0.35;
 
         return (
           <Shape
