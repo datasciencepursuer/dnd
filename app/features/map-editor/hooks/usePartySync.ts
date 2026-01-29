@@ -26,6 +26,12 @@ interface TokenDeleteMessage {
   userId: string;
 }
 
+interface TokenCreateMessage {
+  type: "token-create";
+  token: Token;
+  userId: string;
+}
+
 interface MapSyncMessage {
   type: "map-sync";
   data: DnDMap;
@@ -86,6 +92,7 @@ type ServerMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
   | TokenDeleteMessage
+  | TokenCreateMessage
   | MapSyncMessage
   | FogPaintMessage
   | FogEraseMessage
@@ -116,6 +123,7 @@ export function usePartySync({
   const moveToken = useMapStore((s) => s.moveToken);
   const updateToken = useMapStore((s) => s.updateToken);
   const removeToken = useMapStore((s) => s.removeToken);
+  const addTokenFromSync = useMapStore((s) => s.addTokenFromSync);
   const syncMap = useMapStore((s) => s.syncMap);
   const paintFogCell = useMapStore((s) => s.paintFogCell);
   const eraseFogCell = useMapStore((s) => s.eraseFogCell);
@@ -173,6 +181,12 @@ export function usePartySync({
           case "token-delete":
             if (message.userId !== userId) {
               removeToken(message.tokenId);
+            }
+            break;
+
+          case "token-create":
+            if (message.userId !== userId) {
+              addTokenFromSync(message.token);
             }
             break;
 
@@ -284,6 +298,22 @@ export function usePartySync({
       const message: TokenDeleteMessage = {
         type: "token-delete",
         tokenId,
+        userId,
+      };
+
+      socket.send(JSON.stringify(message));
+    },
+    [socket, userId]
+  );
+
+  // Broadcast new token creation to other clients
+  const broadcastTokenCreate = useCallback(
+    (token: Token) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
+
+      const message: TokenCreateMessage = {
+        type: "token-create",
+        token,
         userId,
       };
 
@@ -409,6 +439,7 @@ export function usePartySync({
     broadcastTokenMove,
     broadcastTokenUpdate,
     broadcastTokenDelete,
+    broadcastTokenCreate,
     broadcastMapSync,
     broadcastFogPaint,
     broadcastFogErase,

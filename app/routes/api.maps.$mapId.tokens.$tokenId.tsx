@@ -91,7 +91,34 @@ export async function action({ request, params }: Route.ActionArgs) {
       const tokenIndex = currentData.tokens.findIndex((t) => t.id === tokenId);
 
       if (tokenIndex === -1) {
-        return new Response("Token not found", { status: 404 });
+        // Token doesn't exist - this is a create operation
+        // Check if user has permission to create tokens
+        if (!canFullEdit) {
+          // For non-editors, ensure they're setting themselves as owner
+          if (body.ownerId !== session.user.id) {
+            return new Response("Cannot create tokens for other users", { status: 403 });
+          }
+        }
+
+        // Create new token with the provided ID
+        const newToken: Token = {
+          id: tokenId,
+          ownerId: body.ownerId ?? null,
+          ...body,
+        };
+
+        const updatedData = {
+          ...currentData,
+          tokens: [...currentData.tokens, newToken],
+          updatedAt: new Date().toISOString(),
+        };
+
+        await db
+          .update(maps)
+          .set({ data: updatedData, updatedAt: new Date() })
+          .where(eq(maps.id, mapId));
+
+        return Response.json({ success: true, created: true });
       }
 
       const currentToken = currentData.tokens[tokenIndex];

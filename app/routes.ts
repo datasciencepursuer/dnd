@@ -12,6 +12,7 @@ export default [
   route("api/auth/*", "routes/api.auth.$.tsx"),
   route("api/maps", "routes/api.maps.tsx"),
   route("api/maps/:mapId", "routes/api.maps.$mapId.tsx"),
+  route("api/maps/:mapId/tokens/:tokenId", "routes/api.maps.$mapId.tokens.$tokenId.tsx"),
   route("api/maps/:mapId/tokens/:tokenId/move", "routes/api.maps.$mapId.tokens.$tokenId.move.tsx"),
   route("api/maps/:mapId/presence", "routes/api.maps.$mapId.presence.tsx"),
   route("api/maps/:mapId/presence/leave", "routes/api.maps.$mapId.presence.leave.tsx"),

@@ -106,13 +106,6 @@ function TokenItem({
     actions.select();
   };
 
-  const handleDoubleClick = (e: any) => {
-    e.cancelBubble = true;
-    if (isEditable) {
-      actions.onDoubleClick?.();
-    }
-  };
-
   const handleRightClick = (e: any) => {
     e.cancelBubble = true;
     e.evt?.preventDefault();
@@ -143,8 +136,6 @@ function TokenItem({
       onTouchStart={isMovable ? onMouseDown : undefined}
       onClick={handleClick}
       onTap={handleClick}
-      onDblClick={handleDoubleClick}
-      onDblTap={handleDoubleClick}
       onContextMenu={handleRightClick}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
@@ -353,12 +344,11 @@ interface TokenLayerProps {
   tokens: Token[];
   cellSize: number;
   stageRef: React.RefObject<any>;
-  onEditTokenName?: (token: Token) => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
 }
 
-export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onTokenMoved, onTokenFlip }: TokenLayerProps) {
+export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFlip }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
   const updateToken = useMapStore((s) => s.updateToken);
@@ -398,12 +388,6 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
       onDragEnd: () => {
         // Can add token-specific drag end behavior
       },
-      onDoubleClick: () => {
-        // Open token name editor
-        if (isEditable && onEditTokenName) {
-          onEditTokenName(token);
-        }
-      },
       onRightClick: () => {
         // Can open context menu
         console.log(`Right-clicked token: ${token.name}`);
@@ -422,7 +406,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
             toggleInteractable: () => console.log("Toggle interactable"),
           },
     }),
-    [moveToken, flipToken, updateToken, setSelectedElements, onEditTokenName, onTokenFlip]
+    [moveToken, flipToken, updateToken, setSelectedElements, onTokenFlip]
   );
 
   // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move
@@ -577,11 +561,31 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
       {dragState && draggingTokenRef.current && (
         <>
           {(() => {
+            const token = draggingTokenRef.current;
             const snapped = getSnappedPosition(
-              draggingTokenRef.current,
+              token,
               dragState.currentX,
               dragState.currentY
             );
+
+            // Calculate distance in cells (using center-to-center)
+            const startCol = Math.round((dragState.startX - (token.size * cellSize) / 2) / cellSize);
+            const startRow = Math.round((dragState.startY - (token.size * cellSize) / 2) / cellSize);
+            const endCol = Math.round((snapped.x - (token.size * cellSize) / 2) / cellSize);
+            const endRow = Math.round((snapped.y - (token.size * cellSize) / 2) / cellSize);
+
+            // Calculate distance using D&D diagonal movement (each diagonal = 1 cell for simplicity)
+            // Or use Euclidean distance rounded to nearest cell
+            const deltaCol = Math.abs(endCol - startCol);
+            const deltaRow = Math.abs(endRow - startRow);
+            // D&D 5e uses "5-10-5" diagonal rule, but for simplicity we use max of deltas
+            const distanceInCells = Math.max(deltaCol, deltaRow);
+            const distanceInFeet = distanceInCells * 5;
+
+            // Position the label at the midpoint of the line
+            const midX = (dragState.startX + snapped.x) / 2;
+            const midY = (dragState.startY + snapped.y) / 2;
+
             return (
               <>
                 <Line
@@ -591,15 +595,38 @@ export function TokenLayer({ tokens, cellSize, stageRef, onEditTokenName, onToke
                     snapped.x,
                     snapped.y
                   )}
-                  stroke={draggingTokenRef.current.color}
+                  stroke={token.color}
                   strokeWidth={3}
                   dash={[10, 5]}
                   lineCap="round"
                   lineJoin="round"
                 />
+                {/* Distance label */}
+                {distanceInCells > 0 && (
+                  <Group x={midX} y={midY}>
+                    <Rect
+                      offsetX={20}
+                      offsetY={12}
+                      width={40}
+                      height={24}
+                      fill="rgba(0, 0, 0, 0.8)"
+                      cornerRadius={4}
+                    />
+                    <Text
+                      text={`${distanceInFeet}ft`}
+                      fontSize={14}
+                      fontStyle="bold"
+                      fill="white"
+                      align="center"
+                      width={40}
+                      offsetX={20}
+                      offsetY={7}
+                    />
+                  </Group>
+                )}
                 {/* Ghost at destination */}
                 <TokenGhost
-                  token={draggingTokenRef.current}
+                  token={token}
                   cellSize={cellSize}
                   x={snapped.x}
                   y={snapped.y}

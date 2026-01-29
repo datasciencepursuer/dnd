@@ -43,13 +43,14 @@ export function MapEditor({
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
 
   // HTTP sync for persistence to database
-  const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate } = useMapSync(mapId);
+  const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
 
   // WebSocket sync for real-time updates to other clients
   const {
     broadcastTokenMove,
     broadcastTokenUpdate,
     broadcastTokenDelete,
+    broadcastTokenCreate,
     broadcastMapSync,
     broadcastFogPaint,
     broadcastFogErase,
@@ -91,6 +92,15 @@ export function MapEditor({
       syncTokenUpdate(tokenId, updates);
     },
     [broadcastTokenUpdate, syncTokenUpdate]
+  );
+
+  // Combined handler for token creation
+  const handleTokenCreate = useCallback(
+    (token: Token) => {
+      broadcastTokenCreate(token);
+      syncTokenCreate(token);
+    },
+    [broadcastTokenCreate, syncTokenCreate]
   );
 
   // Sync after token flip with 500ms debounce + broadcast
@@ -256,7 +266,7 @@ export function MapEditor({
     <div className="flex flex-col h-full">
       <Toolbar readOnly={readOnly} userName={userName} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={handleTokenDelete} onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
+        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={handleTokenDelete} onTokenCreate={handleTokenCreate} onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -265,7 +275,6 @@ export function MapEditor({
           }
         >
           <MapCanvas
-            onEditToken={handleEditToken}
             onTokenMoved={handleTokenMoved}
             onTokenFlip={handleTokenFlip}
             onFogPaint={handleFogPaint}

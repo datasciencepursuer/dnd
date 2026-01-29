@@ -29,6 +29,7 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
   const addRollResult = useMapStore((s) => s.addRollResult);
   const clearRollHistory = useMapStore((s) => s.clearRollHistory);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
 
   const [diceCount, setDiceCount] = useState(1);
   const [modifier, setModifier] = useState(0);
@@ -41,7 +42,8 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
     ? map?.tokens.find((t) => t.id === selectedIds[0])
     : null;
 
-  const canRoll = !!selectedToken;
+  // Can only roll if a token is selected AND user has permission to control it
+  const canRoll = !!selectedToken && canMoveToken(selectedToken.ownerId);
 
   const handleRoll = (dice: DiceType) => {
     if (!selectedToken) return;
@@ -83,15 +85,32 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
       <div className="p-4 space-y-4 border-b border-gray-200 dark:border-gray-700">
         {/* Selected Token Indicator */}
         {selectedToken ? (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
-            <div
-              className="w-6 h-6 rounded-full flex-shrink-0 ring-2 ring-white dark:ring-gray-800"
-              style={{ backgroundColor: selectedToken.color }}
-            />
-            <span className="text-base font-semibold text-blue-700 dark:text-blue-300 truncate">
-              {selectedToken.name}
-            </span>
-          </div>
+          canRoll ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800">
+              <div
+                className="w-6 h-6 rounded-full flex-shrink-0 ring-2 ring-white dark:ring-gray-800"
+                style={{ backgroundColor: selectedToken.color }}
+              />
+              <span className="text-base font-semibold text-blue-700 dark:text-blue-300 truncate">
+                {selectedToken.name}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600">
+              <div
+                className="w-6 h-6 rounded-full flex-shrink-0 ring-2 ring-white dark:ring-gray-800 opacity-50"
+                style={{ backgroundColor: selectedToken.color }}
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate block">
+                  {selectedToken.name}
+                </span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Not your unit
+                </span>
+              </div>
+            </div>
+          )
         ) : (
           <div className="p-3 rounded-lg bg-gray-100 dark:bg-gray-700 text-center">
             <span className="text-sm text-gray-500 dark:text-gray-400">

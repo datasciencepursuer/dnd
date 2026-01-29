@@ -112,6 +112,37 @@ export function useMapSync(mapId: string | undefined) {
   );
 
   /**
+   * Sync a newly created token to the server.
+   * Uses PUT endpoint with full token data to create/upsert the token.
+   */
+  const syncTokenCreate = useCallback(
+    async (token: Record<string, unknown>) => {
+      if (!mapId) return;
+
+      const tokenId = token.id as string;
+      if (!tokenId) return;
+
+      try {
+        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(token),
+        });
+
+        if (response.ok) {
+          // Clear dirty flag on successful sync
+          useMapStore.getState().clearDirtyToken(tokenId);
+        } else {
+          console.error("Failed to sync token create:", await response.text());
+        }
+      } catch (error) {
+        console.error("Failed to sync token create:", error);
+      }
+    },
+    [mapId]
+  );
+
+  /**
    * Sync a token update to the server.
    * Uses a dedicated endpoint that allows token owners to edit their tokens.
    * Clears the dirty flag on success so server updates can apply.
@@ -161,5 +192,5 @@ export function useMapSync(mapId: string | undefined) {
     [mapId, syncNow]
   );
 
-  return { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate };
+  return { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate };
 }

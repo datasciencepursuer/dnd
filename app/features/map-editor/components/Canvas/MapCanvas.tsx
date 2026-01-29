@@ -8,10 +8,9 @@ import { FogLayer } from "./FogLayer";
 import { PingLayer } from "./PingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
-import type { Token, FreehandPath, GridPosition, Ping } from "../../types";
+import type { FreehandPath, GridPosition, Ping } from "../../types";
 
 interface MapCanvasProps {
-  onEditToken?: (token: Token) => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
   onFogPaint?: (col: number, row: number, creatorId: string) => void;
@@ -22,7 +21,7 @@ interface MapCanvasProps {
   activePings?: Ping[];
 }
 
-export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, activePings = [] }: MapCanvasProps) {
+export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, activePings = [] }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -461,7 +460,6 @@ export function MapCanvas({ onEditToken, onTokenMoved, onTokenFlip, onFogPaint, 
             tokens={map.tokens}
             cellSize={map.grid.cellSize}
             stageRef={stageRef}
-            onEditTokenName={onEditToken}
             onTokenMoved={onTokenMoved}
             onTokenFlip={onTokenFlip}
           />

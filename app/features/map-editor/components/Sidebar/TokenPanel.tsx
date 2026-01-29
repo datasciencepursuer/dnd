@@ -11,9 +11,10 @@ interface TokenPanelProps {
   readOnly?: boolean;
   mapId?: string;
   onTokenDelete?: (tokenId: string) => void;
+  onTokenCreate?: (token: Token) => void;
 }
 
-export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId, onTokenDelete }: TokenPanelProps) {
+export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId, onTokenDelete, onTokenCreate }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);
@@ -95,6 +96,8 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
     };
 
     addToken(token);
+    // Sync to other clients via WebSocket + persist to DB
+    onTokenCreate?.(token);
     setTokenName("");
     setTokenImageUrl(null);
   };

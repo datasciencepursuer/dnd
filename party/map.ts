@@ -22,6 +22,12 @@ interface TokenDeleteMessage {
   userId: string;
 }
 
+interface TokenCreateMessage {
+  type: "token-create";
+  token: Record<string, unknown>;
+  userId: string;
+}
+
 interface MapSyncMessage {
   type: "map-sync";
   data: unknown;
@@ -90,6 +96,7 @@ type ClientMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
   | TokenDeleteMessage
+  | TokenCreateMessage
   | MapSyncMessage
   | FogPaintMessage
   | FogEraseMessage

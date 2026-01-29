@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { ConfirmModal } from "./ConfirmModal";
 
 interface Upload {
   id: string;
@@ -25,6 +26,7 @@ export function ImageLibraryPicker({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Upload | null>(null);
 
   const fetchUploads = async () => {
     try {
@@ -47,13 +49,15 @@ export function ImageLibraryPicker({
     fetchUploads();
   }, [type]);
 
-  const handleDelete = async (e: React.MouseEvent, upload: Upload) => {
+  const handleDeleteClick = (e: React.MouseEvent, upload: Upload) => {
     e.stopPropagation(); // Prevent selecting the image when clicking delete
+    setDeleteConfirm(upload);
+  };
 
-    if (!confirm(`Delete "${upload.fileName}"? This cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return;
 
+    const upload = deleteConfirm;
     setDeletingId(upload.id);
 
     try {
@@ -75,11 +79,17 @@ export function ImageLibraryPicker({
       if (selectedUrl === upload.url) {
         onSelect("");
       }
+
+      setDeleteConfirm(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete image");
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirm(null);
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -113,64 +123,78 @@ export function ImageLibraryPicker({
   }
 
   return (
-    <div className="grid grid-cols-4 gap-2">
-      {uploads.map((upload) => (
-        <div
-          key={upload.id}
-          className="group"
-        >
-          <button
-            onClick={() => onSelect(upload.url)}
-            disabled={deletingId === upload.id}
-            className={`relative aspect-square w-full rounded-t border-2 border-b-0 overflow-hidden cursor-pointer transition-all ${
-              selectedUrl === upload.url
-                ? "border-blue-500 ring-2 ring-blue-300 ring-offset-0"
-                : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
-            } ${deletingId === upload.id ? "opacity-50" : ""}`}
-            title={`${upload.fileName} (${formatFileSize(upload.fileSize)})`}
+    <>
+      <div className="grid grid-cols-4 gap-2">
+        {uploads.map((upload) => (
+          <div
+            key={upload.id}
+            className="group"
           >
-            <img
-              src={upload.url}
-              alt={upload.fileName}
-              className="w-full h-full object-cover"
-            />
-          </button>
-
-          {/* Action bar below image */}
-          <div className={`flex items-center justify-between px-1.5 py-1 rounded-b border-2 border-t-0 text-xs ${
-            selectedUrl === upload.url
-              ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-              : "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800"
-          }`}>
-            <span className="truncate text-gray-600 dark:text-gray-400 flex-1 mr-1" title={upload.fileName}>
-              {upload.fileName.length > 8 ? upload.fileName.slice(0, 6) + "..." : upload.fileName}
-            </span>
             <button
-              onClick={(e) => handleDelete(e, upload)}
+              onClick={() => onSelect(upload.url)}
               disabled={deletingId === upload.id}
-              className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-              title="Delete image"
+              className={`relative aspect-square w-full rounded-t border-2 border-b-0 overflow-hidden cursor-pointer transition-all ${
+                selectedUrl === upload.url
+                  ? "border-blue-500 ring-2 ring-blue-300 ring-offset-0"
+                  : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+              } ${deletingId === upload.id ? "opacity-50" : ""}`}
+              title={`${upload.fileName} (${formatFileSize(upload.fileSize)})`}
             >
-              {deletingId === upload.id ? (
-                <span className="animate-spin">...</span>
-              ) : (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
+              <img
+                src={upload.url}
+                alt={upload.fileName}
+                className="w-full h-full object-cover"
+              />
             </button>
+
+            {/* Action bar below image */}
+            <div className={`flex items-center justify-between px-1.5 py-1 rounded-b border-2 border-t-0 text-xs ${
+              selectedUrl === upload.url
+                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
+                : "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800"
+            }`}>
+              <span className="truncate text-gray-600 dark:text-gray-400 flex-1 mr-1" title={upload.fileName}>
+                {upload.fileName.length > 8 ? upload.fileName.slice(0, 6) + "..." : upload.fileName}
+              </span>
+              <button
+                onClick={(e) => handleDeleteClick(e, upload)}
+                disabled={deletingId === upload.id}
+                className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                title="Delete image"
+              >
+                {deletingId === upload.id ? (
+                  <span className="animate-spin">...</span>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-3.5 w-3.5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      <ConfirmModal
+        isOpen={deleteConfirm !== null}
+        title="Delete Image"
+        message={`Are you sure you want to delete "${deleteConfirm?.fileName}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={handleDeleteCancel}
+        isLoading={deletingId !== null}
+      />
+    </>
   );
 }

@@ -21,6 +21,7 @@ interface MapState {
 
   // Token actions
   addToken: (token: Token) => void;
+  addTokenFromSync: (token: Token) => void;
   updateToken: (id: string, updates: Partial<Token>) => void;
   removeToken: (id: string) => void;
   moveToken: (id: string, position: GridPosition) => void;
@@ -144,6 +145,23 @@ export const useMapStore = create<MapState>()(
             },
             dirtyTokens: newDirtyTokens,
             dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      // Add token from sync (WebSocket) without marking as dirty
+      addTokenFromSync: (token) =>
+        set((state) => {
+          if (!state.map) return state;
+          // Check if token already exists to avoid duplicates
+          if (state.map.tokens.some((t) => t.id === token.id)) {
+            return state;
+          }
+          return {
+            map: {
+              ...state.map,
+              tokens: [...state.map.tokens, token],
+              updatedAt: new Date().toISOString(),
+            },
           };
         }),
 

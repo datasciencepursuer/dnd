@@ -1,12 +1,12 @@
 import { Shape, Group } from "react-konva";
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import type { FogCell, GridSettings } from "../../types";
-import type { Context } from "konva/lib/Context";
 
 interface FogLayerProps {
   paintedCells: FogCell[];
   grid: GridSettings;
   currentUserId: string | null;
+  showFluffyClouds?: boolean;
 }
 
 interface FogRegion {
@@ -16,6 +16,26 @@ interface FogRegion {
   maxCol: number;
   minRow: number;
   maxRow: number;
+}
+
+interface FluffInfo {
+  x: number;
+  y: number;
+  r: number;
+}
+
+// Seeded random for consistent patterns
+function seededRandom(seed: number): number {
+  const x = Math.sin(seed * 12.9898 + seed * 78.233) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function seededRandomRange(seed: number, min: number, max: number): number {
+  return seededRandom(seed) * (max - min) + min;
+}
+
+function seededRandomInt(seed: number, max: number): number {
+  return Math.floor(seededRandom(seed) * max);
 }
 
 // Find connected regions of fog cells using flood fill
@@ -41,7 +61,6 @@ function findConnectedRegions(cells: FogCell[]): FogRegion[] {
   for (const cell of cells) {
     if (visited.has(cell.key)) continue;
 
-    // BFS to find all connected cells
     const region: FogRegion = {
       cells: new Set(),
       creatorId: cell.creatorId,
@@ -78,314 +97,398 @@ function findConnectedRegions(cells: FogCell[]): FogRegion[] {
   return regions;
 }
 
-// Generate cloud edge points with organic bumps
-function generateCloudPath(
-  region: FogRegion,
-  cellSize: number,
-  padding: number = 8
-): { x: number; y: number }[] {
-  const { minCol, maxCol, minRow, maxRow, cells } = region;
+// Calculate position for a new fluff to the left of previous (from the cloud algorithm)
+function calcPositionLeft(prev: FluffInfo, r: number, seed: number): FluffInfo {
+  const r1 = prev.r;
+  const r2 = r;
+  const hLine = seededRandomInt(seed, Math.floor(prev.r / 1.5));
 
-  // Create a grid to track which cells are filled
-  const width = maxCol - minCol + 1;
-  const height = maxRow - minRow + 1;
-  const grid: boolean[][] = Array(height).fill(null).map(() => Array(width).fill(false));
+  const a = r1 - r2 - hLine;
+  const h = r1 + r2;
+  const bSquared = h * h - a * a;
+  const b = bSquared > 0 ? Math.sqrt(bSquared) : 0;
 
-  for (const key of cells) {
-    const [col, row] = key.split(",").map(Number);
-    grid[row - minRow][col - minCol] = true;
-  }
-
-  // Find the outline points using marching squares-like approach
-  const points: { x: number; y: number }[] = [];
-
-  // Helper to check if a cell is filled
-  const isFilled = (c: number, r: number) => {
-    if (c < 0 || c >= width || r < 0 || r >= height) return false;
-    return grid[r][c];
-  };
-
-  // Trace the outline clockwise
-  // Start from top-left corner of the bounding box
-  const baseX = minCol * cellSize;
-  const baseY = minRow * cellSize;
-
-  // For each edge segment, add points with cloud-like bumps
-  const addCloudEdge = (
-    x1: number, y1: number,
-    x2: number, y2: number,
-    isHorizontal: boolean,
-    outwardDir: number // 1 or -1 for bump direction
-  ) => {
-    const segments = Math.max(1, Math.floor(Math.sqrt((x2-x1)**2 + (y2-y1)**2) / (cellSize * 0.5)));
-
-    for (let i = 0; i <= segments; i++) {
-      const t = i / segments;
-      const basePointX = x1 + (x2 - x1) * t;
-      const basePointY = y1 + (y2 - y1) * t;
-
-      // Add cloud bump using sine wave with some randomness
-      const bumpPhase = t * Math.PI * 2 + (x1 + y1) * 0.1;
-      const bumpAmount = Math.sin(bumpPhase) * padding * 0.6 +
-                         Math.sin(bumpPhase * 2.3) * padding * 0.3;
-
-      if (isHorizontal) {
-        points.push({
-          x: basePointX,
-          y: basePointY + bumpAmount * outwardDir
-        });
-      } else {
-        points.push({
-          x: basePointX + bumpAmount * outwardDir,
-          y: basePointY
-        });
-      }
-    }
-  };
-
-  // Trace outline by checking each cell edge
-  // Go through each row and find horizontal edges
-  for (let r = 0; r <= height; r++) {
-    for (let c = 0; c < width; c++) {
-      const above = r > 0 && grid[r - 1][c];
-      const below = r < height && grid[r][c];
-
-      if (above !== below) {
-        const y = baseY + r * cellSize;
-        const x1 = baseX + c * cellSize - padding;
-        const x2 = baseX + (c + 1) * cellSize + padding;
-        const outward = below ? -1 : 1; // bump outward from filled area
-
-        addCloudEdge(x1, y, x2, y, true, outward);
-      }
-    }
-  }
-
-  // Go through each column and find vertical edges
-  for (let c = 0; c <= width; c++) {
-    for (let r = 0; r < height; r++) {
-      const left = c > 0 && grid[r][c - 1];
-      const right = c < width && grid[r][c];
-
-      if (left !== right) {
-        const x = baseX + c * cellSize;
-        const y1 = baseY + r * cellSize - padding;
-        const y2 = baseY + (r + 1) * cellSize + padding;
-        const outward = right ? -1 : 1;
-
-        addCloudEdge(x, y1, x, y2, false, outward);
-      }
-    }
-  }
-
-  return points;
+  return { x: prev.x - b, y: prev.y + a, r: r2 };
 }
 
-// Draw a fluffy cloud shape for a region
-function drawCloudRegion(
-  ctx: Context,
-  region: FogRegion,
-  cellSize: number
-) {
-  const { minCol, maxCol, minRow, maxRow, cells } = region;
-  const padding = cellSize * 0.15; // Small bleed over edges
+// Calculate position for a new fluff to the right of previous
+function calcPositionRight(prev: FluffInfo, r: number, seed: number): FluffInfo {
+  const r1 = prev.r;
+  const r2 = r;
+  const hLine = seededRandomInt(seed, Math.floor(prev.r / 1.5));
 
-  // Create a grid to track which cells are filled
-  const width = maxCol - minCol + 1;
-  const height = maxRow - minRow + 1;
-  const grid: boolean[][] = Array(height).fill(null).map(() => Array(width).fill(false));
+  const a = r1 - r2 - hLine;
+  const h = r1 + r2;
+  const bSquared = h * h - a * a;
+  const b = bSquared > 0 ? Math.sqrt(bSquared) : 0;
 
-  for (const key of cells) {
-    const [col, row] = key.split(",").map(Number);
-    grid[row - minRow][col - minCol] = true;
+  return { x: prev.x + b, y: prev.y + a, r: r2 };
+}
+
+// Generate a fluffy cloud along an edge segment
+function generateEdgeCloud(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  cellSize: number,
+  seed: number,
+  direction: 'top' | 'bottom' | 'left' | 'right'
+): FluffInfo[] {
+  const fluffs: FluffInfo[] = [];
+  const length = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+
+  const minSize = cellSize * 0.08;
+  const maxSize = cellSize * 0.2;
+
+  // Create the big central fluff
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+
+  // Offset based on direction
+  let offsetX = 0, offsetY = 0;
+  switch (direction) {
+    case 'top': offsetY = -cellSize * 0.05; break;
+    case 'bottom': offsetY = cellSize * 0.05; break;
+    case 'left': offsetX = -cellSize * 0.05; break;
+    case 'right': offsetX = cellSize * 0.05; break;
   }
 
-  const baseX = minCol * cellSize;
-  const baseY = minRow * cellSize;
+  const bigFluff: FluffInfo = {
+    x: midX + offsetX,
+    y: midY + offsetY,
+    r: seededRandomRange(seed, minSize * 1.5, maxSize * 1.5),
+  };
 
-  // Draw the base shape by iterating through cells and drawing rounded rects
-  ctx.beginPath();
+  fluffs.push(bigFluff);
 
-  // For each cell, draw a rounded shape that slightly overlaps neighbors
+  // Add fluffs to the left and right of the big fluff
+  const amountOfFluff = 2 + seededRandomInt(seed + 1, 2);
+
+  let prevFluffLeft = bigFluff;
+  let prevFluffRight = bigFluff;
+
+  for (let i = 0; i < amountOfFluff; i++) {
+    const fluffSizeLeft = seededRandomRange(seed + i * 10, minSize, maxSize);
+    const fluffSizeRight = seededRandomRange(seed + i * 10 + 5, minSize, maxSize);
+
+    // For horizontal edges, expand left/right; for vertical, expand up/down
+    if (direction === 'top' || direction === 'bottom') {
+      const newFluffLeft = calcPositionLeft(prevFluffLeft, fluffSizeLeft, seed + i * 20);
+      const newFluffRight = calcPositionRight(prevFluffRight, fluffSizeRight, seed + i * 20 + 10);
+
+      // Adjust Y position to stay on edge
+      newFluffLeft.y = bigFluff.y + (seededRandom(seed + i * 30) - 0.5) * cellSize * 0.1;
+      newFluffRight.y = bigFluff.y + (seededRandom(seed + i * 30 + 1) - 0.5) * cellSize * 0.1;
+
+      fluffs.push(newFluffLeft);
+      fluffs.push(newFluffRight);
+
+      prevFluffLeft = newFluffLeft;
+      prevFluffRight = newFluffRight;
+    } else {
+      // Vertical edges - rotate the logic
+      const newFluffUp: FluffInfo = {
+        x: bigFluff.x + (seededRandom(seed + i * 30) - 0.5) * cellSize * 0.1,
+        y: prevFluffLeft.y - fluffSizeLeft * 1.5,
+        r: fluffSizeLeft,
+      };
+      const newFluffDown: FluffInfo = {
+        x: bigFluff.x + (seededRandom(seed + i * 30 + 1) - 0.5) * cellSize * 0.1,
+        y: prevFluffRight.y + fluffSizeRight * 1.5,
+        r: fluffSizeRight,
+      };
+
+      fluffs.push(newFluffUp);
+      fluffs.push(newFluffDown);
+
+      prevFluffLeft = newFluffUp;
+      prevFluffRight = newFluffDown;
+    }
+  }
+
+  return fluffs;
+}
+
+// Generate all fluffy clouds for a region's edges
+function generateRegionClouds(
+  region: FogRegion,
+  cellSize: number
+): FluffInfo[] {
+  const allFluffs: FluffInfo[] = [];
+  const cells = region.cells;
+
   for (const key of cells) {
     const [col, row] = key.split(",").map(Number);
-    const x = (col - minCol) * cellSize + baseX - padding;
-    const y = (row - minRow) * cellSize + baseY - padding;
-    const size = cellSize + padding * 2;
-    const radius = cellSize * 0.3;
+    const x = col * cellSize;
+    const y = row * cellSize;
+    const seed = col * 1000 + row;
 
-    // Check neighbors for rounded corners
     const hasTop = cells.has(`${col},${row - 1}`);
     const hasBottom = cells.has(`${col},${row + 1}`);
     const hasLeft = cells.has(`${col - 1},${row}`);
     const hasRight = cells.has(`${col + 1},${row}`);
 
-    // Draw rounded rectangle with conditional corners
-    ctx.moveTo(x + (hasLeft && hasTop ? 0 : radius), y);
-
-    // Top edge
-    ctx.lineTo(x + size - (hasRight && hasTop ? 0 : radius), y);
-    if (!hasRight || !hasTop) {
-      ctx.quadraticCurveTo(x + size, y, x + size, y + radius);
+    // Generate cloud puffs for exposed edges
+    if (!hasTop) {
+      const cloudFluffs = generateEdgeCloud(x, y, x + cellSize, y, cellSize, seed, 'top');
+      allFluffs.push(...cloudFluffs);
+    }
+    if (!hasBottom) {
+      const cloudFluffs = generateEdgeCloud(x, y + cellSize, x + cellSize, y + cellSize, cellSize, seed + 100, 'bottom');
+      allFluffs.push(...cloudFluffs);
+    }
+    if (!hasLeft) {
+      const cloudFluffs = generateEdgeCloud(x, y, x, y + cellSize, cellSize, seed + 200, 'left');
+      allFluffs.push(...cloudFluffs);
+    }
+    if (!hasRight) {
+      const cloudFluffs = generateEdgeCloud(x + cellSize, y, x + cellSize, y + cellSize, cellSize, seed + 300, 'right');
+      allFluffs.push(...cloudFluffs);
     }
 
-    // Right edge
-    ctx.lineTo(x + size, y + size - (hasRight && hasBottom ? 0 : radius));
-    if (!hasRight || !hasBottom) {
-      ctx.quadraticCurveTo(x + size, y + size, x + size - radius, y + size);
+    // Extra corner puffs
+    if (!hasTop && !hasLeft) {
+      const r = seededRandomRange(seed + 400, cellSize * 0.1, cellSize * 0.18);
+      allFluffs.push({ x: x, y: y, r });
     }
-
-    // Bottom edge
-    ctx.lineTo(x + (hasLeft && hasBottom ? 0 : radius), y + size);
-    if (!hasLeft || !hasBottom) {
-      ctx.quadraticCurveTo(x, y + size, x, y + size - radius);
+    if (!hasTop && !hasRight) {
+      const r = seededRandomRange(seed + 401, cellSize * 0.1, cellSize * 0.18);
+      allFluffs.push({ x: x + cellSize, y: y, r });
     }
-
-    // Left edge
-    ctx.lineTo(x, y + (hasLeft && hasTop ? 0 : radius));
-    if (!hasLeft || !hasTop) {
-      ctx.quadraticCurveTo(x, y, x + radius, y);
+    if (!hasBottom && !hasLeft) {
+      const r = seededRandomRange(seed + 402, cellSize * 0.1, cellSize * 0.18);
+      allFluffs.push({ x: x, y: y + cellSize, r });
     }
-
-    ctx.closePath();
+    if (!hasBottom && !hasRight) {
+      const r = seededRandomRange(seed + 403, cellSize * 0.1, cellSize * 0.18);
+      allFluffs.push({ x: x + cellSize, y: y + cellSize, r });
+    }
   }
 
-  ctx.fillStrokeShape(ctx as any);
+  return allFluffs;
 }
 
-// Simpler approach: draw each cell with cloud puffs on exposed edges
-function drawCellWithPuffs(
-  ctx: Context,
-  col: number,
-  row: number,
-  cellSize: number,
-  cells: Set<string>,
-  seed: number
-) {
-  const x = col * cellSize;
-  const y = row * cellSize;
-  const puffRadius = cellSize * 0.12;
-  const padding = cellSize * 0.03;
-
-  // Check neighbors
-  const hasTop = cells.has(`${col},${row - 1}`);
-  const hasBottom = cells.has(`${col},${row + 1}`);
-  const hasLeft = cells.has(`${col - 1},${row}`);
-  const hasRight = cells.has(`${col + 1},${row}`);
-
-  // Draw main cell rectangle
-  ctx.rect(x - padding, y - padding, cellSize + padding * 2, cellSize + padding * 2);
-
-  // Add cloud puffs on exposed edges
-  const puffCount = 3;
-
-  // Seeded random for consistent puffs
-  const seededRandom = (s: number) => {
-    const x = Math.sin(s * 9999) * 10000;
-    return x - Math.floor(x);
-  };
-
-  if (!hasTop) {
-    for (let i = 0; i < puffCount; i++) {
-      const px = x + (i + 0.5) * (cellSize / puffCount);
-      const py = y - padding;
-      const r = puffRadius * (0.6 + seededRandom(seed + i + col * 100) * 0.4);
-      ctx.moveTo(px + r, py);
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-    }
-  }
-
-  if (!hasBottom) {
-    for (let i = 0; i < puffCount; i++) {
-      const px = x + (i + 0.5) * (cellSize / puffCount);
-      const py = y + cellSize + padding;
-      const r = puffRadius * (0.6 + seededRandom(seed + i + 50 + col * 100) * 0.4);
-      ctx.moveTo(px + r, py);
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-    }
-  }
-
-  if (!hasLeft) {
-    for (let i = 0; i < puffCount; i++) {
-      const px = x - padding;
-      const py = y + (i + 0.5) * (cellSize / puffCount);
-      const r = puffRadius * (0.6 + seededRandom(seed + i + 100 + row * 100) * 0.4);
-      ctx.moveTo(px + r, py);
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-    }
-  }
-
-  if (!hasRight) {
-    for (let i = 0; i < puffCount; i++) {
-      const px = x + cellSize + padding;
-      const py = y + (i + 0.5) * (cellSize / puffCount);
-      const r = puffRadius * (0.6 + seededRandom(seed + i + 150 + row * 100) * 0.4);
-      ctx.moveTo(px + r, py);
-      ctx.arc(px, py, r, 0, Math.PI * 2);
-    }
-  }
-
-  // Add corner puffs for outer corners
-  if (!hasTop && !hasLeft) {
-    const r = puffRadius * (0.5 + seededRandom(seed + 200) * 0.3);
-    ctx.moveTo(x - padding + r, y - padding);
-    ctx.arc(x - padding, y - padding, r, 0, Math.PI * 2);
-  }
-  if (!hasTop && !hasRight) {
-    const r = puffRadius * (0.5 + seededRandom(seed + 201) * 0.3);
-    ctx.moveTo(x + cellSize + padding + r, y - padding);
-    ctx.arc(x + cellSize + padding, y - padding, r, 0, Math.PI * 2);
-  }
-  if (!hasBottom && !hasLeft) {
-    const r = puffRadius * (0.5 + seededRandom(seed + 202) * 0.3);
-    ctx.moveTo(x - padding + r, y + cellSize + padding);
-    ctx.arc(x - padding, y + cellSize + padding, r, 0, Math.PI * 2);
-  }
-  if (!hasBottom && !hasRight) {
-    const r = puffRadius * (0.5 + seededRandom(seed + 203) * 0.3);
-    ctx.moveTo(x + cellSize + padding + r, y + cellSize + padding);
-    ctx.arc(x + cellSize + padding, y + cellSize + padding, r, 0, Math.PI * 2);
-  }
+// Draw fluff circle
+function drawFluff(ctx: CanvasRenderingContext2D, fluff: FluffInfo) {
+  ctx.moveTo(fluff.x + fluff.r, fluff.y);
+  ctx.arc(fluff.x, fluff.y, fluff.r, 0, Math.PI * 2);
 }
 
-export function FogLayer({ paintedCells, grid, currentUserId }: FogLayerProps) {
+export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true }: FogLayerProps) {
   const { cellSize, width, height } = grid;
 
-  // Group cells by creator and find connected regions
   const regions = useMemo(() => {
     return findConnectedRegions(paintedCells);
   }, [paintedCells]);
 
+  // Pre-calculate cloud fluffs
+  const regionClouds = useMemo(() => {
+    if (!showFluffyClouds) return [];
+    return regions.map(region => generateRegionClouds(region, cellSize));
+  }, [regions, cellSize, showFluffyClouds]);
+
+  const padding = cellSize * 0.08;
+  const cornerRadius = cellSize * 0.2;
+
   return (
     <Group>
+      {/* Base fog layer */}
       {regions.map((region, idx) => {
-        // Creator sees fog at lower opacity
         const isCreator = currentUserId && region.creatorId === currentUserId;
-        const baseOpacity = isCreator ? 0.65 : 1;
-
-        // Create a set for quick neighbor lookup
-        const cellSet = region.cells;
+        const baseOpacity = isCreator ? 0.55 : 0.95;
 
         return (
           <Shape
             key={`region-${idx}-${region.minCol}-${region.minRow}`}
-            sceneFunc={(ctx, shape) => {
-              ctx.beginPath();
+            sceneFunc={(konvaCtx, shape) => {
+              const ctx = konvaCtx._context as CanvasRenderingContext2D;
+              const cells = region.cells;
 
-              // Draw each cell with cloud puffs
-              for (const key of region.cells) {
+              // Draw each cell with rounded corners on exposed edges
+              for (const key of cells) {
                 const [col, row] = key.split(",").map(Number);
                 if (col < 0 || col >= width || row < 0 || row >= height) continue;
-                drawCellWithPuffs(ctx, col, row, cellSize, cellSet, col * 1000 + row);
-              }
 
-              ctx.fillStrokeShape(shape);
+                const x = col * cellSize - padding;
+                const y = row * cellSize - padding;
+                const size = cellSize + padding * 2;
+
+                const hasTop = cells.has(`${col},${row - 1}`);
+                const hasBottom = cells.has(`${col},${row + 1}`);
+                const hasLeft = cells.has(`${col - 1},${row}`);
+                const hasRight = cells.has(`${col + 1},${row}`);
+                const hasTopLeft = cells.has(`${col - 1},${row - 1}`);
+                const hasTopRight = cells.has(`${col + 1},${row - 1}`);
+                const hasBottomLeft = cells.has(`${col - 1},${row + 1}`);
+                const hasBottomRight = cells.has(`${col + 1},${row + 1}`);
+
+                const tlRadius = (!hasTop && !hasLeft) ? cornerRadius :
+                                 (hasTop && hasLeft && !hasTopLeft) ? cornerRadius * 0.5 : 0;
+                const trRadius = (!hasTop && !hasRight) ? cornerRadius :
+                                 (hasTop && hasRight && !hasTopRight) ? cornerRadius * 0.5 : 0;
+                const blRadius = (!hasBottom && !hasLeft) ? cornerRadius :
+                                 (hasBottom && hasLeft && !hasBottomLeft) ? cornerRadius * 0.5 : 0;
+                const brRadius = (!hasBottom && !hasRight) ? cornerRadius :
+                                 (hasBottom && hasRight && !hasBottomRight) ? cornerRadius * 0.5 : 0;
+
+                ctx.beginPath();
+                ctx.moveTo(x + tlRadius, y);
+                ctx.lineTo(x + size - trRadius, y);
+                if (trRadius > 0) ctx.quadraticCurveTo(x + size, y, x + size, y + trRadius);
+                ctx.lineTo(x + size, y + size - brRadius);
+                if (brRadius > 0) ctx.quadraticCurveTo(x + size, y + size, x + size - brRadius, y + size);
+                ctx.lineTo(x + blRadius, y + size);
+                if (blRadius > 0) ctx.quadraticCurveTo(x, y + size, x, y + size - blRadius);
+                ctx.lineTo(x, y + tlRadius);
+                if (tlRadius > 0) ctx.quadraticCurveTo(x, y, x + tlRadius, y);
+                ctx.closePath();
+                ctx.fill();
+              }
             }}
             fill="#f0f0f0"
             opacity={baseOpacity}
-            shadowColor="#999"
-            shadowBlur={8}
-            shadowOpacity={0.2}
+            shadowColor="rgba(60, 60, 60, 0.4)"
+            shadowBlur={cellSize * 0.25}
+            shadowOffset={{ x: cellSize * 0.03, y: cellSize * 0.05 }}
+            listening={false}
+          />
+        );
+      })}
+
+      {/* Fluffy cloud puffs layer */}
+      {showFluffyClouds && regions.map((region, idx) => {
+        const isCreator = currentUserId && region.creatorId === currentUserId;
+        const cloudOpacity = isCreator ? 0.5 : 0.9;
+        const fluffs = regionClouds[idx] || [];
+
+        if (fluffs.length === 0) return null;
+
+        // Calculate bounds for gradient
+        const minY = region.minRow * cellSize;
+        const maxY = (region.maxRow + 1) * cellSize;
+
+        return (
+          <Shape
+            key={`clouds-${idx}-${region.minCol}-${region.minRow}`}
+            sceneFunc={(konvaCtx, shape) => {
+              const ctx = konvaCtx._context as CanvasRenderingContext2D;
+
+              ctx.beginPath();
+
+              // Draw all fluffs
+              fluffs.forEach(fluff => {
+                drawFluff(ctx, fluff);
+              });
+
+              // Create gradient fill like the cloud example
+              const gradient = ctx.createLinearGradient(0, minY, 0, maxY);
+              gradient.addColorStop(0, "#ffffff");
+              gradient.addColorStop(0.5, "#ffffff");
+              gradient.addColorStop(1, "#f8f8f8");
+
+              ctx.fillStyle = gradient;
+
+              // Add shadow
+              ctx.shadowColor = "rgba(80, 80, 80, 0.15)";
+              ctx.shadowBlur = cellSize * 0.1;
+              ctx.shadowOffsetX = cellSize * 0.02;
+              ctx.shadowOffsetY = cellSize * 0.03;
+
+              ctx.fill();
+            }}
+            opacity={cloudOpacity}
+            listening={false}
+          />
+        );
+      })}
+
+      {/* Soft outer glow layer */}
+      {regions.map((region, idx) => {
+        const isCreator = currentUserId && region.creatorId === currentUserId;
+        const glowOpacity = isCreator ? 0.15 : 0.25;
+
+        return (
+          <Shape
+            key={`glow-${idx}-${region.minCol}-${region.minRow}`}
+            sceneFunc={(konvaCtx, shape) => {
+              const ctx = konvaCtx._context as CanvasRenderingContext2D;
+              const cells = region.cells;
+              const glowSize = cellSize * 0.25;
+
+              for (const key of cells) {
+                const [col, row] = key.split(",").map(Number);
+                if (col < 0 || col >= width || row < 0 || row >= height) continue;
+
+                const x = col * cellSize;
+                const y = row * cellSize;
+
+                const hasTop = cells.has(`${col},${row - 1}`);
+                const hasBottom = cells.has(`${col},${row + 1}`);
+                const hasLeft = cells.has(`${col - 1},${row}`);
+                const hasRight = cells.has(`${col + 1},${row}`);
+
+                if (!hasTop) {
+                  const gradient = ctx.createLinearGradient(x, y - glowSize, x, y);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 0)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 1)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x, y - glowSize, cellSize, glowSize);
+                }
+                if (!hasBottom) {
+                  const gradient = ctx.createLinearGradient(x, y + cellSize, x, y + cellSize + glowSize);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x, y + cellSize, cellSize, glowSize);
+                }
+                if (!hasLeft) {
+                  const gradient = ctx.createLinearGradient(x - glowSize, y, x, y);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 0)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 1)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x - glowSize, y, glowSize, cellSize);
+                }
+                if (!hasRight) {
+                  const gradient = ctx.createLinearGradient(x + cellSize, y, x + cellSize + glowSize, y);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x + cellSize, y, glowSize, cellSize);
+                }
+
+                // Corner gradients
+                if (!hasTop && !hasLeft) {
+                  const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowSize);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x - glowSize, y - glowSize, glowSize, glowSize);
+                }
+                if (!hasTop && !hasRight) {
+                  const gradient = ctx.createRadialGradient(x + cellSize, y, 0, x + cellSize, y, glowSize);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x + cellSize, y - glowSize, glowSize, glowSize);
+                }
+                if (!hasBottom && !hasLeft) {
+                  const gradient = ctx.createRadialGradient(x, y + cellSize, 0, x, y + cellSize, glowSize);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x - glowSize, y + cellSize, glowSize, glowSize);
+                }
+                if (!hasBottom && !hasRight) {
+                  const gradient = ctx.createRadialGradient(x + cellSize, y + cellSize, 0, x + cellSize, y + cellSize, glowSize);
+                  gradient.addColorStop(0, "rgba(240, 240, 240, 1)");
+                  gradient.addColorStop(1, "rgba(240, 240, 240, 0)");
+                  ctx.fillStyle = gradient;
+                  ctx.fillRect(x + cellSize, y + cellSize, glowSize, glowSize);
+                }
+              }
+            }}
+            opacity={glowOpacity}
             listening={false}
           />
         );
