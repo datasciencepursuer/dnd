@@ -533,15 +533,15 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
     }
   }, [stageRef, isPanning]);
 
-  // Calculate L-shaped path points (move X first, then Y)
+  // Calculate straight line path points
   const getPathPoints = (
     startX: number,
     startY: number,
     endX: number,
     endY: number
   ): number[] => {
-    // L-shape: start -> corner (endX, startY) -> end
-    return [startX, startY, endX, startY, endX, endY];
+    // Straight line from start to end
+    return [startX, startY, endX, endY];
   };
 
   // Get snapped destination for ghost
@@ -574,13 +574,13 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
             const endCol = Math.round((snapped.x - (token.size * cellSize) / 2) / cellSize);
             const endRow = Math.round((snapped.y - (token.size * cellSize) / 2) / cellSize);
 
-            // Calculate distance using D&D diagonal movement (each diagonal = 1 cell for simplicity)
-            // Or use Euclidean distance rounded to nearest cell
+            // Calculate distance using Pythagorean theorem for diagonal movement
             const deltaCol = Math.abs(endCol - startCol);
             const deltaRow = Math.abs(endRow - startRow);
-            // D&D 5e uses "5-10-5" diagonal rule, but for simplicity we use max of deltas
-            const distanceInCells = Math.max(deltaCol, deltaRow);
-            const distanceInFeet = distanceInCells * 5;
+            // Diagonal distance = sqrt(horizontal² + vertical²)
+            const distanceInCells = Math.sqrt(deltaCol * deltaCol + deltaRow * deltaRow);
+            // Round to 1 decimal place and convert to feet (1 cell = 5 feet)
+            const distanceInFeet = Math.round(distanceInCells * 5 * 10) / 10;
 
             // Position the label at the midpoint of the line
             const midX = (dragState.startX + snapped.x) / 2;
@@ -602,26 +602,37 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
                   lineJoin="round"
                 />
                 {/* Distance label */}
-                {distanceInCells > 0 && (
+                {distanceInFeet > 0 && (
                   <Group x={midX} y={midY}>
-                    <Rect
-                      offsetX={20}
-                      offsetY={12}
-                      width={40}
-                      height={24}
-                      fill="rgba(0, 0, 0, 0.8)"
-                      cornerRadius={4}
-                    />
-                    <Text
-                      text={`${distanceInFeet}ft`}
-                      fontSize={14}
-                      fontStyle="bold"
-                      fill="white"
-                      align="center"
-                      width={40}
-                      offsetX={20}
-                      offsetY={7}
-                    />
+                    {(() => {
+                      // Format: show decimal only if not a whole number
+                      const displayText = Number.isInteger(distanceInFeet)
+                        ? `${distanceInFeet}ft`
+                        : `${distanceInFeet.toFixed(1)}ft`;
+                      const labelWidth = Math.max(40, displayText.length * 9 + 8);
+                      return (
+                        <>
+                          <Rect
+                            offsetX={labelWidth / 2}
+                            offsetY={12}
+                            width={labelWidth}
+                            height={24}
+                            fill="rgba(0, 0, 0, 0.8)"
+                            cornerRadius={4}
+                          />
+                          <Text
+                            text={displayText}
+                            fontSize={14}
+                            fontStyle="bold"
+                            fill="white"
+                            align="center"
+                            width={labelWidth}
+                            offsetX={labelWidth / 2}
+                            offsetY={7}
+                          />
+                        </>
+                      );
+                    })()}
                   </Group>
                 )}
                 {/* Ghost at destination */}
