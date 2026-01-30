@@ -25,6 +25,150 @@ export interface GridPosition {
 // Token Types
 export type TokenLayer = "character" | "monster" | "object";
 
+// Character Sheet Types
+export interface AbilityScore {
+  score: number; // 1-30, default 10
+  modifier: number; // Math.floor((score - 10) / 2)
+  savingThrowProficient: boolean;
+}
+
+export interface AbilityScores {
+  strength: AbilityScore;
+  dexterity: AbilityScore;
+  constitution: AbilityScore;
+  intelligence: AbilityScore;
+  wisdom: AbilityScore;
+  charisma: AbilityScore;
+}
+
+export type CreatureSize = "S" | "M" | "L"; // Small, Medium, Large
+
+// D&D 5e skill proficiencies
+export interface SkillProficiencies {
+  // Strength
+  athletics: boolean;
+  // Dexterity
+  acrobatics: boolean;
+  sleightOfHand: boolean;
+  stealth: boolean;
+  // Intelligence
+  arcana: boolean;
+  history: boolean;
+  investigation: boolean;
+  nature: boolean;
+  religion: boolean;
+  // Wisdom
+  animalHandling: boolean;
+  insight: boolean;
+  medicine: boolean;
+  perception: boolean;
+  survival: boolean;
+  // Charisma
+  deception: boolean;
+  intimidation: boolean;
+  performance: boolean;
+  persuasion: boolean;
+}
+
+// Armor proficiency options
+export interface ArmorProficiencies {
+  light: boolean;
+  medium: boolean;
+  heavy: boolean;
+  shields: boolean;
+}
+
+// Class feature categories
+export type FeatureCategory = "action" | "bonusAction" | "reaction" | "limitedUse";
+
+export interface ClassFeature {
+  id: string;
+  name: string; // Single text field for the feature
+  category: FeatureCategory;
+}
+
+// Weapon entry for attacks
+export interface Weapon {
+  id: string;
+  name: string;
+  bonus: number; // Attack bonus (+5, etc.)
+  dice: string; // Damage dice (1d8, 2d6, etc.)
+  damageType: string; // Slashing, Piercing, Fire, etc.
+  notes: string; // Extra notes (magical, versatile, etc.)
+}
+
+// Currency
+export interface Coins {
+  cp: number; // Copper
+  sp: number; // Silver
+  ep: number; // Electrum
+  gp: number; // Gold
+  pp: number; // Platinum
+}
+
+// D&D 5e Conditions
+export type Condition =
+  | "Healthy"
+  | "Blinded"
+  | "Charmed"
+  | "Deafened"
+  | "Frightened"
+  | "Grappled"
+  | "Incapacitated"
+  | "Invisible"
+  | "Paralyzed"
+  | "Petrified"
+  | "Poisoned"
+  | "Prone"
+  | "Restrained"
+  | "Stunned"
+  | "Unconscious"
+  | "Exhaustion";
+
+export interface CharacterSheet {
+  // Basic info
+  background: string | null;
+  characterClass: string | null;
+  subclass: string | null;
+  race: string | null;
+  level: number;
+  experience: number;
+
+  // Combat stats
+  ac: number;
+  hpMax: number;
+  hpCurrent: number;
+  hitDice: string; // e.g., "1d10"
+  proficiencyBonus: number;
+  initiative: number;
+  speed: number; // feet
+  creatureSize: CreatureSize;
+
+  // Abilities
+  abilities: AbilityScores;
+
+  // Skills
+  skills: SkillProficiencies;
+
+  // Equipment & Training Proficiencies
+  armorProficiencies: ArmorProficiencies;
+  weaponProficiencies: string; // Free text (e.g., "Simple weapons, Martial weapons, Longsword")
+  toolProficiencies: string; // Free text (e.g., "Thieves' tools, Herbalism kit")
+
+  // Class Features, Species Traits, Feats
+  classFeatures: ClassFeature[];
+  speciesTraits: string; // Free text
+  feats: string; // Free text
+
+  // Weapons & Equipment
+  weapons: Weapon[];
+  coins: Coins;
+
+  // Status
+  heroicInspiration: boolean;
+  condition: Condition;
+}
+
 export interface Token {
   id: string;
   name: string;
@@ -37,6 +181,10 @@ export interface Token {
   visible: boolean;
   layer: TokenLayer;
   ownerId: string | null; // User who created/owns this token (null = map owner)
+  characterSheet: CharacterSheet | null;
+  // If set, this token is linked to a shared character from the library
+  // The character's data (name, image, color, size, characterSheet) takes precedence
+  characterId: string | null;
 }
 
 // Permission levels for map access

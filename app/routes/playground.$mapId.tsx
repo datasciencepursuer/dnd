@@ -20,6 +20,7 @@ interface LoaderData {
   userId: string;
   userName: string;
   groupMembers: GroupMemberInfo[];
+  groupId: string | null;
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -88,6 +89,7 @@ export default function PlaygroundWithMap() {
         userId={data.userId}
         userName={data.userName}
         groupMembers={data.groupMembers}
+        groupId={data.groupId}
       />
     </div>
   );

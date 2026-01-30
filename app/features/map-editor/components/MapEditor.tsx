@@ -3,10 +3,11 @@ import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
+import { CharacterSheetPanel } from "./CharacterSheet";
 import { useMapStore, useEditorStore } from "../store";
 import { useMapSync } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
-import type { Token, PlayerPermissions, GridPosition, Ping } from "../types";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -27,6 +28,7 @@ interface MapEditorProps {
   userId?: string | null;
   userName?: string | null;
   groupMembers?: GroupMemberInfo[];
+  groupId?: string | null;
 }
 
 export function MapEditor({
@@ -37,10 +39,16 @@ export function MapEditor({
   userId = null,
   userName = null,
   groupMembers = [],
+  groupId = null,
 }: MapEditorProps) {
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
+  const updateCharacterSheet = useMapStore((s) => s.updateCharacterSheet);
+  const initializeCharacterSheet = useMapStore((s) => s.initializeCharacterSheet);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
+  const openCharacterSheetTokenId = useEditorStore((s) => s.openCharacterSheetTokenId);
+  const closeCharacterSheet = useEditorStore((s) => s.closeCharacterSheet);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
 
   // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
@@ -152,6 +160,29 @@ export function MapEditor({
   );
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
+
+  // Find the token for the open character sheet
+  const characterSheetToken = openCharacterSheetTokenId
+    ? map?.tokens.find((t) => t.id === openCharacterSheetTokenId) ?? null
+    : null;
+
+  // Handler for character sheet updates - sync via HTTP
+  const handleCharacterSheetUpdate = useCallback(
+    (updates: Partial<CharacterSheet>) => {
+      if (!openCharacterSheetTokenId) return;
+      updateCharacterSheet(openCharacterSheetTokenId, updates);
+      // Debounced sync since character sheet changes don't need instant sync
+      syncDebounced(1000);
+    },
+    [openCharacterSheetTokenId, updateCharacterSheet, syncDebounced]
+  );
+
+  // Handler for initializing a character sheet
+  const handleInitializeCharacterSheet = useCallback(() => {
+    if (!openCharacterSheetTokenId) return;
+    initializeCharacterSheet(openCharacterSheetTokenId);
+    syncDebounced(500);
+  }, [openCharacterSheetTokenId, initializeCharacterSheet, syncDebounced]);
 
   // Set editor context on mount/update
   useEffect(() => {
@@ -314,6 +345,17 @@ export function MapEditor({
           onSave={syncNow}
           onTokenUpdate={handleTokenUpdate}
           mapId={mapId}
+          groupId={groupId}
+        />
+      )}
+
+      {characterSheetToken && (
+        <CharacterSheetPanel
+          token={characterSheetToken}
+          onUpdate={handleCharacterSheetUpdate}
+          onClose={closeCharacterSheet}
+          onInitialize={handleInitializeCharacterSheet}
+          readOnly={!canMoveToken(characterSheetToken.ownerId)}
         />
       )}
     </div>

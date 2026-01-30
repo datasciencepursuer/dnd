@@ -7,6 +7,7 @@ import {
   getMapIndex,
   type MapIndexEntry,
 } from "~/features/map-editor";
+import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import type { PermissionLevel } from "~/.server/db/schema";
 
@@ -26,6 +27,20 @@ interface MapListItem {
 interface GroupInfo {
   id: string;
   name: string;
+}
+
+interface ImportableToken {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  color: string;
+  size: number;
+  layer: "character" | "monster" | "object";
+  characterSheet: CharacterSheet | null;
+  characterId: string | null;
+  source: "library" | "map";
+  sourceMapId?: string;
+  sourceMapName?: string;
 }
 
 interface LoaderData {
@@ -172,6 +187,12 @@ export default function Maps() {
   const [localMaps, setLocalMaps] = useState<MapIndexEntry[]>([]);
   const [migrationDismissed, setMigrationDismissed] = useState(false);
 
+  // Token import state
+  const [availableTokens, setAvailableTokens] = useState<ImportableToken[]>([]);
+  const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(new Set());
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
+  const [showAllLayers, setShowAllLayers] = useState(false);
+
   // Filter state
   const activeFilter = searchParams.get("group") || "all";
 
@@ -185,6 +206,35 @@ export default function Maps() {
     const maps = getMapIndex();
     setLocalMaps(maps);
   }, []);
+
+  // Fetch available tokens when group selection changes
+  useEffect(() => {
+    if (!selectedGroupId) {
+      setAvailableTokens([]);
+      setSelectedTokenIds(new Set());
+      return;
+    }
+
+    const fetchTokens = async () => {
+      setIsLoadingTokens(true);
+      try {
+        const url = showAllLayers
+          ? `/api/groups/${selectedGroupId}/tokens?all=true`
+          : `/api/groups/${selectedGroupId}/tokens`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableTokens(data.tokens || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch tokens:", error);
+      } finally {
+        setIsLoadingTokens(false);
+      }
+    };
+
+    fetchTokens();
+  }, [selectedGroupId, showAllLayers]);
 
   // Filter maps based on active tab
   const filteredOwned = useMemo(() => {
@@ -250,6 +300,41 @@ export default function Maps() {
       gridHeight: height,
     });
 
+    // Add imported tokens with new positions
+    if (selectedTokenIds.size > 0) {
+      const tokensToImport = availableTokens.filter((t) => selectedTokenIds.has(t.id));
+      let col = 1;
+      let row = 1;
+      const maxCol = Math.floor(width / 2); // Place in left half
+
+      map.tokens = tokensToImport.map((t): Token => {
+        const token: Token = {
+          id: crypto.randomUUID(), // New ID for the new map
+          name: t.name,
+          imageUrl: t.imageUrl,
+          color: t.color,
+          size: t.size,
+          position: { col, row },
+          rotation: 0,
+          flipped: false,
+          visible: true,
+          layer: t.layer,
+          ownerId: null, // Map owner owns imported tokens
+          characterSheet: t.characterSheet,
+          characterId: t.characterId || null, // Link to shared character if available
+        };
+
+        // Move to next position
+        col += t.size + 1;
+        if (col > maxCol) {
+          col = 1;
+          row += 2;
+        }
+
+        return token;
+      });
+    }
+
     try {
       const response = await fetch("/api/maps", {
         method: "POST",
@@ -280,7 +365,29 @@ export default function Maps() {
     setGridHeight(DEFAULT_GRID.height);
     // Pre-select the active filter group if it's a specific group
     setSelectedGroupId(activeFilter !== "all" && activeFilter !== "personal" ? activeFilter : "");
+    setSelectedTokenIds(new Set());
+    setShowAllLayers(false);
     setShowCreateModal(true);
+  };
+
+  const toggleTokenSelection = (tokenId: string) => {
+    setSelectedTokenIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(tokenId)) {
+        newSet.delete(tokenId);
+      } else {
+        newSet.add(tokenId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllTokens = () => {
+    setSelectedTokenIds(new Set(availableTokens.map((t) => t.id)));
+  };
+
+  const deselectAllTokens = () => {
+    setSelectedTokenIds(new Set());
   };
 
   const renderMapCard = (map: MapListItem, canDelete: boolean) => (
@@ -346,6 +453,12 @@ Play
             Hello, {userName}
           </h1>
           <div className="flex gap-4">
+            <Link
+              to="/characters"
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+            >
+              My Characters
+            </Link>
             <Link
               to="/groups"
               className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -503,6 +616,109 @@ Play
                     Min: 5, Max: 100. You can change this later.
                   </p>
                 </div>
+
+                {/* Token Import Section - only shown when a group is selected */}
+                {selectedGroupId && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Import Units from Group
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={showAllLayers}
+                          onChange={(e) => setShowAllLayers(e.target.checked)}
+                          className="rounded border-gray-300 dark:border-gray-600"
+                        />
+                        Show all types
+                      </label>
+                    </div>
+
+                    {isLoadingTokens ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                        Loading units...
+                      </div>
+                    ) : availableTokens.length === 0 ? (
+                      <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                        No {showAllLayers ? "units" : "characters"} found in group maps.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex gap-2 mb-2">
+                          <button
+                            type="button"
+                            onClick={selectAllTokens}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                          >
+                            Select all
+                          </button>
+                          <button
+                            type="button"
+                            onClick={deselectAllTokens}
+                            className="text-xs text-gray-500 dark:text-gray-400 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                          {selectedTokenIds.size > 0 && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                              {selectedTokenIds.size} selected
+                            </span>
+                          )}
+                        </div>
+                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                          {availableTokens.map((token) => (
+                            <label
+                              key={token.id}
+                              className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                                selectedTokenIds.has(token.id)
+                                  ? "bg-blue-50 dark:bg-blue-900/20"
+                                  : ""
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedTokenIds.has(token.id)}
+                                onChange={() => toggleTokenSelection(token.id)}
+                                className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                              />
+                              {token.imageUrl ? (
+                                <img
+                                  src={token.imageUrl}
+                                  alt=""
+                                  className="w-6 h-6 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div
+                                  className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                  style={{ backgroundColor: token.color }}
+                                >
+                                  {token.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
+                                {token.name}
+                              </span>
+                              {token.source === "library" && (
+                                <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded">
+                                  Shared
+                                </span>
+                              )}
+                              {token.characterSheet && (
+                                <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                  Sheet
+                                </span>
+                              )}
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Selected units will be imported with their stats.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">

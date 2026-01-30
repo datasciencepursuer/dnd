@@ -203,36 +203,14 @@ export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermis
   },
 };
 
-// Map presence table - optimized for D&D sessions (one record per user per map)
-export const mapPresence = pgTable(
-  "map_presence",
-  {
-    id: text("id").primaryKey(),
-    mapId: text("map_id")
-      .notNull()
-      .references(() => maps.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    lastSeen: timestamp("last_seen").notNull().defaultNow(),
-    connectionId: text("connection_id").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => [
-    unique().on(table.mapId, table.userId), // One presence record per user per map
-    index("map_presence_map_id_idx").on(table.mapId),
-    index("map_presence_user_id_idx").on(table.userId),
-  ]
-);
-
 // Drizzle relations for easier querying
 export const userRelations = relations(user, ({ many }) => ({
   maps: many(maps),
-  mapPresence: many(mapPresence),
   groupMemberships: many(groupMembers),
   createdGroups: many(groups),
   sentGroupInvitations: many(groupInvitations),
   uploads: many(uploads),
+  characters: many(characters),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -243,6 +221,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   members: many(groupMembers),
   invitations: many(groupInvitations),
   maps: many(maps),
+  characters: many(characters),
 }));
 
 export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
@@ -267,7 +246,7 @@ export const groupInvitationsRelations = relations(groupInvitations, ({ one }) =
   }),
 }));
 
-export const mapsRelations = relations(maps, ({ one, many }) => ({
+export const mapsRelations = relations(maps, ({ one }) => ({
   owner: one(user, {
     fields: [maps.userId],
     references: [user.id],
@@ -276,17 +255,48 @@ export const mapsRelations = relations(maps, ({ one, many }) => ({
     fields: [maps.groupId],
     references: [groups.id],
   }),
-  presence: many(mapPresence),
 }));
 
-export const mapPresenceRelations = relations(mapPresence, ({ one }) => ({
-  map: one(maps, {
-    fields: [mapPresence.mapId],
-    references: [maps.id],
-  }),
-  user: one(user, {
-    fields: [mapPresence.userId],
+// Token layer enum for characters table
+export const tokenLayerEnum = pgEnum("token_layer", ["character", "monster", "object"]);
+
+// Characters table - shared character library
+export const characters = pgTable(
+  "characters",
+  {
+    id: text("id").primaryKey(),
+    // Owner of this character
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // If set, character is shared with this group. If null, it's personal.
+    groupId: text("group_id").references(() => groups.id, { onDelete: "cascade" }),
+    // Token display properties
+    name: text("name").notNull(),
+    imageUrl: text("image_url"),
+    color: text("color").notNull().default("#ef4444"),
+    size: integer("size").notNull().default(1),
+    layer: tokenLayerEnum("layer").notNull().default("character"),
+    // Character sheet data (JSON)
+    characterSheet: jsonb("character_sheet"),
+    // Timestamps
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("characters_user_id_idx").on(table.userId),
+    index("characters_group_id_idx").on(table.groupId),
+  ]
+);
+
+export const charactersRelations = relations(characters, ({ one }) => ({
+  owner: one(user, {
+    fields: [characters.userId],
     references: [user.id],
+  }),
+  group: one(groups, {
+    fields: [characters.groupId],
+    references: [groups.id],
   }),
 }));
 
@@ -333,9 +343,9 @@ export type NewGroupInvitation = typeof groupInvitations.$inferInsert;
 export type { GroupRole } from "~/types/group";
 export type Map = typeof maps.$inferSelect;
 export type NewMap = typeof maps.$inferInsert;
-export type MapPresence = typeof mapPresence.$inferSelect;
-export type NewMapPresence = typeof mapPresence.$inferInsert;
 export type PermissionLevel = "view" | "edit" | "owner";
 export type Upload = typeof uploads.$inferSelect;
 export type NewUpload = typeof uploads.$inferInsert;
 export type UploadType = "token" | "map";
+export type Character = typeof characters.$inferSelect;
+export type NewCharacter = typeof characters.$inferInsert;

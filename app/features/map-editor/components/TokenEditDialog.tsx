@@ -3,11 +3,22 @@ import { useMapStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
 import { useUploadThing } from "~/utils/uploadthing";
-import type { Token, TokenLayer } from "../types";
+import type { Token, TokenLayer, CharacterSheet } from "../types";
 
 interface GroupMemberInfo {
   id: string;
   name: string;
+}
+
+interface LibraryCharacter {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  color: string;
+  size: number;
+  layer: string;
+  characterSheet: CharacterSheet | null;
+  groupId: string | null;
 }
 
 interface TokenEditDialogProps {
@@ -18,6 +29,7 @@ interface TokenEditDialogProps {
   onSave?: () => void;
   onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
   mapId?: string;
+  groupId?: string | null;
 }
 
 export function TokenEditDialog({
@@ -28,6 +40,7 @@ export function TokenEditDialog({
   onSave,
   onTokenUpdate,
   mapId,
+  groupId,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
 
@@ -38,9 +51,36 @@ export function TokenEditDialog({
   const [visible, setVisible] = useState(token.visible);
   const [ownerId, setOwnerId] = useState<string | null>(token.ownerId);
   const [imageUrl, setImageUrl] = useState<string | null>(token.imageUrl);
+  const [characterId, setCharacterId] = useState<string | null>(token.characterId || null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Character library state
+  const [availableCharacters, setAvailableCharacters] = useState<LibraryCharacter[]>([]);
+  const [showCharacterPicker, setShowCharacterPicker] = useState(false);
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
+  const [saveToLibraryError, setSaveToLibraryError] = useState<string | null>(null);
+
+  // Fetch available characters from library
+  useEffect(() => {
+    const fetchCharacters = async () => {
+      try {
+        const url = groupId
+          ? `/api/characters?groupId=${groupId}`
+          : `/api/characters?groupId=personal`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableCharacters(data.characters || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch characters:", error);
+      }
+    };
+
+    fetchCharacters();
+  }, [groupId]);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -65,10 +105,11 @@ export function TokenEditDialog({
     setVisible(token.visible);
     setOwnerId(token.ownerId);
     setImageUrl(token.imageUrl);
+    setCharacterId(token.characterId || null);
   }, [token]);
 
   const handleSave = () => {
-    const updates = {
+    const updates: Record<string, unknown> = {
       name: name.trim() || "Unnamed Token",
       color,
       size,
@@ -76,7 +117,14 @@ export function TokenEditDialog({
       visible,
       ownerId,
       imageUrl,
+      characterId,
     };
+
+    // Clear characterSheet when linking to avoid redundant data storage
+    // The sheet is stored on the library character, not the token
+    if (characterId) {
+      updates.characterSheet = null;
+    }
 
     // Update locally first for responsive UI
     updateToken(token.id, updates);
@@ -87,6 +135,65 @@ export function TokenEditDialog({
     onSave?.();
     onClose();
   };
+
+  // Link to an existing character from the library
+  const handleLinkCharacter = (character: LibraryCharacter) => {
+    setCharacterId(character.id);
+    // Optionally sync appearance from character
+    setName(character.name);
+    setImageUrl(character.imageUrl);
+    setColor(character.color);
+    setSize(character.size);
+    setLayer(character.layer as TokenLayer);
+    setShowCharacterPicker(false);
+  };
+
+  // Unlink from character
+  const handleUnlinkCharacter = () => {
+    setCharacterId(null);
+  };
+
+  // Save token as a new character in the library
+  const handleSaveToLibrary = async () => {
+    setIsSavingToLibrary(true);
+    setSaveToLibraryError(null);
+
+    try {
+      const response = await fetch("/api/characters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim() || "Unnamed Character",
+          imageUrl,
+          color,
+          size,
+          layer,
+          groupId: groupId || null,
+          characterSheet: token.characterSheet,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Link this token to the new character
+        setCharacterId(data.character.id);
+        // Refresh available characters
+        setAvailableCharacters((prev) => [data.character, ...prev]);
+        setSaveToLibraryError(null);
+      } else {
+        const result = await response.json();
+        setSaveToLibraryError(result.error || "Failed to save to library");
+      }
+    } catch {
+      setSaveToLibraryError("Failed to save to library");
+    } finally {
+      setIsSavingToLibrary(false);
+    }
+  };
+
+  const linkedCharacter = characterId
+    ? availableCharacters.find((c) => c.id === characterId)
+    : null;
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -331,6 +438,119 @@ export function TokenEditDialog({
               </select>
             </div>
           )}
+
+          {/* Character Library Section */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Character Library
+            </label>
+
+            {linkedCharacter ? (
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded border border-indigo-200 dark:border-indigo-800">
+                <div className="flex items-center gap-3">
+                  {linkedCharacter.imageUrl ? (
+                    <img
+                      src={linkedCharacter.imageUrl}
+                      alt={linkedCharacter.name}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                      style={{ backgroundColor: linkedCharacter.color }}
+                    >
+                      {linkedCharacter.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {linkedCharacter.name}
+                    </p>
+                    <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                      Linked to library character
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleUnlinkCharacter}
+                    className="text-xs text-red-600 dark:text-red-400 hover:underline cursor-pointer"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Link to a shared character to sync data across maps, or save this token to the library.
+                </p>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCharacterPicker(!showCharacterPicker)}
+                    className="flex-1 px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 cursor-pointer"
+                  >
+                    {showCharacterPicker ? "Hide Characters" : "Link to Character"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveToLibrary}
+                    disabled={isSavingToLibrary}
+                    className="flex-1 px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingToLibrary ? "Saving..." : "Save to Library"}
+                  </button>
+                </div>
+
+                {saveToLibraryError && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{saveToLibraryError}</p>
+                )}
+
+                {showCharacterPicker && (
+                  <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                    {availableCharacters.length === 0 ? (
+                      <p className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No characters in library yet
+                      </p>
+                    ) : (
+                      availableCharacters.map((char) => (
+                        <button
+                          key={char.id}
+                          type="button"
+                          onClick={() => handleLinkCharacter(char)}
+                          className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-left"
+                        >
+                          {char.imageUrl ? (
+                            <img
+                              src={char.imageUrl}
+                              alt={char.name}
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                              style={{ backgroundColor: char.color }}
+                            >
+                              {char.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
+                            {char.name}
+                          </span>
+                          {char.characterSheet && (
+                            <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                              Sheet
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex gap-3 mt-6">

@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet } from "../types";
 import { createNewMap } from "../constants";
+import { createDefaultCharacterSheet } from "../utils/character-utils";
+import { normalizeGridRange } from "../utils/grid-utils";
 
 // Timeout for dirty tokens - after this time, server updates will overwrite local changes
 const DIRTY_TOKEN_STALE_MS = 10000; // 10 seconds
@@ -60,6 +62,11 @@ interface MapState {
   // Roll history actions
   addRollResult: (result: RollResult) => void;
   clearRollHistory: () => void;
+
+  // Character sheet actions
+  updateCharacterSheet: (tokenId: string, updates: Partial<CharacterSheet>) => void;
+  initializeCharacterSheet: (tokenId: string) => void;
+  removeCharacterSheet: (tokenId: string) => void;
 }
 
 export const useMapStore = create<MapState>()(
@@ -431,11 +438,7 @@ export const useMapStore = create<MapState>()(
           const existingKeys = new Set(paintedCells.map((c) => c.key));
           const newCells: FogCell[] = [];
 
-          // Normalize range (handle any drag direction)
-          const minCol = Math.min(startCol, endCol);
-          const maxCol = Math.max(startCol, endCol);
-          const minRow = Math.min(startRow, endRow);
-          const maxRow = Math.max(startRow, endRow);
+          const { minCol, maxCol, minRow, maxRow } = normalizeGridRange(startCol, startRow, endCol, endRow);
 
           for (let col = minCol; col <= maxCol; col++) {
             for (let row = minRow; row <= maxRow; row++) {
@@ -465,11 +468,7 @@ export const useMapStore = create<MapState>()(
           if (!state.map) return state;
           const paintedCells = state.map.fogOfWar.paintedCells || [];
 
-          // Normalize range
-          const minCol = Math.min(startCol, endCol);
-          const maxCol = Math.max(startCol, endCol);
-          const minRow = Math.min(startRow, endRow);
-          const maxRow = Math.max(startRow, endRow);
+          const { minCol, maxCol, minRow, maxRow } = normalizeGridRange(startCol, startRow, endCol, endRow);
 
           const keysToRemove = new Set<string>();
           for (let col = minCol; col <= maxCol; col++) {
@@ -567,6 +566,74 @@ export const useMapStore = create<MapState>()(
               rollHistory: [],
               updatedAt: new Date().toISOString(),
             },
+          };
+        }),
+
+      // Character sheet actions
+      updateCharacterSheet: (tokenId, updates) =>
+        set((state) => {
+          if (!state.map) return state;
+          const token = state.map.tokens.find((t) => t.id === tokenId);
+          if (!token || !token.characterSheet) return state;
+
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === tokenId
+                  ? { ...t, characterSheet: { ...t.characterSheet!, ...updates } }
+                  : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      initializeCharacterSheet: (tokenId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const token = state.map.tokens.find((t) => t.id === tokenId);
+          if (!token) return state;
+
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === tokenId
+                  ? { ...t, characterSheet: createDefaultCharacterSheet() }
+                  : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      removeCharacterSheet: (tokenId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === tokenId ? { ...t, characterSheet: null } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
           };
         }),
     }),

@@ -53,3 +53,25 @@ export function clampToGrid(
     row: Math.max(0, Math.min(row, height - 1)),
   };
 }
+
+// Normalizes a grid range to ensure min/max are correctly ordered
+export interface GridRange {
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
+}
+
+export function normalizeGridRange(
+  startCol: number,
+  startRow: number,
+  endCol: number,
+  endRow: number
+): GridRange {
+  return {
+    minCol: Math.min(startCol, endCol),
+    maxCol: Math.max(startCol, endCol),
+    minRow: Math.min(startRow, endRow),
+    maxRow: Math.max(startRow, endRow),
+  };
+}

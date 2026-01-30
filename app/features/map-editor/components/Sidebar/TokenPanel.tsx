@@ -93,6 +93,8 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
       visible: true,
       layer: "character",
       ownerId: isOwner() ? null : userId, // Owner's tokens have null ownerId
+      characterSheet: null,
+      characterId: null,
     };
 
     addToken(token);

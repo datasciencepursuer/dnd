@@ -255,130 +255,114 @@ export function usePartySync({
     }
   }, [enabled, mapId, userId, socket]);
 
+  // Check if socket is ready to send
+  const isSocketReady = useCallback(
+    (): boolean => !!socket && socket.readyState === WebSocket.OPEN && !!userId,
+    [socket, userId]
+  );
+
   // Broadcast token move to other clients
   const broadcastTokenMove = useCallback(
     (tokenId: string, position: GridPosition) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: TokenMoveMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "token-move",
         tokenId,
         position,
         userId,
         userName: userName || "Anonymous",
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId, userName]
+    [isSocketReady, socket, userId, userName]
   );
 
   // Broadcast token update to other clients
   const broadcastTokenUpdate = useCallback(
     (tokenId: string, updates: Partial<Token>) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: TokenUpdateMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "token-update",
         tokenId,
         updates,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast token deletion to other clients
   const broadcastTokenDelete = useCallback(
     (tokenId: string) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: TokenDeleteMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "token-delete",
         tokenId,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast new token creation to other clients
   const broadcastTokenCreate = useCallback(
     (token: Token) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: TokenCreateMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "token-create",
         token,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast full map sync (for DM operations like fog, grid, background)
   const broadcastMapSync = useCallback(
     (data: DnDMap) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: MapSyncMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "map-sync",
         data,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast fog paint to other clients
   const broadcastFogPaint = useCallback(
     (col: number, row: number, creatorId: string) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: FogPaintMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "fog-paint",
         col,
         row,
         creatorId,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast fog erase to other clients
   const broadcastFogErase = useCallback(
     (col: number, row: number) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: FogEraseMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "fog-erase",
         col,
         row,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast fog paint range to other clients
   const broadcastFogPaintRange = useCallback(
     (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: FogPaintRangeMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "fog-paint-range",
         startCol,
         startRow,
@@ -386,42 +370,36 @@ export function usePartySync({
         endRow,
         creatorId,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast fog erase range to other clients
   const broadcastFogEraseRange = useCallback(
     (startCol: number, startRow: number, endCol: number, endRow: number) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: FogEraseRangeMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "fog-erase-range",
         startCol,
         startRow,
         endCol,
         endRow,
         userId,
-      };
-
-      socket.send(JSON.stringify(message));
+      }));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   // Broadcast ping to all clients (including self for visual feedback)
   const broadcastPing = useCallback(
     (ping: Ping) => {
-      if (!socket || socket.readyState !== WebSocket.OPEN || !userId) return;
-
-      const message: PingMessage = {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
         type: "ping",
         ping,
         userId,
-      };
+      }));
 
       // Add ping locally first for immediate feedback
       setActivePings((prev) => [...prev, ping]);
@@ -429,10 +407,8 @@ export function usePartySync({
       setTimeout(() => {
         setActivePings((prev) => prev.filter((p) => p.id !== ping.id));
       }, 3000);
-
-      socket.send(JSON.stringify(message));
     },
-    [socket, userId]
+    [isSocketReady, socket, userId]
   );
 
   return {

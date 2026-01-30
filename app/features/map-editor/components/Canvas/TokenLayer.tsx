@@ -3,6 +3,22 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
+import { getHpPercentage, getHpBarColor } from "../../utils/character-utils";
+
+// Helper to determine if a color is light (needs dark text/stroke for contrast)
+function isLightColor(color: string): boolean {
+  // Handle hex colors
+  let hex = color.replace("#", "");
+  if (hex.length === 3) {
+    hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+  }
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.7;
+}
 
 interface DragState {
   tokenId: string;
@@ -46,6 +62,7 @@ interface TokenItemProps {
   onMouseDown: (e: any) => void;
   onHoverStart: () => void;
   onHoverEnd: () => void;
+  onDoubleClick: () => void;
 }
 
 function TokenItem({
@@ -61,6 +78,7 @@ function TokenItem({
   onMouseDown,
   onHoverStart,
   onHoverEnd,
+  onDoubleClick,
 }: TokenItemProps) {
   const image = useImage(token.imageUrl);
 
@@ -120,11 +138,38 @@ function TokenItem({
   // Check if this is an image token (even if image hasn't loaded yet)
   const hasImageUrl = !!token.imageUrl;
 
-  // Calculate tooltip position
-  const tooltipY = hasImageUrl ? -imgHeight / 2 - 24 : -radius - 24;
-
   // Lock icon position
   const lockY = hasImageUrl ? imgHeight / 2 + 8 : radius + 8;
+
+  // Character sheet display calculations
+  const sheet = token.characterSheet;
+  const showStats = (isSelected || isHovered) && !isDragging && sheet;
+  const hpPercent = sheet ? getHpPercentage(sheet.hpCurrent, sheet.hpMax) : 0;
+  const hpBarColor = sheet ? getHpBarColor(hpPercent) : "#22c55e";
+
+  // HP bar dimensions - flush on top of token
+  const hpBarWidth = hasImageUrl ? imgWidth : radius * 2;
+  const hpBarHeight = 6;
+  const hpBarY = hasImageUrl ? -imgHeight / 2 - hpBarHeight / 2 : -radius - hpBarHeight / 2;
+
+  // AC shield dimensions - above HP bar (smaller shield: square top + triangle bottom)
+  const acShieldSize = 16; // Width of the square part
+  const acShieldTriangleHeight = 6; // Height of the triangle at bottom
+  const acShieldTotalHeight = acShieldSize + acShieldTriangleHeight;
+  const acShieldY = hpBarY - hpBarHeight / 2 - acShieldTotalHeight / 2 - 2;
+
+  // Token name position - flush under the token
+  const nameY = hasImageUrl ? imgHeight / 2 + 10 : radius + 10;
+
+  // Check if token color is light (for contrast handling)
+  const isLight = isLightColor(token.color);
+  const acTextColor = isLight ? "#000000" : "#ffffff";
+  const acStrokeColor = isLight ? "#374151" : "#ffffff";
+
+  const handleDoubleClick = (e: any) => {
+    e.cancelBubble = true;
+    onDoubleClick();
+  };
 
   return (
     <Group
@@ -136,6 +181,8 @@ function TokenItem({
       onTouchStart={isMovable ? onMouseDown : undefined}
       onClick={handleClick}
       onTap={handleClick}
+      onDblClick={handleDoubleClick}
+      onDblTap={handleDoubleClick}
       onContextMenu={handleRightClick}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
@@ -254,25 +301,90 @@ function TokenItem({
         </Group>
       )}
 
-      {/* Tooltip on hover */}
+      {/* Token name - flush under the token */}
       {isHovered && !isDragging && (
-        <Group y={tooltipY}>
+        <Group y={nameY}>
           <Rect
-            width={token.name.length * 8 + 16}
-            height={22}
-            offsetX={(token.name.length * 8 + 16) / 2}
-            offsetY={11}
-            fill="rgba(0, 0, 0, 0.8)"
-            cornerRadius={4}
+            width={token.name.length * 7 + 12}
+            height={18}
+            offsetX={(token.name.length * 7 + 12) / 2}
+            offsetY={9}
+            fill="rgba(0, 0, 0, 0.75)"
+            cornerRadius={3}
           />
           <Text
             text={token.name}
-            fontSize={12}
+            fontSize={11}
             fill="#ffffff"
             align="center"
-            width={token.name.length * 8 + 16}
-            offsetX={(token.name.length * 8 + 16) / 2}
-            offsetY={6}
+            width={token.name.length * 7 + 12}
+            offsetX={(token.name.length * 7 + 12) / 2}
+            offsetY={5}
+          />
+        </Group>
+      )}
+
+      {/* HP Bar - shown when selected or hovered and has character sheet */}
+      {showStats && (
+        <Group y={hpBarY}>
+          {/* HP bar background */}
+          <Rect
+            width={hpBarWidth}
+            height={hpBarHeight}
+            offsetX={hpBarWidth / 2}
+            offsetY={hpBarHeight / 2}
+            fill="rgba(0, 0, 0, 0.6)"
+            cornerRadius={4}
+          />
+          {/* HP bar fill */}
+          <Rect
+            x={-hpBarWidth / 2 + 1}
+            y={-hpBarHeight / 2 + 1}
+            width={(hpBarWidth - 2) * (hpPercent / 100)}
+            height={hpBarHeight - 2}
+            fill={hpBarColor}
+            cornerRadius={3}
+          />
+          {/* HP text */}
+          <Text
+            text={`${sheet!.hpCurrent}/${sheet!.hpMax}`}
+            fontSize={7}
+            fill="#ffffff"
+            align="center"
+            width={hpBarWidth}
+            offsetX={hpBarWidth / 2}
+            offsetY={3}
+          />
+        </Group>
+      )}
+
+      {/* AC Shield - shown when selected or hovered and has character sheet */}
+      {showStats && (
+        <Group x={0} y={acShieldY}>
+          {/* Shield shape: square top + inverted triangle bottom */}
+          <Line
+            points={[
+              -acShieldSize / 2, -acShieldTotalHeight / 2,                    // Top left
+              acShieldSize / 2, -acShieldTotalHeight / 2,                     // Top right
+              acShieldSize / 2, -acShieldTotalHeight / 2 + acShieldSize,      // Bottom right of square
+              0, acShieldTotalHeight / 2,                                      // Bottom point (triangle tip)
+              -acShieldSize / 2, -acShieldTotalHeight / 2 + acShieldSize,     // Bottom left of square
+            ]}
+            closed
+            fill={token.color}
+            stroke={acStrokeColor}
+            strokeWidth={1.5}
+          />
+          {/* AC number */}
+          <Text
+            text={String(sheet!.ac)}
+            fontSize={10}
+            fontStyle="bold"
+            fill={acTextColor}
+            align="center"
+            width={acShieldSize}
+            offsetX={acShieldSize / 2}
+            offsetY={acShieldTotalHeight / 2 - 3}
           />
         </Group>
       )}
@@ -357,6 +469,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const canEditToken = useEditorStore((s) => s.canEditToken);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
+  const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
@@ -670,6 +783,11 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
             onMouseDown={(e) => handleMouseDown(token, e)}
             onHoverStart={() => handleHoverStart(token.id)}
             onHoverEnd={handleHoverEnd}
+            onDoubleClick={() => {
+              if (isMovable) {
+                openCharacterSheet(token.id);
+              }
+            }}
           />
         );
       })}

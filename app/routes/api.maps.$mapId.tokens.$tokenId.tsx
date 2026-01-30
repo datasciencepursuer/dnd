@@ -104,6 +104,8 @@ export async function action({ request, params }: Route.ActionArgs) {
         const newToken: Token = {
           id: tokenId,
           ownerId: body.ownerId ?? null,
+          characterSheet: body.characterSheet ?? null,
+          characterId: body.characterId ?? null,
           ...body,
         };
 

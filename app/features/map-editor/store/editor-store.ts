@@ -19,6 +19,9 @@ interface EditorState {
   // Ping rate limiting (4 pings per 10 seconds)
   pingTimestamps: number[];
 
+  // Character sheet panel
+  openCharacterSheetTokenId: string | null;
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -39,6 +42,10 @@ interface EditorState {
   canPing: () => boolean;
   recordPing: () => void;
   getPingsRemaining: () => number;
+
+  // Character sheet panel
+  openCharacterSheet: (tokenId: string) => void;
+  closeCharacterSheet: () => void;
 
   // Permission helpers
   isOwner: () => boolean;
@@ -66,6 +73,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   permission: "view",
   permissions: DEFAULT_PERMISSIONS.view,
   pingTimestamps: [],
+  openCharacterSheetTokenId: null,
 
   setTool: (tool) =>
     set((state) => ({
@@ -125,6 +133,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     );
     return Math.max(0, PING_RATE_LIMIT - recentPings.length);
   },
+
+  // Character sheet panel
+  openCharacterSheet: (tokenId) => set({ openCharacterSheetTokenId: tokenId }),
+  closeCharacterSheet: () => set({ openCharacterSheetTokenId: null }),
 
   // Permission helpers
   isOwner: () => get().permission === "owner",

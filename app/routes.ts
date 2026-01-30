@@ -15,8 +15,6 @@ export default [
   route("api/maps/:mapId", "routes/api.maps.$mapId.tsx"),
   route("api/maps/:mapId/tokens/:tokenId", "routes/api.maps.$mapId.tokens.$tokenId.tsx"),
   route("api/maps/:mapId/tokens/:tokenId/move", "routes/api.maps.$mapId.tokens.$tokenId.move.tsx"),
-  route("api/maps/:mapId/presence", "routes/api.maps.$mapId.presence.tsx"),
-  route("api/maps/:mapId/presence/leave", "routes/api.maps.$mapId.presence.leave.tsx"),
   route("api/groups", "routes/api.groups.tsx"),
   route("api/groups/:groupId", "routes/api.groups.$groupId.tsx"),
   route("api/groups/:groupId/members", "routes/api.groups.$groupId.members.tsx"),
@@ -27,4 +25,8 @@ export default [
   route("api/uploadthing", "routes/api.uploadthing.ts"),
   route("api/uploadthing/files", "routes/api.uploadthing.files.ts"),
   route("api/uploads", "routes/api.uploads.tsx"),
+  route("characters", "routes/characters.tsx"),
+  route("api/characters", "routes/api.characters.tsx"),
+  route("api/characters/:characterId", "routes/api.characters.$characterId.tsx"),
+  route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
 ] satisfies RouteConfig;
