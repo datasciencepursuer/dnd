@@ -1,7 +1,20 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { Resend } from "resend";
+import { render } from "@react-email/render";
 import { db } from "../db";
 import * as schema from "../db/schema";
+import { env } from "../env";
+import { VerificationEmail } from "../emails/verification-email";
+import { PasswordResetEmail } from "../emails/password-reset-email";
+
+const resend = new Resend(env.RESEND_API_KEY);
+
+// Use Resend's test email in development (before domain verification)
+// In production, use your verified domain email
+const fromEmail = process.env.NODE_ENV === "production"
+  ? "bubufulplanet <noreply@bubufulplanet.com>"
+  : "bubufulplanet <onboarding@resend.dev>";
 
 // Build trusted origins list
 const trustedOrigins = [
@@ -27,6 +40,30 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      const html = await render(PasswordResetEmail({ url, userName: user.name }));
+      await resend.emails.send({
+        from: fromEmail,
+        to: user.email,
+        subject: "Reset your password - bubufulplanet",
+        html,
+      });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    callbackURL: "/maps",
+    sendVerificationEmail: async ({ user, url }) => {
+      const html = await render(VerificationEmail({ url, userName: user.name }));
+      await resend.emails.send({
+        from: fromEmail,
+        to: user.email,
+        subject: "Verify your email - bubufulplanet",
+        html,
+      });
+    },
   },
   trustedOrigins,
   rateLimit: {

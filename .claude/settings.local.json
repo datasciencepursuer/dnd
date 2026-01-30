@@ -26,7 +26,8 @@
       "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
       "Bash(bun:*)",
       "Bash(npx tsc:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebSearch"
     ]
   }
 }

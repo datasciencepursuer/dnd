@@ -102,6 +102,16 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `mapPresence` - Tracks users currently viewing a map (connectionId-based)
 - Permission helpers: `app/.server/permissions/map-permissions.ts`
 
+### Real-Time Collaboration (PartyKit)
+WebSocket-based real-time sync using PartyKit (`party/map.ts`).
+- Config: `partykit.json`
+- Client hook: `app/features/map-editor/hooks/useMapSync.ts`
+- Syncs: token operations, fog painting, pings, and presence
+- Commands:
+  - `pnpm run dev:party` - Start PartyKit dev server
+  - `pnpm run dev:all` - Start both React Router and PartyKit servers
+  - `pnpm run party:deploy` - Deploy PartyKit to production
+
 ### File Uploads
 Uses UploadThing for image uploads (token images, map backgrounds).
 - Server config: `app/.server/uploadthing.ts`

@@ -19,4 +19,7 @@ export const env = {
   get UPLOADTHING_TOKEN() {
     return getEnvVar("UPLOADTHING_TOKEN");
   },
+  get RESEND_API_KEY() {
+    return getEnvVar("RESEND_API_KEY");
+  },
 };
