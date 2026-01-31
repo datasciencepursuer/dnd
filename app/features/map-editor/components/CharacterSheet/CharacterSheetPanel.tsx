@@ -102,13 +102,21 @@ function ExpandingTextInput({
   const contentRows = Math.ceil((value.length || 1) / 30);
   const rows = isFocused ? Math.max(expandedRows, contentRows) : collapsedRows;
 
+  const handleBlur = () => {
+    setIsFocused(false);
+    const trimmed = value.trim();
+    if (trimmed !== value) {
+      onChange(trimmed);
+    }
+  };
+
   return (
     <textarea
       ref={textareaRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
+      onBlur={handleBlur}
       placeholder={placeholder}
       rows={rows}
       className={`${baseClassName} transition-all duration-150 resize-none overflow-hidden`}
@@ -137,12 +145,20 @@ function ExpandingTextarea({
 }: ExpandingTextareaProps) {
   const [isFocused, setIsFocused] = useState(false);
 
+  const handleBlur = () => {
+    setIsFocused(false);
+    const trimmed = value.trim();
+    if (trimmed !== value) {
+      onChange(trimmed);
+    }
+  };
+
   return (
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
+      onBlur={handleBlur}
       placeholder={placeholder}
       rows={isFocused ? expandedRows : collapsedRows}
       className={`${baseClassName} transition-all duration-150 resize-none`}
@@ -150,12 +166,64 @@ function ExpandingTextarea({
   );
 }
 
+// localStorage helpers for crash recovery
+const STORAGE_PREFIX = "character-sheet-draft-";
+
+function getStorageKey(characterId: string): string {
+  return `${STORAGE_PREFIX}${characterId}`;
+}
+
+function saveDraftToStorage(characterId: string, sheet: CharacterSheet): void {
+  try {
+    const key = getStorageKey(characterId);
+    const data = { sheet, savedAt: Date.now() };
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error("Failed to save draft to localStorage:", e);
+  }
+}
+
+function loadDraftFromStorage(characterId: string): { sheet: CharacterSheet; savedAt: number } | null {
+  try {
+    const key = getStorageKey(characterId);
+    const data = localStorage.getItem(key);
+    if (!data) return null;
+    return JSON.parse(data);
+  } catch (e) {
+    console.error("Failed to load draft from localStorage:", e);
+    return null;
+  }
+}
+
+function clearDraftFromStorage(characterId: string): void {
+  try {
+    const key = getStorageKey(characterId);
+    localStorage.removeItem(key);
+  } catch (e) {
+    console.error("Failed to clear draft from localStorage:", e);
+  }
+}
+
+// Standalone character data (for /characters route)
+interface StandaloneCharacter {
+  id: string;
+  name: string;
+  color: string;
+  imageUrl: string | null;
+  sheet: CharacterSheet | null;
+}
+
 interface CharacterSheetPanelProps {
-  token: Token;
-  onUpdate: (updates: Partial<CharacterSheet>) => void;
+  // Option 1: Token-based (map editor)
+  token?: Token;
+  onUpdate?: (updates: Partial<CharacterSheet>) => void;
+  onInitialize?: () => void;
+  // Option 2: Standalone character (/characters route)
+  character?: StandaloneCharacter;
+  // Common props
   onClose: () => void;
-  onInitialize: () => void;
   readOnly?: boolean;
+  onSaved?: () => void;
 }
 
 export function CharacterSheetPanel({
@@ -163,21 +231,37 @@ export function CharacterSheetPanel({
   onUpdate,
   onClose,
   onInitialize,
+  character,
   readOnly = false,
+  onSaved,
 }: CharacterSheetPanelProps) {
-  // For linked characters, we fetch and update via API
-  const [linkedCharacterSheet, setLinkedCharacterSheet] = useState<CharacterSheet | null>(null);
-  const [isLoadingLinked, setIsLoadingLinked] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  // Determine mode: standalone character vs token-based
+  const isStandalone = !!character && !token;
+  const characterId = isStandalone ? character.id : token?.characterId;
+  const isLinked = !!characterId;
+
+  // Character info (from token or standalone)
+  const charName = isStandalone ? character.name : token?.name ?? "";
+  const charColor = isStandalone ? character.color : token?.color ?? "#888";
+  const charImageUrl = isStandalone ? character.imageUrl : token?.imageUrl ?? null;
+
+  // State
+  const [linkedCharacterSheet, setLinkedCharacterSheet] = useState<CharacterSheet | null>(
+    isStandalone ? character.sheet : null
+  );
+  // Start loading if we have a token-linked character that needs to be fetched
+  const [isLoadingLinked, setIsLoadingLinked] = useState(!isStandalone && !!token?.characterId);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [hasPendingChanges, setHasPendingChanges] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<1 | 2>(1);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentSheetRef = useRef<CharacterSheet | null>(null);
+  const draftRecoveredRef = useRef(false);
 
-  const isLinked = !!token.characterId;
-
-  // Fetch linked character's sheet on mount
+  // Fetch linked character's sheet on mount (for token-based linked characters)
   useEffect(() => {
-    if (!token.characterId) {
-      setLinkedCharacterSheet(null);
+    if (isStandalone || !token?.characterId) {
       return;
     }
 
@@ -188,7 +272,8 @@ export function CharacterSheetPanel({
         return res.json();
       })
       .then((data) => {
-        setLinkedCharacterSheet(data.characterSheet || null);
+        // API returns { character: { characterSheet, ... } }
+        setLinkedCharacterSheet(data.character?.characterSheet || null);
       })
       .catch((err) => {
         console.error("Failed to fetch linked character:", err);
@@ -197,69 +282,122 @@ export function CharacterSheetPanel({
       .finally(() => {
         setIsLoadingLinked(false);
       });
-  }, [token.characterId]);
+  }, [isStandalone, token?.characterId]);
 
-  // Debounced save to character API for linked characters
-  const saveToCharacterApi = useCallback(
-    (updates: Partial<CharacterSheet>) => {
-      if (!token.characterId || !linkedCharacterSheet) return;
+  // Sync to server function (for API-saved characters)
+  const syncToServer = useCallback(async (sheetToSync: CharacterSheet) => {
+    if (!characterId) return;
 
-      // Update local state immediately
-      const newSheet = { ...linkedCharacterSheet, ...updates };
-      if (updates.abilities) {
-        newSheet.abilities = { ...linkedCharacterSheet.abilities, ...updates.abilities };
+    setIsSyncing(true);
+    setSyncError(null);
+    try {
+      const response = await fetch(`/api/characters/${characterId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterSheet: sheetToSync }),
+      });
+      if (!response.ok) throw new Error("Failed to save");
+      clearDraftFromStorage(characterId);
+      setHasPendingChanges(false);
+      onSaved?.();
+    } catch (e) {
+      setSyncError("Failed to sync - will retry");
+      console.error("Sync failed:", e);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [characterId, onSaved]);
+
+  // Check for unsaved draft on mount - automatically apply if found (seamless recovery)
+  useEffect(() => {
+    if (!characterId || draftRecoveredRef.current) return;
+
+    const draft = loadDraftFromStorage(characterId);
+    if (draft) {
+      draftRecoveredRef.current = true;
+      // Automatically apply the draft - user likely won't remember what changes they made
+      setLinkedCharacterSheet(draft.sheet);
+      setHasPendingChanges(true);
+      // Sync the recovered draft to server
+      syncToServer(draft.sheet);
+    }
+  }, [characterId, syncToServer]);
+
+  // Keep ref in sync for beforeunload
+  useEffect(() => {
+    currentSheetRef.current = linkedCharacterSheet;
+  }, [linkedCharacterSheet]);
+
+  // beforeunload handler - attempt best-effort sync (no warning needed since localStorage has backup)
+  useEffect(() => {
+    if (!characterId) return;
+
+    const handleBeforeUnload = () => {
+      if (hasPendingChanges && currentSheetRef.current) {
+        const data = JSON.stringify({ characterSheet: currentSheetRef.current });
+        const blob = new Blob([data], { type: "application/json" });
+        navigator.sendBeacon?.(`/api/characters/${characterId}`, blob);
       }
-      setLinkedCharacterSheet(newSheet);
+    };
 
-      // Debounce the API call
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      setIsSaving(true);
-      saveTimeoutRef.current = setTimeout(() => {
-        fetch(`/api/characters/${token.characterId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ characterSheet: newSheet }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error("Failed to save character sheet");
-          })
-          .catch((err) => {
-            console.error("Failed to save character sheet:", err);
-          })
-          .finally(() => {
-            setIsSaving(false);
-          });
-      }, 500);
-    },
-    [token.characterId, linkedCharacterSheet]
-  );
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [characterId, hasPendingChanges]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
       }
     };
   }, []);
 
-  // Use linked character sheet if available, otherwise use token's sheet
-  const sheet = isLinked ? linkedCharacterSheet : token.characterSheet;
+  // Use linked/standalone character sheet if available, otherwise use token's inline sheet
+  const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
 
   // Handler that routes to either local update or API update
   const handleUpdate = useCallback(
     (updates: Partial<CharacterSheet>) => {
-      if (isLinked) {
-        saveToCharacterApi(updates);
-      } else {
+      if (!sheet) return;
+
+      const newSheet = { ...sheet, ...updates };
+      if (updates.abilities) {
+        newSheet.abilities = { ...sheet.abilities, ...updates.abilities };
+      }
+
+      if (isLinked && characterId) {
+        // API-saved characters: localStorage + debounced sync
+        setLinkedCharacterSheet(newSheet);
+        saveDraftToStorage(characterId, newSheet);
+        setHasPendingChanges(true);
+        setSyncError(null);
+
+        if (syncTimeoutRef.current) {
+          clearTimeout(syncTimeoutRef.current);
+        }
+
+        syncTimeoutRef.current = setTimeout(() => {
+          syncToServer(newSheet);
+        }, 5000); // 5 second debounce
+      } else if (onUpdate) {
+        // Token inline sheet: use callback
         onUpdate(updates);
       }
     },
-    [isLinked, saveToCharacterApi, onUpdate]
+    [sheet, isLinked, characterId, syncToServer, onUpdate]
   );
+
+  // Fire-and-forget sync on close
+  const handleClose = useCallback(() => {
+    if (hasPendingChanges && currentSheetRef.current && characterId) {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+      syncToServer(currentSheetRef.current);
+    }
+    onClose();
+  }, [hasPendingChanges, characterId, syncToServer, onClose]);
 
   const handleAbilityChange = useCallback(
     (abilityName: keyof AbilityScores, ability: AbilityScore) => {
@@ -313,26 +451,28 @@ export function CharacterSheetPanel({
           onClick={(e) => e.stopPropagation()}
         >
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            {token.name}
+            {charName}
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            {isLinked
-              ? "This linked character doesn't have a character sheet yet."
-              : "This token doesn't have a character sheet yet."}
+            {isStandalone
+              ? "This character doesn't have a character sheet yet."
+              : isLinked
+                ? "This linked character doesn't have a character sheet yet."
+                : "This token doesn't have a character sheet yet."}
           </p>
           {!readOnly && (
             <button
               onClick={() => {
-                if (isLinked && token.characterId) {
-                  // Initialize character sheet via API for linked characters
+                if (isLinked && characterId) {
+                  // Initialize character sheet via API for linked/standalone characters
                   const newSheet = createDefaultCharacterSheet();
                   setLinkedCharacterSheet(newSheet);
-                  fetch(`/api/characters/${token.characterId}`, {
+                  fetch(`/api/characters/${characterId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ characterSheet: newSheet }),
                   }).catch(console.error);
-                } else {
+                } else if (onInitialize) {
                   onInitialize();
                 }
               }}
@@ -356,7 +496,7 @@ export function CharacterSheetPanel({
   const hpColor = getHpBarColor(hpPercent);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
       <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-5xl w-full mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
@@ -369,12 +509,12 @@ export function CharacterSheetPanel({
             <div className="flex flex-col items-center flex-shrink-0">
               <div
                 className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ backgroundColor: token.color }}
+                style={{ backgroundColor: charColor }}
               >
-                {token.imageUrl ? (
-                  <img src={token.imageUrl} alt={token.name} className="w-full h-full rounded-full object-cover" />
+                {charImageUrl ? (
+                  <img src={charImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
                 ) : (
-                  token.name.charAt(0).toUpperCase()
+                  charName.charAt(0).toUpperCase()
                 )}
               </div>
               {/* HP Bar under avatar */}
@@ -385,15 +525,22 @@ export function CharacterSheetPanel({
 
             {/* Name */}
             <div className="flex items-center gap-1.5">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{token.name}</h2>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{charName}</h2>
               {isLinked && (
                 <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
                   Linked
                 </span>
               )}
-              {isSaving && (
-                <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-              )}
+              {/* Sync status indicator */}
+              {isSyncing ? (
+                <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" title="Syncing..." />
+              ) : hasPendingChanges ? (
+                <div className="w-2 h-2 bg-yellow-500 rounded-full" title="Pending sync" />
+              ) : syncError ? (
+                <div className="w-2 h-2 bg-red-500 rounded-full" title={syncError} />
+              ) : isLinked ? (
+                <div className="w-2 h-2 bg-green-500 rounded-full" title="Saved" />
+              ) : null}
             </div>
 
             {/* Condition */}
@@ -417,6 +564,22 @@ export function CharacterSheetPanel({
                     <option key={c} value={c} className="text-gray-900 dark:text-white bg-white dark:bg-gray-700">{c}</option>
                   ))}
                 </select>
+              )}
+            </div>
+
+            {/* Shield */}
+            <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Shield</span>
+              {readOnly ? (
+                <span className={sheet.shield ? "text-blue-500 text-lg" : "text-gray-400 text-lg"}>
+                  {sheet.shield ? "🛡" : "○"}
+                </span>
+              ) : (
+                <button onClick={() => handleUpdate({ shield: !sheet.shield })} className={`w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${sheet.shield ? "bg-blue-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-400"}`} title="Shield">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2A11.954 11.954 0 0110 1.944z" clipRule="evenodd" />
+                  </svg>
+                </button>
               )}
             </div>
 
@@ -445,7 +608,7 @@ export function CharacterSheetPanel({
             </button>
 
             {/* Close button */}
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
+            <button onClick={handleClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -517,10 +680,10 @@ export function CharacterSheetPanel({
                   </span>
                 ) : (
                   <>
-                    <input type="text" value={sheet.race || ""} onChange={(e) => handleUpdate({ race: e.target.value || null })} placeholder="Race" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.characterClass || ""} onChange={(e) => handleUpdate({ characterClass: e.target.value || null })} placeholder="Class" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} placeholder="Subclass" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} placeholder="Background" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <input type="text" value={sheet.race || ""} onChange={(e) => handleUpdate({ race: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ race: v || null }); }} placeholder="Race" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <input type="text" value={sheet.characterClass || ""} onChange={(e) => handleUpdate({ characterClass: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ characterClass: v || null }); }} placeholder="Class" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <input type="text" value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ subclass: v || null }); }} placeholder="Subclass" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <input type="text" value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ background: v || null }); }} placeholder="Background" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
                     <select value={sheet.creatureSize} onChange={(e) => handleUpdate({ creatureSize: e.target.value as "S" | "M" | "L" })} className="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
                       <option value="S">Small</option>
                       <option value="M">Medium</option>
@@ -558,7 +721,7 @@ export function CharacterSheetPanel({
                 {readOnly ? (
                   <div className="text-sm text-gray-900 dark:text-white">{sheet.hitDice}</div>
                 ) : (
-                  <input type="text" value={sheet.hitDice} onChange={(e) => handleUpdate({ hitDice: e.target.value })} placeholder="1d8" className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  <input type="text" value={sheet.hitDice} onChange={(e) => handleUpdate({ hitDice: e.target.value })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ hitDice: v }); }} placeholder="1d8" className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                 )}
               </div>
             </div>
@@ -700,7 +863,7 @@ export function CharacterSheetPanel({
                           <span className="text-gray-400">+</span>
                           <NumericInput value={weapon.bonus} onChange={(val) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, bonus: val }; handleUpdate({ weapons: u }); }} min={-10} max={30} defaultValue={0} className="w-8 px-0.5 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <ExpandingTextInput value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} placeholder="1d6" baseClassName="w-12 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <ExpandingTextInput value={weapon.damageType} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: v }; handleUpdate({ weapons: u }); }} placeholder="Type" baseClassName="w-14 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <ExpandingTextInput value={weapon.damageType} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: v }; handleUpdate({ weapons: u }); }} placeholder="Type" baseClassName="w-20 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <ExpandingTextInput value={weapon.notes} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, notes: v }; handleUpdate({ weapons: u }); }} placeholder="Notes" baseClassName="flex-1 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <button onClick={() => { const u = (sheet.weapons || []).filter((_, i) => i !== index); handleUpdate({ weapons: u }); }} className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer" title="Remove">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -1114,54 +1277,56 @@ export function CharacterSheetPanel({
               )}
             </div>
 
-            {/* Spell Slots */}
-            <div className="mt-4">
-              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">Spell Slots</label>
-              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
-                {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((level) => {
-                  const slotKey = `level${level}` as keyof typeof sheet.spellSlots;
-                  const slot = sheet.spellSlots?.[slotKey] ?? { max: 0, used: 0 };
-                  return (
-                    <div key={level} className="text-center border border-gray-200 dark:border-gray-700 rounded p-1">
-                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Lv {level}</div>
-                      {readOnly ? (
-                        <div className="text-sm text-gray-900 dark:text-white">{slot.max - slot.used}/{slot.max}</div>
-                      ) : (
-                        <div className="flex items-center justify-center gap-0.5">
-                          <NumericInput
-                            value={slot.max - slot.used}
-                            onChange={(val) => handleUpdate({
-                              spellSlots: {
-                                ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
-                                [slotKey]: { max: slot.max, used: slot.max - val }
-                              }
-                            })}
-                            min={0}
-                            max={slot.max}
-                            defaultValue={0}
-                            className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
-                          />
-                          <span className="text-xs text-gray-400">/</span>
-                          <NumericInput
-                            value={slot.max}
-                            onChange={(val) => handleUpdate({
-                              spellSlots: {
-                                ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
-                                [slotKey]: { max: val, used: Math.min(slot.used, val) }
-                              }
-                            })}
-                            min={0}
-                            max={9}
-                            defaultValue={0}
-                            className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Spell Slots - only show if spellcasting ability is set */}
+            {sheet.spellcastingAbility && (
+              <div className="mt-4">
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">Spell Slots</label>
+                <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+                  {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((level) => {
+                    const slotKey = `level${level}` as keyof typeof sheet.spellSlots;
+                    const slot = sheet.spellSlots?.[slotKey] ?? { max: 0, used: 0 };
+                    return (
+                      <div key={level} className="text-center border border-gray-200 dark:border-gray-700 rounded p-1">
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Lv {level}</div>
+                        {readOnly ? (
+                          <div className="text-sm text-gray-900 dark:text-white">{slot.max - slot.used}/{slot.max}</div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-0.5">
+                            <NumericInput
+                              value={slot.max - slot.used}
+                              onChange={(val) => handleUpdate({
+                                spellSlots: {
+                                  ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
+                                  [slotKey]: { max: slot.max, used: slot.max - val }
+                                }
+                              })}
+                              min={0}
+                              max={slot.max}
+                              defaultValue={0}
+                              className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                            />
+                            <span className="text-xs text-gray-400">/</span>
+                            <NumericInput
+                              value={slot.max}
+                              onChange={(val) => handleUpdate({
+                                spellSlots: {
+                                  ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
+                                  [slotKey]: { max: val, used: Math.min(slot.used, val) }
+                                }
+                              })}
+                              min={0}
+                              max={9}
+                              defaultValue={0}
+                              className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Spells (Cantrips & Prepared Spells) */}

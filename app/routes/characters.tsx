@@ -1,9 +1,10 @@
 import type { Route } from "./+types/characters";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Link, useLoaderData, useSearchParams } from "react-router";
 import type { CharacterSheet } from "~/features/map-editor/types";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "~/features/map-editor/components/ImageLibraryPicker";
+import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterSheet/CharacterSheetPanel";
 
 interface CharacterData {
   id: string;
@@ -46,28 +47,20 @@ export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
   const userId = session.user.id;
 
-  // Get user's groups
+  // Get only the current user's characters
+  const characterList = await db
+    .select()
+    .from(characters)
+    .where(eq(characters.userId, userId))
+    .orderBy(desc(characters.updatedAt));
+
+  // Get user's groups (for the group filter dropdown)
   const userGroups = await db
     .select({ groupId: groupMembers.groupId })
     .from(groupMembers)
     .where(eq(groupMembers.userId, userId));
 
   const groupIds = userGroups.map((g) => g.groupId);
-
-  // Get all accessible characters
-  const conditions = [
-    and(eq(characters.userId, userId), isNull(characters.groupId)),
-  ];
-
-  if (groupIds.length > 0) {
-    conditions.push(inArray(characters.groupId, groupIds));
-  }
-
-  const characterList = await db
-    .select()
-    .from(characters)
-    .where(or(...conditions))
-    .orderBy(desc(characters.updatedAt));
 
   // Get group info
   const groupsData =
@@ -91,6 +84,7 @@ export default function Characters() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<CharacterData | null>(null);
+  const [editingSheetCharacter, setEditingSheetCharacter] = useState<CharacterData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
@@ -326,6 +320,12 @@ export default function Characters() {
 
         {/* Actions */}
         <div className="flex gap-2 flex-shrink-0">
+          <button
+            onClick={() => setEditingSheetCharacter(character)}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+          >
+            {character.characterSheet ? "Character Sheet" : "Create Sheet"}
+          </button>
           <button
             onClick={() => openEditModal(character)}
             className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
@@ -606,6 +606,24 @@ export default function Characters() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Character Sheet Editor Modal */}
+        {editingSheetCharacter && (
+          <CharacterSheetPanel
+            character={{
+              id: editingSheetCharacter.id,
+              name: editingSheetCharacter.name,
+              color: editingSheetCharacter.color,
+              imageUrl: editingSheetCharacter.imageUrl,
+              sheet: editingSheetCharacter.characterSheet,
+            }}
+            onClose={() => {
+              setEditingSheetCharacter(null);
+              // Refresh to update the "Sheet" badge if it was created
+              window.location.reload();
+            }}
+          />
         )}
       </div>
     </div>

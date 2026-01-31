@@ -198,6 +198,7 @@ export interface CharacterSheet {
   coins: Coins;
 
   // Status
+  shield: boolean;
   heroicInspiration: boolean;
   condition: Condition;
 
