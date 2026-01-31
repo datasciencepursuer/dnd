@@ -176,6 +176,35 @@ export function createDefaultCharacterSheet(): CharacterSheet {
       successes: [false, false, false],
       failures: [false, false, false],
     },
+
+    // Spellcasting
+    spellcastingAbility: null,
+    spellSlots: {
+      level1: { max: 0, used: 0 },
+      level2: { max: 0, used: 0 },
+      level3: { max: 0, used: 0 },
+      level4: { max: 0, used: 0 },
+      level5: { max: 0, used: 0 },
+      level6: { max: 0, used: 0 },
+      level7: { max: 0, used: 0 },
+      level8: { max: 0, used: 0 },
+      level9: { max: 0, used: 0 },
+    },
+    spells: [],
+
+    // Backstory & Personality
+    alignment: null,
+    personalityTraits: "",
+    ideals: "",
+    bonds: "",
+    flaws: "",
+    backstory: "",
+
+    // Additional Info
+    languages: "",
+    equipment: [],
+    magicItemAttunements: ["", "", ""],
+    appearance: "",
   };
 }
 

@@ -78,6 +78,9 @@ export interface ArmorProficiencies {
   shields: boolean;
 }
 
+// Recharge conditions for features and equipment with limited uses
+export type RechargeCondition = "none" | "shortRest" | "longRest" | "dawn" | "dusk" | "daily" | "weekly";
+
 // Class feature categories
 export type FeatureCategory = "action" | "bonusAction" | "reaction" | "limitedUse";
 
@@ -85,6 +88,11 @@ export interface ClassFeature {
   id: string;
   name: string; // Single text field for the feature
   category: FeatureCategory;
+  charges: {
+    current: number;
+    max: number;
+  } | null; // null if feature doesn't have charges
+  recharge: RechargeCondition;
 }
 
 // Weapon entry for attacks
@@ -124,6 +132,31 @@ export type Condition =
   | "Stunned"
   | "Unconscious"
   | "Exhaustion";
+
+// Spell entry
+export interface Spell {
+  id: string;
+  level: number; // 0 for cantrip, 1-9 for leveled spells
+  name: string;
+  concentration: boolean;
+  range: string;
+  material: string;
+  notes: string;
+}
+
+// Equipment entry
+export interface Equipment {
+  id: string;
+  name: string;
+  quantity: number;
+  equipped: boolean; // Currently equipped/worn vs in pack
+  charges: {
+    current: number;
+    max: number;
+  } | null; // null if item doesn't have charges
+  recharge: RechargeCondition;
+  notes: string;
+}
 
 export interface CharacterSheet {
   // Basic info
@@ -173,6 +206,35 @@ export interface CharacterSheet {
     successes: [boolean, boolean, boolean];
     failures: [boolean, boolean, boolean];
   };
+
+  // Spellcasting
+  spellcastingAbility: "intelligence" | "wisdom" | "charisma" | null;
+  spellSlots: {
+    level1: { max: number; used: number };
+    level2: { max: number; used: number };
+    level3: { max: number; used: number };
+    level4: { max: number; used: number };
+    level5: { max: number; used: number };
+    level6: { max: number; used: number };
+    level7: { max: number; used: number };
+    level8: { max: number; used: number };
+    level9: { max: number; used: number };
+  };
+  spells: Spell[]; // Combined cantrips and prepared spells
+
+  // Backstory & Personality
+  alignment: string | null;
+  personalityTraits: string;
+  ideals: string;
+  bonds: string;
+  flaws: string;
+  backstory: string;
+
+  // Additional Info
+  languages: string;
+  equipment: Equipment[];
+  magicItemAttunements: [string, string, string]; // Max 3 attunements
+  appearance: string;
 }
 
 export interface Token {

@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, ClassFeature, FeatureCategory, Weapon, Coins, Condition } from "../../types";
+import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, ClassFeature, FeatureCategory, Weapon, Coins, Condition, Spell, Equipment, RechargeCondition } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
 
@@ -169,6 +169,7 @@ export function CharacterSheetPanel({
   const [linkedCharacterSheet, setLinkedCharacterSheet] = useState<CharacterSheet | null>(null);
   const [isLoadingLinked, setIsLoadingLinked] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState<1 | 2>(1);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isLinked = !!token.characterId;
@@ -435,8 +436,16 @@ export function CharacterSheetPanel({
               )}
             </div>
 
+            {/* Page Toggle Button */}
+            <button
+              onClick={() => setCurrentPage(currentPage === 1 ? 2 : 1)}
+              className="ml-auto px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded cursor-pointer transition-colors"
+            >
+              {currentPage === 1 ? "What else can I do..." : "← Back to Stats"}
+            </button>
+
             {/* Close button */}
-            <button onClick={onClose} className="ml-auto p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -650,6 +659,8 @@ export function CharacterSheetPanel({
           </div>
         </div>
 
+        {/* Page 1: Combat & Stats */}
+        {currentPage === 1 && (
         <div className="p-4 space-y-4">
           {/* Weapons & Class Features - Side by Side */}
           <div className="flex flex-col lg:flex-row gap-4">
@@ -715,6 +726,8 @@ export function CharacterSheetPanel({
                         id: crypto.randomUUID(),
                         name: "",
                         category: "action",
+                        charges: null,
+                        recharge: "none",
                       };
                       handleUpdate({
                         classFeatures: [...(sheet.classFeatures || []), newFeature],
@@ -738,6 +751,16 @@ export function CharacterSheetPanel({
                             {FEATURE_CATEGORIES.find(c => c.value === feature.category)?.label.charAt(0)}
                           </span>
                           <span className="text-sm text-gray-900 dark:text-white flex-1">{feature.name || "Unnamed"}</span>
+                          {feature.charges && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {feature.charges.current}/{feature.charges.max}
+                            </span>
+                          )}
+                          {feature.charges && feature.recharge !== "none" && (
+                            <span className="text-xs text-gray-400">
+                              ({({ shortRest: "SR", longRest: "LR", dawn: "Dawn", dusk: "Dusk", daily: "Daily", weekly: "Weekly", none: "" } as const)[feature.recharge]})
+                            </span>
+                          )}
                         </>
                       ) : (
                         <>
@@ -765,6 +788,82 @@ export function CharacterSheetPanel({
                             placeholder="Feature name"
                             baseClassName="flex-1 px-1.5 py-0.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                           />
+                          {/* Charges */}
+                          <div className="flex items-center gap-0.5">
+                            {feature.charges ? (
+                              <>
+                                <NumericInput
+                                  value={feature.charges.current}
+                                  onChange={(val) => {
+                                    const updated = [...(sheet.classFeatures || [])];
+                                    updated[index] = { ...feature, charges: { ...feature.charges!, current: val } };
+                                    handleUpdate({ classFeatures: updated });
+                                  }}
+                                  min={0}
+                                  max={feature.charges.max}
+                                  defaultValue={0}
+                                  className="w-6 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                                <span className="text-xs text-gray-400">/</span>
+                                <NumericInput
+                                  value={feature.charges.max}
+                                  onChange={(val) => {
+                                    const updated = [...(sheet.classFeatures || [])];
+                                    updated[index] = { ...feature, charges: { current: Math.min(feature.charges!.current, val), max: val } };
+                                    handleUpdate({ classFeatures: updated });
+                                  }}
+                                  min={1}
+                                  max={99}
+                                  defaultValue={1}
+                                  className="w-6 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const updated = [...(sheet.classFeatures || [])];
+                                    updated[index] = { ...feature, charges: null, recharge: "none" };
+                                    handleUpdate({ classFeatures: updated });
+                                  }}
+                                  className="text-gray-400 hover:text-red-500 cursor-pointer text-xs"
+                                  title="Remove charges"
+                                >
+                                  ×
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  const updated = [...(sheet.classFeatures || [])];
+                                  updated[index] = { ...feature, charges: { current: 1, max: 1 } };
+                                  handleUpdate({ classFeatures: updated });
+                                }}
+                                className="text-xs text-blue-500 hover:text-blue-600 cursor-pointer px-1"
+                                title="Add charges"
+                              >
+                                +Uses
+                              </button>
+                            )}
+                          </div>
+                          {/* Recharge */}
+                          {feature.charges && (
+                            <select
+                              value={feature.recharge}
+                              onChange={(e) => {
+                                const updated = [...(sheet.classFeatures || [])];
+                                updated[index] = { ...feature, recharge: e.target.value as RechargeCondition };
+                                handleUpdate({ classFeatures: updated });
+                              }}
+                              className="w-14 px-0.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                              title="Recharge"
+                            >
+                              <option value="none">—</option>
+                              <option value="shortRest">SR</option>
+                              <option value="longRest">LR</option>
+                              <option value="dawn">Dawn</option>
+                              <option value="dusk">Dusk</option>
+                              <option value="daily">Daily</option>
+                              <option value="weekly">Weekly</option>
+                            </select>
+                          )}
                           <button
                             onClick={() => {
                               const updated = (sheet.classFeatures || []).filter((_, i) => i !== index);
@@ -969,6 +1068,648 @@ export function CharacterSheetPanel({
             </div>
           </div>
         </div>
+        )}
+
+        {/* Page 2: Spellcasting, Backstory & More */}
+        {currentPage === 2 && (
+        <div className="p-4 space-y-4">
+          {/* Spellcasting */}
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Spellcasting</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Spellcasting Ability */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Spellcasting Ability</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300 capitalize">{sheet.spellcastingAbility || "None"}</p>
+                ) : (
+                  <select
+                    value={sheet.spellcastingAbility ?? ""}
+                    onChange={(e) => handleUpdate({ spellcastingAbility: e.target.value as "intelligence" | "wisdom" | "charisma" | null || null })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="">None</option>
+                    <option value="intelligence">Intelligence</option>
+                    <option value="wisdom">Wisdom</option>
+                    <option value="charisma">Charisma</option>
+                  </select>
+                )}
+              </div>
+              {/* Spell Save DC & Attack Bonus */}
+              {sheet.spellcastingAbility && (
+                <div className="flex gap-4">
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Spell Save DC</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">
+                      {8 + calculateProficiencyBonus(sheet.level) + sheet.abilities[sheet.spellcastingAbility].modifier}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Spell Attack</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">
+                      {formatModifier(calculateProficiencyBonus(sheet.level) + sheet.abilities[sheet.spellcastingAbility].modifier)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Spell Slots */}
+            <div className="mt-4">
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-2">Spell Slots</label>
+              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2">
+                {([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((level) => {
+                  const slotKey = `level${level}` as keyof typeof sheet.spellSlots;
+                  const slot = sheet.spellSlots?.[slotKey] ?? { max: 0, used: 0 };
+                  return (
+                    <div key={level} className="text-center border border-gray-200 dark:border-gray-700 rounded p-1">
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Lv {level}</div>
+                      {readOnly ? (
+                        <div className="text-sm text-gray-900 dark:text-white">{slot.max - slot.used}/{slot.max}</div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-0.5">
+                          <NumericInput
+                            value={slot.max - slot.used}
+                            onChange={(val) => handleUpdate({
+                              spellSlots: {
+                                ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
+                                [slotKey]: { max: slot.max, used: slot.max - val }
+                              }
+                            })}
+                            min={0}
+                            max={slot.max}
+                            defaultValue={0}
+                            className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                          />
+                          <span className="text-xs text-gray-400">/</span>
+                          <NumericInput
+                            value={slot.max}
+                            onChange={(val) => handleUpdate({
+                              spellSlots: {
+                                ...(sheet.spellSlots ?? { level1: { max: 0, used: 0 }, level2: { max: 0, used: 0 }, level3: { max: 0, used: 0 }, level4: { max: 0, used: 0 }, level5: { max: 0, used: 0 }, level6: { max: 0, used: 0 }, level7: { max: 0, used: 0 }, level8: { max: 0, used: 0 }, level9: { max: 0, used: 0 } }),
+                                [slotKey]: { max: val, used: Math.min(slot.used, val) }
+                              }
+                            })}
+                            min={0}
+                            max={9}
+                            defaultValue={0}
+                            className="w-6 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Spells (Cantrips & Prepared Spells) */}
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Spells</h3>
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    const newSpell: Spell = {
+                      id: crypto.randomUUID(),
+                      level: 0,
+                      name: "",
+                      concentration: false,
+                      range: "",
+                      material: "",
+                      notes: "",
+                    };
+                    handleUpdate({ spells: [...(sheet.spells || []), newSpell] });
+                  }}
+                  className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  + Add Spell
+                </button>
+              )}
+            </div>
+            {(sheet.spells || []).length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 italic">No spells</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-1 px-1 w-12">Lv</th>
+                      <th className="text-left py-1 px-1">Name</th>
+                      <th className="text-center py-1 px-1 w-12">Conc</th>
+                      <th className="text-left py-1 px-1 w-20">Range</th>
+                      <th className="text-left py-1 px-1 w-24">Material</th>
+                      <th className="text-left py-1 px-1">Notes</th>
+                      {!readOnly && <th className="w-6"></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(sheet.spells || [])
+                      .slice()
+                      .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
+                      .map((spell, index) => {
+                        const originalIndex = (sheet.spells || []).findIndex(s => s.id === spell.id);
+                        return (
+                          <tr key={spell.id} className="border-b border-gray-100 dark:border-gray-800">
+                            {readOnly ? (
+                              <>
+                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.level === 0 ? "C" : spell.level}</td>
+                                <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">{spell.name || "Unnamed"}</td>
+                                <td className="py-1 px-1 text-center">{spell.concentration ? <span className="text-orange-500">●</span> : <span className="text-gray-300 dark:text-gray-600">○</span>}</td>
+                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.range}</td>
+                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.material}</td>
+                                <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">{spell.notes}</td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="py-1 px-1">
+                                  <select
+                                    value={spell.level}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, level: parseInt(e.target.value) };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    className="w-10 px-0.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                                  >
+                                    <option value={0}>C</option>
+                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(l => <option key={l} value={l}>{l}</option>)}
+                                  </select>
+                                </td>
+                                <td className="py-1 px-1">
+                                  <input
+                                    type="text"
+                                    value={spell.name}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, name: e.target.value };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    placeholder="Spell name"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  />
+                                </td>
+                                <td className="py-1 px-1 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={spell.concentration}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, concentration: e.target.checked };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-1 px-1">
+                                  <input
+                                    type="text"
+                                    value={spell.range}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, range: e.target.value };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    placeholder="Range"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  />
+                                </td>
+                                <td className="py-1 px-1">
+                                  <input
+                                    type="text"
+                                    value={spell.material}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, material: e.target.value };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    placeholder="Material"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  />
+                                </td>
+                                <td className="py-1 px-1">
+                                  <input
+                                    type="text"
+                                    value={spell.notes}
+                                    onChange={(e) => {
+                                      const updated = [...(sheet.spells || [])];
+                                      updated[originalIndex] = { ...spell, notes: e.target.value };
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    placeholder="Notes"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                  />
+                                </td>
+                                <td className="py-1 px-1">
+                                  <button
+                                    onClick={() => {
+                                      const updated = (sheet.spells || []).filter((_, i) => i !== originalIndex);
+                                      handleUpdate({ spells: updated });
+                                    }}
+                                    className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer"
+                                    title="Remove"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Equipment */}
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Equipment</h3>
+              {!readOnly && (
+                <button
+                  onClick={() => {
+                    const newEquipment: Equipment = {
+                      id: crypto.randomUUID(),
+                      name: "",
+                      quantity: 1,
+                      equipped: false,
+                      charges: null,
+                      recharge: "none",
+                      notes: "",
+                    };
+                    handleUpdate({ equipment: [...(sheet.equipment || []), newEquipment] });
+                  }}
+                  className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  + Add Item
+                </button>
+              )}
+            </div>
+            {(sheet.equipment || []).length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400 italic">No equipment</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      <th className="text-left py-1 px-1">Name</th>
+                      <th className="text-center py-1 px-1 w-12">Qty</th>
+                      <th className="text-center py-1 px-1 w-16">Equipped</th>
+                      <th className="text-center py-1 px-1 w-20">Charges</th>
+                      <th className="text-left py-1 px-1 w-24">Recharge</th>
+                      <th className="text-left py-1 px-1">Notes</th>
+                      {!readOnly && <th className="w-6"></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(sheet.equipment || []).map((item, index) => (
+                      <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
+                        {readOnly ? (
+                          <>
+                            <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">{item.name || "Unnamed"}</td>
+                            <td className="py-1 px-1 text-center text-gray-600 dark:text-gray-400">{item.quantity}</td>
+                            <td className="py-1 px-1 text-center">{item.equipped ? <span className="text-green-500">✓</span> : <span className="text-gray-300 dark:text-gray-600">○</span>}</td>
+                            <td className="py-1 px-1 text-center text-gray-600 dark:text-gray-400">{item.charges ? `${item.charges.current}/${item.charges.max}` : "—"}</td>
+                            <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{item.recharge === "none" ? "—" : { shortRest: "Short Rest", longRest: "Long Rest", dawn: "Dawn", dusk: "Dusk", daily: "Daily", weekly: "Weekly" }[item.recharge]}</td>
+                            <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">{item.notes}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-1 px-1">
+                              <input
+                                type="text"
+                                value={item.name}
+                                onChange={(e) => {
+                                  const updated = [...(sheet.equipment || [])];
+                                  updated[index] = { ...item, name: e.target.value };
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                placeholder="Item name"
+                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              />
+                            </td>
+                            <td className="py-1 px-1">
+                              <NumericInput
+                                value={item.quantity}
+                                onChange={(val) => {
+                                  const updated = [...(sheet.equipment || [])];
+                                  updated[index] = { ...item, quantity: val };
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                min={1}
+                                max={999}
+                                defaultValue={1}
+                                className="w-10 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              />
+                            </td>
+                            <td className="py-1 px-1 text-center">
+                              <input
+                                type="checkbox"
+                                checked={item.equipped}
+                                onChange={(e) => {
+                                  const updated = [...(sheet.equipment || [])];
+                                  updated[index] = { ...item, equipped: e.target.checked };
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-green-500 focus:ring-green-500 cursor-pointer"
+                              />
+                            </td>
+                            <td className="py-1 px-1">
+                              <div className="flex items-center justify-center gap-0.5">
+                                {item.charges ? (
+                                  <>
+                                    <NumericInput
+                                      value={item.charges.current}
+                                      onChange={(val) => {
+                                        const updated = [...(sheet.equipment || [])];
+                                        updated[index] = { ...item, charges: { ...item.charges!, current: val } };
+                                        handleUpdate({ equipment: updated });
+                                      }}
+                                      min={0}
+                                      max={item.charges.max}
+                                      defaultValue={0}
+                                      className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                                    />
+                                    <span className="text-xs text-gray-400">/</span>
+                                    <NumericInput
+                                      value={item.charges.max}
+                                      onChange={(val) => {
+                                        const updated = [...(sheet.equipment || [])];
+                                        updated[index] = { ...item, charges: { current: Math.min(item.charges!.current, val), max: val } };
+                                        handleUpdate({ equipment: updated });
+                                      }}
+                                      min={1}
+                                      max={99}
+                                      defaultValue={1}
+                                      className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        const updated = [...(sheet.equipment || [])];
+                                        updated[index] = { ...item, charges: null, recharge: "none" };
+                                        handleUpdate({ equipment: updated });
+                                      }}
+                                      className="ml-0.5 text-gray-400 hover:text-red-500 cursor-pointer"
+                                      title="Remove charges"
+                                    >
+                                      ×
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      const updated = [...(sheet.equipment || [])];
+                                      updated[index] = { ...item, charges: { current: 1, max: 1 } };
+                                      handleUpdate({ equipment: updated });
+                                    }}
+                                    className="text-xs text-blue-500 hover:text-blue-600 cursor-pointer"
+                                  >
+                                    + Add
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-1 px-1">
+                              <select
+                                value={item.recharge}
+                                onChange={(e) => {
+                                  const updated = [...(sheet.equipment || [])];
+                                  updated[index] = { ...item, recharge: e.target.value as RechargeCondition };
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                disabled={!item.charges}
+                                className={`w-full px-0.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer ${!item.charges ? "opacity-50" : ""}`}
+                              >
+                                <option value="none">None</option>
+                                <option value="shortRest">Short Rest</option>
+                                <option value="longRest">Long Rest</option>
+                                <option value="dawn">Dawn</option>
+                                <option value="dusk">Dusk</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                              </select>
+                            </td>
+                            <td className="py-1 px-1">
+                              <input
+                                type="text"
+                                value={item.notes}
+                                onChange={(e) => {
+                                  const updated = [...(sheet.equipment || [])];
+                                  updated[index] = { ...item, notes: e.target.value };
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                placeholder="Notes"
+                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                              />
+                            </td>
+                            <td className="py-1 px-1">
+                              <button
+                                onClick={() => {
+                                  const updated = (sheet.equipment || []).filter((_, i) => i !== index);
+                                  handleUpdate({ equipment: updated });
+                                }}
+                                className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer"
+                                title="Remove"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Backstory & Personality */}
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Backstory & Personality</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+              {/* Alignment */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Alignment</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.alignment || "None"}</p>
+                ) : (
+                  <select
+                    value={sheet.alignment ?? ""}
+                    onChange={(e) => handleUpdate({ alignment: e.target.value || null })}
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                  >
+                    <option value="">None</option>
+                    <option value="Lawful Good">Lawful Good</option>
+                    <option value="Neutral Good">Neutral Good</option>
+                    <option value="Chaotic Good">Chaotic Good</option>
+                    <option value="Lawful Neutral">Lawful Neutral</option>
+                    <option value="True Neutral">True Neutral</option>
+                    <option value="Chaotic Neutral">Chaotic Neutral</option>
+                    <option value="Lawful Evil">Lawful Evil</option>
+                    <option value="Neutral Evil">Neutral Evil</option>
+                    <option value="Chaotic Evil">Chaotic Evil</option>
+                  </select>
+                )}
+              </div>
+              {/* Personality Traits */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Personality Traits</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.personalityTraits || "None"}</p>
+                ) : (
+                  <ExpandingTextarea
+                    value={sheet.personalityTraits ?? ""}
+                    onChange={(v) => handleUpdate({ personalityTraits: v })}
+                    placeholder="I always have a plan..."
+                    collapsedRows={2}
+                    expandedRows={4}
+                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                )}
+              </div>
+              {/* Ideals */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Ideals</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.ideals || "None"}</p>
+                ) : (
+                  <ExpandingTextarea
+                    value={sheet.ideals ?? ""}
+                    onChange={(v) => handleUpdate({ ideals: v })}
+                    placeholder="Freedom, Honor..."
+                    collapsedRows={2}
+                    expandedRows={4}
+                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                )}
+              </div>
+              {/* Bonds */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Bonds</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.bonds || "None"}</p>
+                ) : (
+                  <ExpandingTextarea
+                    value={sheet.bonds ?? ""}
+                    onChange={(v) => handleUpdate({ bonds: v })}
+                    placeholder="My family..."
+                    collapsedRows={2}
+                    expandedRows={4}
+                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                )}
+              </div>
+              {/* Flaws */}
+              <div>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Flaws</label>
+                {readOnly ? (
+                  <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.flaws || "None"}</p>
+                ) : (
+                  <ExpandingTextarea
+                    value={sheet.flaws ?? ""}
+                    onChange={(v) => handleUpdate({ flaws: v })}
+                    placeholder="I can't resist a pretty face..."
+                    collapsedRows={2}
+                    expandedRows={4}
+                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  />
+                )}
+              </div>
+            </div>
+            {/* Backstory */}
+            <div>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Backstory</label>
+              {readOnly ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.backstory || "None"}</p>
+              ) : (
+                <ExpandingTextarea
+                  value={sheet.backstory ?? ""}
+                  onChange={(v) => handleUpdate({ backstory: v })}
+                  placeholder="Born in a small village..."
+                  collapsedRows={3}
+                  expandedRows={8}
+                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Languages, Attunements, Appearance */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Languages */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Languages</h3>
+              {readOnly ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.languages || "None"}</p>
+              ) : (
+                <ExpandingTextarea
+                  value={sheet.languages ?? ""}
+                  onChange={(v) => handleUpdate({ languages: v })}
+                  placeholder="Common, Elvish, Dwarvish..."
+                  collapsedRows={2}
+                  expandedRows={4}
+                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                />
+              )}
+            </div>
+
+            {/* Magic Item Attunements */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Magic Item Attunements (Max 3)</h3>
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => {
+                  const attunement = sheet.magicItemAttunements?.[i] ?? "";
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-4">{i + 1}.</span>
+                      {readOnly ? (
+                        <p className="text-sm text-gray-700 dark:text-gray-300">{attunement || "Empty"}</p>
+                      ) : (
+                        <input
+                          type="text"
+                          value={attunement}
+                          onChange={(e) => {
+                            const newAttunements: [string, string, string] = [...(sheet.magicItemAttunements ?? ["", "", ""])] as [string, string, string];
+                            newAttunements[i] = e.target.value;
+                            handleUpdate({ magicItemAttunements: newAttunements });
+                          }}
+                          placeholder="Magic item name..."
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Appearance */}
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Appearance</h3>
+              {readOnly ? (
+                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.appearance || "None"}</p>
+              ) : (
+                <ExpandingTextarea
+                  value={sheet.appearance ?? ""}
+                  onChange={(v) => handleUpdate({ appearance: v })}
+                  placeholder="Tall, dark hair, piercing blue eyes..."
+                  collapsedRows={2}
+                  expandedRows={4}
+                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+        )}
       </div>
     </div>
   );
