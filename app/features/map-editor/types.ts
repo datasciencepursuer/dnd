@@ -167,6 +167,12 @@ export interface CharacterSheet {
   // Status
   heroicInspiration: boolean;
   condition: Condition;
+
+  // Death Saves
+  deathSaves: {
+    successes: [boolean, boolean, boolean];
+    failures: [boolean, boolean, boolean];
+  };
 }
 
 export interface Token {

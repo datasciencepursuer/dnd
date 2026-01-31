@@ -170,6 +170,12 @@ export function createDefaultCharacterSheet(): CharacterSheet {
     // Status
     heroicInspiration: false,
     condition: "Healthy",
+
+    // Death Saves
+    deathSaves: {
+      successes: [false, false, false],
+      failures: [false, false, false],
+    },
   };
 }
 

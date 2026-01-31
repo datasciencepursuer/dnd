@@ -362,7 +362,8 @@ export function CharacterSheetPanel({
       >
         {/* Header with Character Info, Combat Stats & Coins */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
-          <div className="flex items-start gap-3">
+          {/* Upper Row: Name, Condition, Heroic Inspiration */}
+          <div className="flex items-center gap-3 mb-2">
             {/* Character Avatar with HP Bar underneath */}
             <div className="flex flex-col items-center flex-shrink-0">
               <div
@@ -381,20 +382,74 @@ export function CharacterSheetPanel({
               </div>
             </div>
 
+            {/* Name */}
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{token.name}</h2>
+              {isLinked && (
+                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
+                  Linked
+                </span>
+              )}
+              {isSaving && (
+                <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              )}
+            </div>
+
+            {/* Condition */}
+            <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Condition</span>
+              {readOnly ? (
+                <span className={`text-xs font-medium ${(sheet.condition ?? "Healthy") === "Healthy" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                  {sheet.condition ?? "Healthy"}
+                </span>
+              ) : (
+                <select
+                  value={sheet.condition ?? "Healthy"}
+                  onChange={(e) => handleUpdate({ condition: e.target.value as Condition })}
+                  className={`px-1.5 py-0.5 text-xs border rounded cursor-pointer bg-white dark:bg-gray-700 ${
+                    (sheet.condition ?? "Healthy") === "Healthy"
+                      ? "border-green-400 dark:border-green-600 text-green-700 dark:text-green-400"
+                      : "border-red-400 dark:border-red-600 text-red-700 dark:text-red-400"
+                  }`}
+                >
+                  {CONDITIONS.map((c) => (
+                    <option key={c} value={c} className="text-gray-900 dark:text-white bg-white dark:bg-gray-700">{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Heroic Inspiration */}
+            <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Heroic Inspiration</span>
+              {readOnly ? (
+                <span className={sheet.heroicInspiration ? "text-yellow-500 text-lg" : "text-gray-400 text-lg"}>
+                  {sheet.heroicInspiration ? "★" : "☆"}
+                </span>
+              ) : (
+                <button onClick={() => handleUpdate({ heroicInspiration: !sheet.heroicInspiration })} className={`w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${sheet.heroicInspiration ? "bg-yellow-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-400"}`} title="Heroic Inspiration">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Close button */}
+            <button onClick={onClose} className="ml-auto p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Lower Row: Stats & Details */}
+          <div className="flex items-start gap-3">
             {/* Basic Info */}
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">{token.name}</h2>
-                {isLinked && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
-                    Linked
-                  </span>
-                )}
-                {isSaving && (
-                  <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                )}
-                {/* Level/XP, HP, AC, Init beside name */}
-                <div className="flex items-center gap-2 ml-1">
+                {/* Level/XP, HP, AC, Init */}
+                <div className="flex items-center gap-2">
                   {/* Level/XP */}
                   <div className="flex items-center gap-0.5">
                     <span className="text-xs text-gray-500 dark:text-gray-400">Lv</span>
@@ -449,7 +504,7 @@ export function CharacterSheetPanel({
               <div className="flex flex-wrap items-center gap-1 mt-0.5">
                 {readOnly ? (
                   <span className="text-xs text-gray-600 dark:text-gray-400">
-                    {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, sheet.creatureSize].filter(Boolean).join(" / ") || "No details"}
+                    {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, { S: "Small", M: "Medium", L: "Large" }[sheet.creatureSize]].filter(Boolean).join(" / ") || "No details"}
                   </span>
                 ) : (
                   <>
@@ -458,9 +513,9 @@ export function CharacterSheetPanel({
                     <input type="text" value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} placeholder="Subclass" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
                     <input type="text" value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} placeholder="Background" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
                     <select value={sheet.creatureSize} onChange={(e) => handleUpdate({ creatureSize: e.target.value as "S" | "M" | "L" })} className="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
-                      <option value="S">S</option>
-                      <option value="M">M</option>
-                      <option value="L">L</option>
+                      <option value="S">Small</option>
+                      <option value="M">Medium</option>
+                      <option value="L">Large</option>
                     </select>
                   </>
                 )}
@@ -500,7 +555,7 @@ export function CharacterSheetPanel({
             </div>
 
             {/* Coins */}
-            <div className="flex-1 flex items-start justify-end gap-1 border-l border-gray-200 dark:border-gray-700 pl-2">
+            <div className="flex items-start gap-1 border-l border-gray-200 dark:border-gray-700 pl-2 flex-shrink-0">
               {(["cp", "sp", "ep", "gp", "pp"] as const).map((coin) => {
                 const colors = { cp: "text-amber-700", sp: "text-gray-400", ep: "text-blue-400", gp: "text-yellow-500", pp: "text-gray-300" };
                 const coinValue = sheet.coins?.[coin] ?? 0;
@@ -524,12 +579,74 @@ export function CharacterSheetPanel({
               })}
             </div>
 
-            {/* Close button */}
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {/* Death Saves */}
+            <div className="flex flex-col border-l border-gray-200 dark:border-gray-700 pl-2 flex-shrink-0">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Death Saves</div>
+              <div className="flex items-start gap-2">
+                <div className="text-center">
+                  <div className="text-xs text-green-600 dark:text-green-400 mb-0.5">Success</div>
+                  <div className="flex gap-0.5">
+                    {[0, 1, 2].map((i) => {
+                      const isChecked = sheet.deathSaves?.successes?.[i] ?? false;
+                      return readOnly ? (
+                        <span key={i} className={`text-sm ${isChecked ? "text-green-500" : "text-gray-300 dark:text-gray-600"}`}>
+                          {isChecked ? "●" : "○"}
+                        </span>
+                      ) : (
+                        <input
+                          key={i}
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const currentSuccesses = sheet.deathSaves?.successes ?? [false, false, false];
+                            const newSuccesses: [boolean, boolean, boolean] = [...currentSuccesses] as [boolean, boolean, boolean];
+                            newSuccesses[i] = !newSuccesses[i];
+                            handleUpdate({
+                              deathSaves: {
+                                successes: newSuccesses,
+                                failures: sheet.deathSaves?.failures ?? [false, false, false],
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-green-500 focus:ring-green-500 cursor-pointer"
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xs text-red-600 dark:text-red-400 mb-0.5">Fail</div>
+                  <div className="flex gap-0.5">
+                    {[0, 1, 2].map((i) => {
+                      const isChecked = sheet.deathSaves?.failures?.[i] ?? false;
+                      return readOnly ? (
+                        <span key={i} className={`text-sm ${isChecked ? "text-red-500" : "text-gray-300 dark:text-gray-600"}`}>
+                          {isChecked ? "●" : "○"}
+                        </span>
+                      ) : (
+                        <input
+                          key={i}
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            const currentFailures = sheet.deathSaves?.failures ?? [false, false, false];
+                            const newFailures: [boolean, boolean, boolean] = [...currentFailures] as [boolean, boolean, boolean];
+                            newFailures[i] = !newFailures[i];
+                            handleUpdate({
+                              deathSaves: {
+                                successes: sheet.deathSaves?.successes ?? [false, false, false],
+                                failures: newFailures,
+                              },
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-red-500 focus:ring-red-500 cursor-pointer"
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -671,50 +788,7 @@ export function CharacterSheetPanel({
 
           {/* Ability Scores */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Ability Scores & Skills</h3>
-              {/* Heroic Inspiration & Condition */}
-              <div className="flex items-center gap-4">
-                {/* Condition */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Condition</span>
-                  {readOnly ? (
-                    <span className={`text-xs font-medium ${(sheet.condition ?? "Healthy") === "Healthy" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                      {sheet.condition ?? "Healthy"}
-                    </span>
-                  ) : (
-                    <select
-                      value={sheet.condition ?? "Healthy"}
-                      onChange={(e) => handleUpdate({ condition: e.target.value as Condition })}
-                      className={`px-1.5 py-0.5 text-xs border rounded cursor-pointer bg-white dark:bg-gray-700 ${
-                        (sheet.condition ?? "Healthy") === "Healthy"
-                          ? "border-green-400 dark:border-green-600 text-green-700 dark:text-green-400"
-                          : "border-red-400 dark:border-red-600 text-red-700 dark:text-red-400"
-                      }`}
-                    >
-                      {CONDITIONS.map((c) => (
-                        <option key={c} value={c} className="text-gray-900 dark:text-white bg-white dark:bg-gray-700">{c}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-                {/* Heroic Inspiration */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400">Heroic Inspiration</span>
-                  {readOnly ? (
-                    <span className={sheet.heroicInspiration ? "text-yellow-500 text-lg" : "text-gray-400 text-lg"}>
-                      {sheet.heroicInspiration ? "★" : "☆"}
-                    </span>
-                  ) : (
-                    <button onClick={() => handleUpdate({ heroicInspiration: !sheet.heroicInspiration })} className={`w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${sheet.heroicInspiration ? "bg-yellow-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-400"}`} title="Heroic Inspiration">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Ability Scores & Skills</h3>
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
               <AbilityScoreCard
                 name="Strength"
