@@ -22,6 +22,9 @@ interface EditorState {
   // Character sheet panel
   openCharacterSheetTokenId: string | null;
 
+  // Canvas dimensions for centering calculations
+  canvasDimensions: { width: number; height: number };
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -47,14 +50,20 @@ interface EditorState {
   openCharacterSheet: (tokenId: string) => void;
   closeCharacterSheet: () => void;
 
+  // Canvas dimensions
+  setCanvasDimensions: (width: number, height: number) => void;
+  getCanvasDimensions: () => { width: number; height: number };
+
   // Permission helpers
-  isOwner: () => boolean;
+  isDungeonMaster: () => boolean;
+  isTokenOwner: (tokenOwnerId: string | null) => boolean;
   canEditToken: (tokenOwnerId: string | null) => boolean;
   canMoveToken: (tokenOwnerId: string | null) => boolean;
   canDeleteToken: (tokenOwnerId: string | null) => boolean;
   canEditMap: () => boolean;
   canCreateToken: () => boolean;
-  canManagePlayers: () => boolean;
+  canChangeTokenOwner: () => boolean;
+  canLinkOrSaveToken: (tokenOwnerId: string | null) => boolean;
   getPermissions: () => PlayerPermissions;
 }
 
@@ -70,10 +79,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isPanning: false,
   snapToGrid: true,
   userId: null,
-  permission: "view",
-  permissions: DEFAULT_PERMISSIONS.view,
+  permission: "player",
+  permissions: DEFAULT_PERMISSIONS.player,
   pingTimestamps: [],
   openCharacterSheetTokenId: null,
+  canvasDimensions: { width: 800, height: 600 },
 
   setTool: (tool) =>
     set((state) => ({
@@ -102,8 +112,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleSnapToGrid: () => set((state) => ({ snapToGrid: !state.snapToGrid })),
 
   setEditorContext: (userId, permission, customPermissions) => {
-    // Use custom permissions if provided, otherwise use defaults for the permission level
-    const permissions = customPermissions || DEFAULT_PERMISSIONS[permission];
+    // Merge custom permissions with defaults to ensure new fields are always present
+    const defaults = DEFAULT_PERMISSIONS[permission];
+    const permissions = customPermissions
+      ? { ...defaults, ...customPermissions }
+      : defaults;
     set({ userId, permission, permissions });
   },
 
@@ -138,65 +151,90 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openCharacterSheet: (tokenId) => set({ openCharacterSheetTokenId: tokenId }),
   closeCharacterSheet: () => set({ openCharacterSheetTokenId: null }),
 
+  // Canvas dimensions
+  setCanvasDimensions: (width, height) => set({ canvasDimensions: { width, height } }),
+  getCanvasDimensions: () => get().canvasDimensions,
+
   // Permission helpers
-  isOwner: () => get().permission === "owner",
+  isDungeonMaster: () => get().permission === "dm",
 
   getPermissions: () => get().permissions,
 
+  // Check if current user owns the token
+  isTokenOwner: (tokenOwnerId: string | null) => {
+    const state = get();
+    // If tokenOwnerId is null, it was created by DM (map owner)
+    // DM is always considered the owner of null-owner tokens
+    if (tokenOwnerId === null) return state.permission === "dm";
+    return tokenOwnerId === state.userId && state.userId !== null;
+  },
+
+  // DM can edit any token, players can only edit their own
   canEditToken: (tokenOwnerId: string | null) => {
     const state = get();
     const perms = state.permissions;
 
-    // Can edit all tokens?
+    // DM can edit any token
     if (perms.canEditAllTokens) return true;
 
-    // Token owners can always edit their own tokens
-    if (tokenOwnerId === state.userId && state.userId !== null) return true;
-
-    // Can edit own tokens based on permissions?
+    // Players can edit their own tokens
     if (perms.canEditOwnTokens) {
-      if (tokenOwnerId === state.userId) return true;
+      if (tokenOwnerId === null) return state.permission === "dm";
+      return tokenOwnerId === state.userId && state.userId !== null;
     }
 
     return false;
   },
 
+  // DM can move any token, players can only move their own
   canMoveToken: (tokenOwnerId: string | null) => {
     const state = get();
     const perms = state.permissions;
 
-    // Can move all tokens?
+    // DM can move any token
     if (perms.canMoveAllTokens) return true;
 
-    // Can move own tokens?
+    // Players can move their own tokens
     if (perms.canMoveOwnTokens) {
-      if (tokenOwnerId === state.userId) return true;
+      if (tokenOwnerId === null) return state.permission === "dm";
+      return tokenOwnerId === state.userId && state.userId !== null;
     }
 
     return false;
   },
 
+  // Can delete if DM (all tokens) or token owner (own tokens)
   canDeleteToken: (tokenOwnerId: string | null) => {
     const state = get();
     const perms = state.permissions;
 
-    // Can delete all tokens?
+    // DM can delete any token
     if (perms.canDeleteAllTokens) return true;
 
-    // Token owners can always delete their own tokens
-    if (tokenOwnerId === state.userId && state.userId !== null) return true;
-
-    // Can delete own tokens based on permissions?
+    // Token owners can delete their own tokens
     if (perms.canDeleteOwnTokens) {
-      if (tokenOwnerId === state.userId) return true;
+      // If tokenOwnerId is null, it was created by DM
+      if (tokenOwnerId === null) return state.permission === "dm";
+      return tokenOwnerId === state.userId && state.userId !== null;
     }
 
     return false;
   },
 
+  // Only DM can edit map settings
   canEditMap: () => get().permissions.canEditMap,
 
+  // All roles can create tokens
   canCreateToken: () => get().permissions.canCreateTokens,
 
-  canManagePlayers: () => get().permissions.canManagePlayers,
+  // Only DM can change token ownership
+  canChangeTokenOwner: () => get().permissions.canChangeTokenOwner,
+
+  // Can only link/save tokens you own
+  canLinkOrSaveToken: (tokenOwnerId: string | null) => {
+    const state = get();
+    // If tokenOwnerId is null, it was created by DM
+    if (tokenOwnerId === null) return state.permission === "dm";
+    return tokenOwnerId === state.userId && state.userId !== null;
+  },
 }));

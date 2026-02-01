@@ -103,12 +103,20 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   return {
     group: {
-      ...group,
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      createdBy: group.createdBy,
+      createdAt: group.createdAt.toISOString(),
+      updatedAt: group.updatedAt.toISOString(),
       memberCount: members.length,
       mapCount: mapCount[0]?.count ?? 0,
       pendingInvitations: invitationCount[0]?.count ?? 0,
     },
-    members,
+    members: members.map((m) => ({
+      ...m,
+      joinedAt: m.joinedAt.toISOString(),
+    })),
     userRole: access.role,
     canEdit: ["owner", "admin"].includes(access.role!),
     canDelete: access.role === "owner",

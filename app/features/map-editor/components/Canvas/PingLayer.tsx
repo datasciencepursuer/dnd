@@ -46,7 +46,7 @@ function AnimatedPing({ ping }: AnimatedPingProps) {
   }, [ping.timestamp]);
 
   return (
-    <Group x={ping.x} y={ping.y}>
+    <Group x={ping.x} y={ping.y} listening={false}>
       {/* Outer ring - pulsing */}
       <Circle
         radius={20 * scale}

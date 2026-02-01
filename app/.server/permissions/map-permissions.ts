@@ -13,14 +13,16 @@ export type MapAction = "view" | "edit" | "delete";
 export interface MapAccess {
   mapId: string;
   userId: string;
-  permission: PermissionLevel | null;
+  permission: PermissionLevel | null;  // "dm" or "player"
   customPermissions: PlayerPermissions | null;
-  isOwner: boolean;
+  isDungeonMaster: boolean;
   isGroupMember: boolean;
 }
 
 /**
  * Get a user's access level for a specific map
+ * Map creator = Dungeon Master (DM)
+ * All other group members = Player
  */
 export async function getMapAccess(
   mapId: string,
@@ -34,19 +36,20 @@ export async function getMapAccess(
     .limit(1);
 
   if (map.length === 0) {
-    return { mapId, userId, permission: null, customPermissions: null, isOwner: false, isGroupMember: false };
+    return { mapId, userId, permission: null, customPermissions: null, isDungeonMaster: false, isGroupMember: false };
   }
 
-  const isOwner = map[0].userId === userId;
+  const isDungeonMaster = map[0].userId === userId;
 
-  if (isOwner) {
+  // Map owner is automatically the Dungeon Master
+  if (isDungeonMaster) {
     return {
       mapId,
       userId,
-      permission: "owner",
-      customPermissions: DEFAULT_PERMISSIONS.owner,
-      isOwner: true,
-      isGroupMember: false,
+      permission: "dm",
+      customPermissions: DEFAULT_PERMISSIONS.dm,
+      isDungeonMaster: true,
+      isGroupMember: true,
     };
   }
 
@@ -64,33 +67,20 @@ export async function getMapAccess(
       .limit(1);
 
     if (groupMembership.length > 0) {
-      const role = groupMembership[0].role;
-
-      // Group owners and admins get edit permission
-      if (role === "owner" || role === "admin") {
-        return {
-          mapId,
-          userId,
-          permission: "edit",
-          customPermissions: DEFAULT_PERMISSIONS.edit,
-          isOwner: false,
-          isGroupMember: true,
-        };
-      }
-
-      // Regular members get view permission
+      // All group members (owner, admin, member) are Players on maps they didn't create
+      // Group role only matters for managing group members, not map permissions
       return {
         mapId,
         userId,
-        permission: "view",
-        customPermissions: DEFAULT_PERMISSIONS.view,
-        isOwner: false,
+        permission: "player",
+        customPermissions: DEFAULT_PERMISSIONS.player,
+        isDungeonMaster: false,
         isGroupMember: true,
       };
     }
   }
 
-  return { mapId, userId, permission: null, customPermissions: null, isOwner: false, isGroupMember: false };
+  return { mapId, userId, permission: null, customPermissions: null, isDungeonMaster: false, isGroupMember: false };
 }
 
 /**
@@ -100,26 +90,23 @@ export function canPerformAction(
   access: MapAccess,
   action: MapAction
 ): boolean {
-  const { permission, isOwner } = access;
+  const { permission, isDungeonMaster } = access;
 
   // No permission means no access
   if (!permission) {
     return false;
   }
 
-  // Owners can do everything
-  if (isOwner || permission === "owner") {
-    return true;
-  }
-
   switch (action) {
     case "view":
-      return ["view", "edit"].includes(permission);
+      // Both DM and Player can view
+      return true;
     case "edit":
-      return permission === "edit";
+      // Only DM can edit map settings
+      return isDungeonMaster;
     case "delete":
-      // Only owners can delete - already handled above
-      return false;
+      // Only DM can delete the map
+      return isDungeonMaster;
     default:
       return false;
   }
@@ -146,9 +133,6 @@ export async function requireMapPermission(
  * Get the effective permission level for display purposes
  */
 export function getEffectivePermission(access: MapAccess): PermissionLevel | null {
-  if (access.isOwner) {
-    return "owner";
-  }
   return access.permission;
 }
 
@@ -156,8 +140,8 @@ export function getEffectivePermission(access: MapAccess): PermissionLevel | nul
  * Get effective permissions (custom or default based on role)
  */
 export function getEffectivePermissions(access: MapAccess): PlayerPermissions {
-  if (access.isOwner) {
-    return DEFAULT_PERMISSIONS.owner;
+  if (access.isDungeonMaster) {
+    return DEFAULT_PERMISSIONS.dm;
   }
   if (access.customPermissions) {
     return access.customPermissions;
@@ -165,5 +149,5 @@ export function getEffectivePermissions(access: MapAccess): PlayerPermissions {
   if (access.permission) {
     return DEFAULT_PERMISSIONS[access.permission];
   }
-  return DEFAULT_PERMISSIONS.view;
+  return DEFAULT_PERMISSIONS.player;
 }

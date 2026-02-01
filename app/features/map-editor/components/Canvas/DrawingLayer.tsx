@@ -34,6 +34,7 @@ export function DrawingLayer({
           lineCap="round"
           lineJoin="round"
           globalCompositeOperation="source-over"
+          listening={isEraseMode}
           hitStrokeWidth={isEraseMode ? 20 : 0}
           onMouseEnter={isEraseMode ? () => setHoveredPathId(path.id) : undefined}
           onMouseLeave={isEraseMode ? () => setHoveredPathId(null) : undefined}
@@ -52,6 +53,7 @@ export function DrawingLayer({
           lineCap="round"
           lineJoin="round"
           globalCompositeOperation="source-over"
+          listening={false}
         />
       )}
     </>

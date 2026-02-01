@@ -95,13 +95,34 @@ export interface ClassFeature {
   recharge: RechargeCondition;
 }
 
+// Damage types for weapons
+export const DAMAGE_TYPES = [
+  "Acid",
+  "Bludgeoning",
+  "Cold",
+  "Elemental",
+  "Fire",
+  "Force",
+  "Lightning",
+  "Necrotic",
+  "Physical",
+  "Piercing",
+  "Poison",
+  "Psychic",
+  "Radiant",
+  "Slashing",
+  "Thunder",
+] as const;
+
+export type DamageType = (typeof DAMAGE_TYPES)[number];
+
 // Weapon entry for attacks
 export interface Weapon {
   id: string;
   name: string;
   bonus: number; // Attack bonus (+5, etc.)
   dice: string; // Damage dice (1d8, 2d6, etc.)
-  damageType: string; // Slashing, Piercing, Fire, etc.
+  damageType: DamageType | string; // Slashing, Piercing, Fire, etc.
   notes: string; // Extra notes (magical, versatile, etc.)
 }
 
@@ -159,6 +180,9 @@ export interface Equipment {
 }
 
 export interface CharacterSheet {
+  // Version tracking for sync
+  lastModified?: number; // Unix timestamp for version checking
+
   // Basic info
   background: string | null;
   characterClass: string | null;
@@ -257,59 +281,45 @@ export interface Token {
 }
 
 // Permission levels for map access
-export type MapPermission = "view" | "edit" | "owner";
+// dm = Dungeon Master (map creator/owner), player = everyone else
+export type MapPermission = "dm" | "player";
 
-// Granular player permissions
+// Simplified permissions for map roles
 export interface PlayerPermissions {
-  canCreateTokens: boolean;
-  canEditOwnTokens: boolean;
-  canEditAllTokens: boolean;
-  canDeleteOwnTokens: boolean;
-  canDeleteAllTokens: boolean;
-  canMoveOwnTokens: boolean;
-  canMoveAllTokens: boolean;
-  canViewMap: boolean;
-  canEditMap: boolean;
-  canManagePlayers: boolean;
+  canCreateTokens: boolean;      // All roles can create tokens
+  canEditOwnTokens: boolean;     // Players can only edit their own tokens
+  canEditAllTokens: boolean;     // Only DM can edit any token
+  canDeleteOwnTokens: boolean;   // All roles can delete tokens they own
+  canDeleteAllTokens: boolean;   // Only DM can delete any token
+  canMoveOwnTokens: boolean;     // Players can only move their own tokens
+  canMoveAllTokens: boolean;     // Only DM can move any token
+  canEditMap: boolean;           // Only DM can edit map settings
+  canChangeTokenOwner: boolean;  // Only DM can reassign token ownership
 }
 
 // Default permissions for each role
 export const DEFAULT_PERMISSIONS: Record<MapPermission, PlayerPermissions> = {
-  view: {
-    canCreateTokens: false,
-    canEditOwnTokens: false,
-    canEditAllTokens: false,
-    canDeleteOwnTokens: false,
-    canDeleteAllTokens: false,
-    canMoveOwnTokens: true, // View users can move their own tokens
-    canMoveAllTokens: false,
-    canViewMap: true,
-    canEditMap: false,
-    canManagePlayers: false,
+  player: {
+    canCreateTokens: true,       // Players can create tokens (auto-owned)
+    canEditOwnTokens: true,      // Players can edit their own tokens
+    canEditAllTokens: false,     // Players cannot edit others' tokens
+    canDeleteOwnTokens: true,    // Players can delete their own tokens
+    canDeleteAllTokens: false,   // Players cannot delete others' tokens
+    canMoveOwnTokens: true,      // Players can move their own tokens
+    canMoveAllTokens: false,     // Players cannot move others' tokens
+    canEditMap: false,           // Players cannot edit map settings
+    canChangeTokenOwner: false,  // Players cannot reassign ownership
   },
-  edit: {
-    canCreateTokens: true, // Admins can create tokens
-    canEditOwnTokens: true,
-    canEditAllTokens: true, // Admins can edit all tokens
-    canDeleteOwnTokens: true,
-    canDeleteAllTokens: true, // Admins can delete all tokens
-    canMoveOwnTokens: true,
-    canMoveAllTokens: true, // Admins can move all tokens
-    canViewMap: true,
-    canEditMap: true, // Admins can edit map
-    canManagePlayers: false, // Only owners can manage players
-  },
-  owner: {
-    canCreateTokens: true,
-    canEditOwnTokens: true,
-    canEditAllTokens: true,
-    canDeleteOwnTokens: true,
-    canDeleteAllTokens: true,
-    canMoveOwnTokens: true,
-    canMoveAllTokens: true,
-    canViewMap: true,
-    canEditMap: true,
-    canManagePlayers: true,
+  dm: {
+    canCreateTokens: true,       // DM can create tokens
+    canEditOwnTokens: true,      // DM can edit own tokens
+    canEditAllTokens: true,      // DM can edit any token
+    canDeleteOwnTokens: true,    // DM can delete own tokens
+    canDeleteAllTokens: true,    // DM can delete any token
+    canMoveOwnTokens: true,      // DM can move own tokens
+    canMoveAllTokens: true,      // DM can move any token
+    canEditMap: true,            // DM can edit map settings
+    canChangeTokenOwner: true,   // DM can reassign token ownership
   },
 };
 
@@ -318,7 +328,6 @@ export interface EditorContext {
   userId: string | null;
   permission: MapPermission;
   permissions: PlayerPermissions;
-  isMapOwner: boolean;
 }
 
 // Drawing Types

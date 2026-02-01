@@ -26,9 +26,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   switch (request.method) {
     case "DELETE": {
-      // Check at least view permission
+      // Check at least view permission (all group members can access)
       const access = await requireMapPermission(mapId, session.user.id, "view");
-      const canFullEdit = access.permission === "edit" || access.permission === "owner" || access.isOwner;
+      const isDM = access.isDungeonMaster;
 
       // Get current map data
       const mapData = await db
@@ -49,7 +49,9 @@ export async function action({ request, params }: Route.ActionArgs) {
       }
 
       // Check permission to delete this token
-      if (!canFullEdit && token.ownerId !== session.user.id) {
+      // DM can delete any token, players can only delete their own
+      const isOwner = token.ownerId === session.user.id || (token.ownerId === null && isDM);
+      if (!isDM && !isOwner) {
         return new Response("Cannot delete tokens you don't own", { status: 403 });
       }
 
@@ -70,9 +72,9 @@ export async function action({ request, params }: Route.ActionArgs) {
     }
 
     case "PUT": {
-      // Check at least view permission
+      // Check at least view permission (all group members can access)
       const access = await requireMapPermission(mapId, session.user.id, "view");
-      const canFullEdit = access.permission === "edit" || access.permission === "owner" || access.isOwner;
+      const isDM = access.isDungeonMaster;
 
       const body = await request.json();
 
@@ -92,12 +94,9 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       if (tokenIndex === -1) {
         // Token doesn't exist - this is a create operation
-        // Check if user has permission to create tokens
-        if (!canFullEdit) {
-          // For non-editors, ensure they're setting themselves as owner
-          if (body.ownerId !== session.user.id) {
-            return new Response("Cannot create tokens for other users", { status: 403 });
-          }
+        // All users can create tokens, but players must set themselves as owner
+        if (!isDM && body.ownerId !== session.user.id) {
+          return new Response("Cannot create tokens for other users", { status: 403 });
         }
 
         // Create new token with the provided ID
@@ -126,8 +125,15 @@ export async function action({ request, params }: Route.ActionArgs) {
       const currentToken = currentData.tokens[tokenIndex];
 
       // Check permission to edit this token
-      if (!canFullEdit && currentToken.ownerId !== session.user.id) {
+      // DM can edit any token, players can only edit their own
+      const isOwner = currentToken.ownerId === session.user.id || (currentToken.ownerId === null && isDM);
+      if (!isDM && !isOwner) {
         return new Response("Cannot edit tokens you don't own", { status: 403 });
+      }
+
+      // Only DM can change token ownership
+      if (!isDM && body.ownerId !== undefined && body.ownerId !== currentToken.ownerId) {
+        return new Response("Only the DM can change token ownership", { status: 403 });
       }
 
       // Update the token

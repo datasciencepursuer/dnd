@@ -2,7 +2,7 @@ import { Stage, Layer, Rect } from "react-konva";
 import { useEffect, useRef, useState } from "react";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
-import { TokenLayer } from "./TokenLayer";
+import { TokenLayer, SelectedTokenOverlay } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { FogLayer } from "./FogLayer";
 import { PingLayer } from "./PingLayer";
@@ -18,10 +18,12 @@ interface MapCanvasProps {
   onFogPaintRange?: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;
   onFogEraseRange?: (startCol: number, startRow: number, endCol: number, endRow: number) => void;
   onPing?: (ping: Ping) => void;
+  onDrawingAdd?: (path: FreehandPath) => void;
+  onDrawingRemove?: (pathId: string) => void;
   activePings?: Ping[];
 }
 
-export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, activePings = [] }: MapCanvasProps) {
+export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, onDrawingAdd, onDrawingRemove, activePings = [] }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -50,8 +52,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const setIsPanning = useEditorStore((s) => s.setIsPanning);
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const userId = useEditorStore((s) => s.userId);
+  const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const canPing = useEditorStore((s) => s.canPing);
   const recordPing = useEditorStore((s) => s.recordPing);
+  const setCanvasDimensions = useEditorStore((s) => s.setCanvasDimensions);
 
   const stageRef = useRef<any>(null);
 
@@ -63,17 +67,17 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
+        const width = containerRef.current.offsetWidth;
+        const height = containerRef.current.offsetHeight;
+        setDimensions({ width, height });
+        setCanvasDimensions(width, height);
       }
     };
 
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
     return () => window.removeEventListener("resize", updateDimensions);
-  }, []);
+  }, [setCanvasDimensions]);
 
   // Center the grid on initial load - always center for each client session
   useEffect(() => {
@@ -270,9 +274,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         // Paint fog in range
         paintFogInRange(startCol, startRow, endCol, endRow, userId);
         onFogPaintRange?.(startCol, startRow, endCol, endRow, userId);
-      } else if (dragMode === "erase") {
-        // Erase fog in range
-        eraseFogInRange(startCol, startRow, endCol, endRow);
+      } else if (dragMode === "erase" && userId) {
+        // Erase fog in range (players can only erase their own fog, DM can erase all)
+        eraseFogInRange(startCol, startRow, endCol, endRow, userId, isDungeonMaster());
         onFogEraseRange?.(startCol, startRow, endCol, endRow);
 
         // Also erase drawings that fall within the rectangle
@@ -310,6 +314,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         width: drawingWidth,
       };
       addFreehandPath(path);
+      // Broadcast to other clients via WebSocket
+      onDrawingAdd?.(path);
     }
     setIsDrawing(false);
     setCurrentPath(null);
@@ -354,9 +360,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       return;
     }
 
-    // If clicking on empty canvas, clear selection
-    if (e.target === e.target.getStage()) {
-      clearSelection();
+    // If clicking on empty canvas (Stage or Layer), clear selection
+    // But keep selection when using draw tool (needs selected token for color)
+    // In Konva, clicking empty space in a Layer targets the Layer, not the Stage
+    const targetType = e.target.getType?.() || e.target.nodeType;
+    if (e.target === e.target.getStage() || targetType === "Layer") {
+      if (selectedTool !== "draw") {
+        clearSelection();
+      }
     }
   };
 
@@ -470,6 +481,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
             grid={map.grid}
             currentUserId={userId}
           />
+        </Layer>
+        <Layer name="token-selection">
+          <SelectedTokenOverlay tokens={map.tokens} cellSize={map.grid.cellSize} />
         </Layer>
         <Layer name="pings">
           <PingLayer pings={activePings} />

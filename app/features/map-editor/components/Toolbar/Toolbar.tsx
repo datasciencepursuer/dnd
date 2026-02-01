@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Link, useRevalidator } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import type { EditorTool } from "../../types";
+
+interface GroupMember {
+  id: string;
+  name: string;
+}
 
 const viewTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
   { id: "select", label: "Select", icon: "↖", shortcut: "1", hint: "Left click: select · Right click: pan" },
@@ -14,10 +19,9 @@ const drawTool: { id: EditorTool; label: string; icon: string; shortcut: string;
 const pingTool: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string } =
   { id: "ping", label: "Ping", icon: "📍", shortcut: "P", hint: "Select a token then click to ping (4 per 10s)" };
 
-// Tools requiring edit permission
-const editTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
-  { id: "erase", label: "Erase", icon: "⌫", shortcut: "3", hint: "Drag to erase fog and drawings" },
-];
+// Erase tool - available to everyone
+const eraseTool: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string } =
+  { id: "erase", label: "Erase", icon: "⌫", shortcut: "3", hint: "Drag to erase fog and drawings" };
 
 // Tools requiring map edit permission (DM only)
 const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
@@ -25,14 +29,18 @@ const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: str
 ];
 
 interface ToolbarProps {
-  readOnly?: boolean;
   userName?: string | null;
+  userId?: string | null;
+  mapId?: string;
+  groupMembers?: GroupMember[];
+  onDmTransfer?: (newDmId: string) => void;
 }
 
-export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
+export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransfer }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
   const canEditMap = useEditorStore((s) => s.canEditMap);
+  const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
 
   const map = useMapStore((s) => s.map);
   const updateGrid = useMapStore((s) => s.updateGrid);
@@ -41,6 +49,55 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
   const [mapName, setMapName] = useState(map?.name ?? "");
   const [width, setWidth] = useState<number | string>(map?.grid.width ?? 30);
   const [height, setHeight] = useState<number | string>(map?.grid.height ?? 20);
+  const [showDmDropdown, setShowDmDropdown] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const dmDropdownRef = useRef<HTMLDivElement>(null);
+  const revalidator = useRevalidator();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dmDropdownRef.current && !dmDropdownRef.current.contains(e.target as Node)) {
+        setShowDmDropdown(false);
+      }
+    };
+    if (showDmDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showDmDropdown]);
+
+  // Handle DM transfer
+  const handleTransferDm = async (newDmId: string) => {
+    if (!mapId || isTransferring) return;
+
+    setIsTransferring(true);
+    try {
+      const response = await fetch(`/api/maps/${mapId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newDmId }),
+      });
+
+      if (response.ok) {
+        setShowDmDropdown(false);
+        // Broadcast to all clients to trigger refresh
+        onDmTransfer?.(newDmId);
+        // Reload this client too
+        window.location.reload();
+      } else {
+        const error = await response.text();
+        console.error("Failed to transfer DM:", error);
+      }
+    } catch (error) {
+      console.error("Failed to transfer DM:", error);
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  // Filter out current user from transfer options
+  const transferOptions = groupMembers.filter(m => m.id !== userId);
 
   // Sync local state when map changes
   useEffect(() => {
@@ -68,10 +125,12 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
           setTool("draw");
           break;
         case "3":
-          if (!readOnly) setTool("erase");
+          // Erase available to everyone
+          setTool("erase");
           break;
         case "4":
-          if (!readOnly && canEditMap()) setTool("fog");
+          // Fog only for DM
+          if (canEditMap()) setTool("fog");
           break;
         case "p":
         case "P":
@@ -79,7 +138,7 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
           break;
       }
     },
-    [setTool, readOnly, canEditMap]
+    [setTool, canEditMap]
   );
 
   useEffect(() => {
@@ -88,14 +147,14 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
   }, [handleKeyDown]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (readOnly) return;
+    if (!canEditMap()) return;
     const newName = e.target.value;
     setMapName(newName);
     updateMapName(newName || "Untitled Map");
   };
 
   const handleApply = () => {
-    if (readOnly) return;
+    if (!canEditMap()) return;
     // Parse and validate - use current map values as fallback if invalid
     const parsedWidth = typeof width === "string" ? parseInt(width) : width;
     const parsedHeight = typeof height === "string" ? parseInt(height) : height;
@@ -128,14 +187,51 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
             value={mapName}
             onChange={handleNameChange}
             placeholder="Map name"
-            disabled={readOnly}
+            disabled={!canEditMap()}
             className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
           />
-          {readOnly && (
-            <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
-              View only
-            </span>
-          )}
+          {/* Role indicator - clickable for DM to transfer */}
+          <div className="relative" ref={dmDropdownRef}>
+            {isDungeonMaster() && transferOptions.length > 0 ? (
+              <>
+                <button
+                  onClick={() => setShowDmDropdown(!showDmDropdown)}
+                  className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 cursor-pointer flex items-center gap-1"
+                  title="Click to transfer DM role"
+                >
+                  DM
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showDmDropdown && (
+                  <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50 min-w-[160px]">
+                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                      Transfer DM to:
+                    </div>
+                    {transferOptions.map((member) => (
+                      <button
+                        key={member.id}
+                        onClick={() => handleTransferDm(member.id)}
+                        disabled={isTransferring}
+                        className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {member.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <span className={`text-xs px-2 py-1 rounded ${
+                isDungeonMaster()
+                  ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
+                  : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+              }`}>
+                {isDungeonMaster() ? "DM" : "Player"}
+              </span>
+            )}
+          </div>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
           <div className="flex gap-1">
             {viewTools.map((tool) => (
@@ -168,23 +264,22 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
               {drawTool.label}
               <span className="ml-1 text-xs opacity-60">({drawTool.shortcut})</span>
             </button>
-            {!readOnly && editTools.map((tool) => (
-              <button
-                key={tool.id}
-                onClick={() => setTool(tool.id)}
-                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
-                  selectedTool === tool.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-                title={tool.hint || `${tool.label} (${tool.shortcut})`}
-              >
-                <span className="mr-1">{tool.icon}</span>
-                {tool.label}
-                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
-              </button>
-            ))}
-            {!readOnly && canEditMap() && mapEditTools.map((tool) => (
+            {/* Erase tool - available to everyone */}
+            <button
+              onClick={() => setTool(eraseTool.id)}
+              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                selectedTool === eraseTool.id
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              }`}
+              title={eraseTool.hint || `${eraseTool.label} (${eraseTool.shortcut})`}
+            >
+              <span className="mr-1">{eraseTool.icon}</span>
+              {eraseTool.label}
+              <span className="ml-1 text-xs opacity-60">({eraseTool.shortcut})</span>
+            </button>
+            {/* Fog tool - DM only */}
+            {canEditMap() && mapEditTools.map((tool) => (
               <button
                 key={tool.id}
                 onClick={() => setTool(tool.id)}
@@ -220,7 +315,8 @@ export function Toolbar({ readOnly = false, userName }: ToolbarProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          {map && !readOnly && (
+          {/* Grid settings - DM only */}
+          {map && canEditMap() && (
             <>
               <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
               <div className="flex items-center gap-1">

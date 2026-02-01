@@ -74,12 +74,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   return Response.json({
     owned: ownedMaps.map((m) => ({
       ...m,
-      permission: "owner" as const,
+      permission: "dm" as const, // Map creator is the Dungeon Master
       groupName: m.groupId ? groupNameMap[m.groupId] : null,
     })),
     group: groupMaps.map((m) => ({
       ...m,
-      permission: "view" as const, // Group members get view by default
+      permission: "player" as const, // Group members are Players
       groupName: m.groupId ? groupNameMap[m.groupId] : null,
     })),
     groups: groupsData,

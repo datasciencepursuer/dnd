@@ -49,9 +49,9 @@ interface MapState {
   revealCell: (col: number, row: number) => void;
   hideCell: (col: number, row: number) => void;
   paintFogCell: (col: number, row: number, creatorId: string) => void;
-  eraseFogCell: (col: number, row: number) => void;
+  eraseFogCell: (col: number, row: number, eraserId: string, isDM: boolean) => void;
   paintFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;
-  eraseFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number) => void;
+  eraseFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number, eraserId: string, isDM: boolean) => void;
   clearAllFog: () => void;
 
   // Drawing actions
@@ -414,17 +414,28 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
-      eraseFogCell: (col, row) =>
+      eraseFogCell: (col, row, eraserId, isDM) =>
         set((state) => {
           if (!state.map) return state;
           const key = `${col},${row}`;
           const paintedCells = state.map.fogOfWar.paintedCells || [];
+
+          // Filter cells - DM can erase anything, players can only erase their own fog
+          const filteredCells = paintedCells.filter((c) => {
+            if (c.key !== key) return true; // Keep cells that don't match
+            // For the matching cell, check permissions
+            if (isDM) return false; // DM can erase any cell
+            return c.creatorId !== eraserId; // Players can only erase their own cells
+          });
+
+          if (filteredCells.length === paintedCells.length) return state;
+
           return {
             map: {
               ...state.map,
               fogOfWar: {
                 ...state.map.fogOfWar,
-                paintedCells: paintedCells.filter((c) => c.key !== key),
+                paintedCells: filteredCells,
               },
               updatedAt: new Date().toISOString(),
             },
@@ -463,7 +474,7 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
-      eraseFogInRange: (startCol, startRow, endCol, endRow) =>
+      eraseFogInRange: (startCol, startRow, endCol, endRow, eraserId, isDM) =>
         set((state) => {
           if (!state.map) return state;
           const paintedCells = state.map.fogOfWar.paintedCells || [];
@@ -477,7 +488,14 @@ export const useMapStore = create<MapState>()(
             }
           }
 
-          const filteredCells = paintedCells.filter((c) => !keysToRemove.has(c.key));
+          // Filter cells - DM can erase anything, players can only erase their own fog
+          const filteredCells = paintedCells.filter((c) => {
+            if (!keysToRemove.has(c.key)) return true; // Keep cells outside the range
+            // For cells in range, check permissions
+            if (isDM) return false; // DM can erase any cell
+            return c.creatorId !== eraserId; // Players can only erase their own cells
+          });
+
           if (filteredCells.length === paintedCells.length) return state;
 
           return {
@@ -574,17 +592,20 @@ export const useMapStore = create<MapState>()(
         set((state) => {
           if (!state.map) return state;
           const token = state.map.tokens.find((t) => t.id === tokenId);
-          if (!token || !token.characterSheet) return state;
+          if (!token) return state;
 
           const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
           const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          // If token has no characterSheet, initialize with defaults before applying updates
+          const baseSheet = token.characterSheet ?? createDefaultCharacterSheet();
 
           return {
             map: {
               ...state.map,
               tokens: state.map.tokens.map((t) =>
                 t.id === tokenId
-                  ? { ...t, characterSheet: { ...t.characterSheet!, ...updates } }
+                  ? { ...t, characterSheet: { ...baseSheet, ...updates } }
                   : t
               ),
               updatedAt: new Date().toISOString(),

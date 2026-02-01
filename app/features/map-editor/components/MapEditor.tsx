@@ -22,8 +22,7 @@ interface GroupMemberInfo {
 
 interface MapEditorProps {
   mapId?: string;
-  readOnly?: boolean;
-  permission?: "view" | "edit" | "owner";
+  permission?: "dm" | "player";
   customPermissions?: PlayerPermissions | null;
   userId?: string | null;
   userName?: string | null;
@@ -33,8 +32,7 @@ interface MapEditorProps {
 
 export function MapEditor({
   mapId,
-  readOnly = false,
-  permission = "owner",
+  permission = "dm",
   customPermissions = null,
   userId = null,
   userName = null,
@@ -43,12 +41,17 @@ export function MapEditor({
 }: MapEditorProps) {
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
+  const updateToken = useMapStore((s) => s.updateToken);
   const updateCharacterSheet = useMapStore((s) => s.updateCharacterSheet);
   const initializeCharacterSheet = useMapStore((s) => s.initializeCharacterSheet);
+  const setViewport = useMapStore((s) => s.setViewport);
   const setEditorContext = useEditorStore((s) => s.setEditorContext);
   const openCharacterSheetTokenId = useEditorStore((s) => s.openCharacterSheetTokenId);
   const closeCharacterSheet = useEditorStore((s) => s.closeCharacterSheet);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
+  const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
+  const getCanvasDimensions = useEditorStore((s) => s.getCanvasDimensions);
 
   // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
@@ -65,7 +68,17 @@ export function MapEditor({
     broadcastFogPaintRange,
     broadcastFogEraseRange,
     broadcastPing,
+    broadcastDrawingAdd,
+    broadcastDrawingRemove,
+    broadcastDmTransfer,
+    broadcastCombatRequest,
+    broadcastCombatResponse,
+    broadcastCombatEnd,
+    clearCombatRequest,
     activePings,
+    combatRequest,
+    initiativeOrder,
+    isInCombat,
   } = usePartySync({
     mapId,
     userId,
@@ -135,10 +148,10 @@ export function MapEditor({
   // Combined handler for fog erasing: broadcast + debounced sync
   const handleFogErase = useCallback(
     (col: number, row: number) => {
-      broadcastFogErase(col, row);
+      broadcastFogErase(col, row, isDungeonMaster());
       syncDebounced(1000);
     },
-    [broadcastFogErase, syncDebounced]
+    [broadcastFogErase, isDungeonMaster, syncDebounced]
   );
 
   // Combined handler for fog painting in range: broadcast + debounced sync
@@ -153,11 +166,95 @@ export function MapEditor({
   // Combined handler for fog erasing in range: broadcast + debounced sync
   const handleFogEraseRange = useCallback(
     (startCol: number, startRow: number, endCol: number, endRow: number) => {
-      broadcastFogEraseRange(startCol, startRow, endCol, endRow);
+      broadcastFogEraseRange(startCol, startRow, endCol, endRow, isDungeonMaster());
       syncDebounced(1000);
     },
-    [broadcastFogEraseRange, syncDebounced]
+    [broadcastFogEraseRange, isDungeonMaster, syncDebounced]
   );
+
+  // Handler for selecting and centering on a token
+  const handleSelectAndCenter = useCallback(
+    (token: Token) => {
+      if (!map) return;
+
+      // Select the token
+      setSelectedElements([token.id]);
+
+      // Calculate token center in pixels
+      const cellSize = map.grid.cellSize;
+      const tokenCenterX = (token.position.col + token.size / 2) * cellSize;
+      const tokenCenterY = (token.position.row + token.size / 2) * cellSize;
+
+      // Get canvas dimensions
+      const { width, height } = getCanvasDimensions();
+      const scale = map.viewport.scale;
+
+      // Calculate viewport position to center the token
+      const viewportX = width / 2 - tokenCenterX * scale;
+      const viewportY = height / 2 - tokenCenterY * scale;
+
+      setViewport(viewportX, viewportY, scale);
+    },
+    [map, setSelectedElements, getCanvasDimensions, setViewport]
+  );
+
+  // Helper to check if a token is under fog
+  const isTokenUnderFog = useCallback(
+    (token: Token): boolean => {
+      if (!map?.fogOfWar?.paintedCells?.length) return false;
+      for (let dx = 0; dx < token.size; dx++) {
+        for (let dy = 0; dy < token.size; dy++) {
+          const cellKey = `${token.position.col + dx},${token.position.row + dy}`;
+          if (map.fogOfWar.paintedCells.some(cell => cell.key === cellKey)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    },
+    [map?.fogOfWar?.paintedCells]
+  );
+
+  // Handler for starting combat - rolls initiative for visible, non-fogged tokens
+  const handleStartCombat = useCallback(() => {
+    if (!map) return;
+
+    // Get visible tokens that are not under fog
+    const eligibleTokens = map.tokens.filter((token) => {
+      if (!token.visible) return false;
+      if (isTokenUnderFog(token)) return false;
+      return true;
+    });
+
+    // Roll initiative for each token (d20 + initiative modifier)
+    const initiativeRolls = eligibleTokens.map((token) => {
+      const initMod = token.characterSheet?.initiative ?? 0;
+      const roll = Math.floor(Math.random() * 20) + 1;
+      const initiative = roll + initMod;
+      return {
+        tokenId: token.id,
+        tokenName: token.name,
+        tokenColor: token.color,
+        initiative,
+      };
+    });
+
+    // Sort by initiative (highest first)
+    initiativeRolls.sort((a, b) => b.initiative - a.initiative);
+
+    // Broadcast the initiative order
+    broadcastCombatResponse(true, initiativeRolls);
+  }, [map, isTokenUnderFog, broadcastCombatResponse]);
+
+  // Handler for accepting combat request from player
+  const handleAcceptCombatRequest = useCallback(() => {
+    handleStartCombat();
+  }, [handleStartCombat]);
+
+  // Handler for denying combat request
+  const handleDenyCombatRequest = useCallback(() => {
+    broadcastCombatResponse(false, null);
+  }, [broadcastCombatResponse]);
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -188,6 +285,46 @@ export function MapEditor({
   useEffect(() => {
     setEditorContext(userId, permission, customPermissions);
   }, [userId, permission, customPermissions, setEditorContext]);
+
+  // Track which tokens we've already fetched sheets for (to avoid duplicate fetches)
+  const fetchedTokenSheetsRef = useRef<Set<string>>(new Set());
+
+  // Populate linked token character sheets on map load
+  // This ensures HP bar and AC icon show on hover for linked tokens
+  useEffect(() => {
+    if (!map?.tokens) return;
+
+    // Find linked tokens that don't have a cached character sheet
+    const tokensNeedingSheets = map.tokens.filter(
+      (t) => t.characterId && !t.characterSheet && !fetchedTokenSheetsRef.current.has(t.id)
+    );
+
+    if (tokensNeedingSheets.length === 0) return;
+
+    // Mark these tokens as being fetched to avoid duplicate requests
+    tokensNeedingSheets.forEach((t) => fetchedTokenSheetsRef.current.add(t.id));
+
+    // Fetch character sheets from the library
+    tokensNeedingSheets.forEach((token) => {
+      fetch(`/api/characters/${token.characterId}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch character");
+          return res.json();
+        })
+        .then((data) => {
+          const sheet = data.character?.characterSheet;
+          if (sheet) {
+            // Update token's cached copy for display (HP bar, AC icon)
+            updateToken(token.id, { characterSheet: sheet });
+          }
+        })
+        .catch((err) => {
+          console.error(`Failed to fetch character sheet for token ${token.id}:`, err);
+          // Remove from fetched set so we can retry later
+          fetchedTokenSheetsRef.current.delete(token.id);
+        });
+    });
+  }, [map?.tokens, updateToken]);
 
   // Undo/Redo - get stable references directly from temporal store
   const temporalStore = useMapStore.temporal;
@@ -312,9 +449,23 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar readOnly={readOnly} userName={userName} />
+      <Toolbar userName={userName} userId={userId} mapId={mapId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar mapId={mapId} onEditToken={handleEditToken} readOnly={readOnly} onTokenDelete={handleTokenDelete} onTokenCreate={handleTokenCreate} onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
+        <Sidebar
+          mapId={mapId}
+          onEditToken={handleEditToken}
+          onTokenDelete={handleTokenDelete}
+          onTokenCreate={handleTokenCreate}
+          onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
+          onSelectAndCenter={handleSelectAndCenter}
+          onCombatRequest={broadcastCombatRequest}
+          onStartCombat={handleStartCombat}
+          onEndCombat={broadcastCombatEnd}
+          isInCombat={isInCombat}
+          initiativeOrder={initiativeOrder}
+          pendingCombatRequest={combatRequest}
+          currentUserName={userName}
+        />
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -330,6 +481,8 @@ export function MapEditor({
             onFogPaintRange={handleFogPaintRange}
             onFogEraseRange={handleFogEraseRange}
             onPing={broadcastPing}
+            onDrawingAdd={broadcastDrawingAdd}
+            onDrawingRemove={broadcastDrawingRemove}
             activePings={activePings}
           />
         </Suspense>
@@ -341,7 +494,6 @@ export function MapEditor({
           token={editingToken}
           onClose={handleCloseEditDialog}
           groupMembers={groupMembers}
-          canAssignOwner={permission === "owner" || permission === "edit"}
           onSave={syncNow}
           onTokenUpdate={handleTokenUpdate}
           mapId={mapId}
@@ -355,8 +507,42 @@ export function MapEditor({
           onUpdate={handleCharacterSheetUpdate}
           onClose={closeCharacterSheet}
           onInitialize={handleInitializeCharacterSheet}
-          readOnly={!canMoveToken(characterSheetToken.ownerId)}
         />
+      )}
+
+      {/* Combat Request Modal - shown to DM when player requests combat */}
+      {combatRequest && isDungeonMaster() && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600 dark:text-red-400" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z"/>
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Combat Request</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {combatRequest.requesterName} has requested to start combat
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDenyCombatRequest}
+                className="flex-1 px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Deny
+              </button>
+              <button
+                onClick={handleAcceptCombatRequest}
+                className="flex-1 px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-red-600 hover:bg-red-700 text-white"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

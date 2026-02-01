@@ -52,7 +52,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   return Response.json({
     ...mapData[0],
-    permission: access.isOwner ? "owner" : access.permission,
+    permission: access.permission,
     customPermissions: getEffectivePermissions(access),
     groupMembers: groupMembersData,
   });
@@ -68,15 +68,55 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   switch (request.method) {
     case "PUT": {
-      // Check at least view permission
+      // Check at least view permission (all group members can view)
       const access = await requireMapPermission(mapId, session.user.id, "view");
-      const canFullEdit = access.permission === "edit" || access.permission === "owner" || access.isOwner;
+      // DM can edit everything, players have limited edit
+      const isDM = access.isDungeonMaster;
 
       const body = await request.json();
-      const { name, data } = body;
+      const { name, data, newDmId } = body;
 
-      // View users can only update tokens they own
-      if (!canFullEdit && data) {
+      // Handle DM transfer
+      if (newDmId !== undefined) {
+        if (!isDM) {
+          return new Response("Only the DM can transfer ownership", { status: 403 });
+        }
+
+        // Get current map to check group
+        const currentMap = await db
+          .select({ groupId: maps.groupId })
+          .from(maps)
+          .where(eq(maps.id, mapId))
+          .limit(1);
+
+        if (currentMap.length === 0) {
+          return new Response("Map not found", { status: 404 });
+        }
+
+        // Verify new DM is a group member (if map belongs to a group)
+        if (currentMap[0].groupId) {
+          const memberCheck = await db
+            .select({ userId: groupMembers.userId })
+            .from(groupMembers)
+            .where(eq(groupMembers.groupId, currentMap[0].groupId));
+
+          const memberIds = memberCheck.map(m => m.userId);
+          if (!memberIds.includes(newDmId)) {
+            return new Response("New DM must be a group member", { status: 400 });
+          }
+        }
+
+        // Transfer DM by updating map owner
+        await db.update(maps).set({
+          userId: newDmId,
+          updatedAt: new Date()
+        }).where(eq(maps.id, mapId));
+
+        return Response.json({ success: true, transferred: true });
+      }
+
+      // Players can only delete tokens they own
+      if (!isDM && data) {
         // Get current map data to validate changes
         const currentMap = await db
           .select({ data: maps.data })
@@ -91,7 +131,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         const currentData = currentMap[0].data as { tokens?: Array<{ id: string; ownerId: string | null }> };
         const newData = data as { tokens?: Array<{ id: string; ownerId: string | null }> };
 
-        // Check that view user only modified/deleted their own tokens
+        // Check that player only deleted their own tokens
         const currentTokens = currentData.tokens || [];
         const newTokens = newData.tokens || [];
 
@@ -105,27 +145,15 @@ export async function action({ request, params }: Route.ActionArgs) {
             }
           }
         }
-
-        // Find modified tokens - must be owned by this user
-        const currentTokenMap = new Map(currentTokens.map(t => [t.id, t]));
-        for (const newToken of newTokens) {
-          const currentToken = currentTokenMap.get(newToken.id);
-          if (currentToken) {
-            // Check if token was modified (simple JSON comparison)
-            if (JSON.stringify(currentToken) !== JSON.stringify(newToken)) {
-              if (currentToken.ownerId !== session.user.id) {
-                return new Response("Cannot edit tokens you don't own", { status: 403 });
-              }
-            }
-          }
-        }
+        // Note: All players can edit any token, so no edit restriction needed
       }
 
       const updateData: { name?: string; data?: unknown; updatedAt: Date } = {
         updatedAt: new Date(),
       };
 
-      if (name !== undefined && canFullEdit) {
+      // Only DM can change map name
+      if (name !== undefined && isDM) {
         updateData.name = name;
       }
       if (data !== undefined) {

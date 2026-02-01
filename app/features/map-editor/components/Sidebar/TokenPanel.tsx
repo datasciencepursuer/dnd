@@ -8,13 +8,13 @@ import type { Token } from "../../types";
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
   mode?: "create" | "list";
-  readOnly?: boolean;
   mapId?: string;
   onTokenDelete?: (tokenId: string) => void;
   onTokenCreate?: (token: Token) => void;
+  onSelectAndCenter?: (token: Token) => void;
 }
 
-export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId, onTokenDelete, onTokenCreate }: TokenPanelProps) {
+export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, onTokenCreate, onSelectAndCenter }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);
@@ -36,8 +36,9 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
   const userId = useEditorStore((s) => s.userId);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
   const canEditToken = useEditorStore((s) => s.canEditToken);
-  const canMoveToken = useEditorStore((s) => s.canMoveToken);
-  const isOwner = useEditorStore((s) => s.isOwner);
+  const canDeleteToken = useEditorStore((s) => s.canDeleteToken);
+  const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -92,7 +93,7 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
       flipped: false,
       visible: true,
       layer: "character",
-      ownerId: isOwner() ? null : userId, // Owner's tokens have null ownerId
+      ownerId: isDungeonMaster() ? null : userId, // DM's tokens have null ownerId, players get their userId
       characterSheet: null,
       characterId: null,
     };
@@ -105,7 +106,6 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
   };
 
   const canCreate = canCreateToken();
-  const canDeleteToken = useEditorStore((s) => s.canDeleteToken);
 
   const handleDeleteToken = (e: React.MouseEvent, tokenId: string) => {
     e.stopPropagation(); // Prevent opening edit dialog
@@ -195,19 +195,53 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
     }
   }, [draggedIndex, dragOverIndex, map, reorderTokens]);
 
+  // Helper to check if a token is under fog
+  const isTokenUnderFog = (token: Token): boolean => {
+    if (!map?.fogOfWar?.paintedCells?.length) return false;
+
+    // Check all cells the token occupies (based on size)
+    for (let dx = 0; dx < token.size; dx++) {
+      for (let dy = 0; dy < token.size; dy++) {
+        const cellKey = `${token.position.col + dx},${token.position.row + dy}`;
+        // If any cell the token occupies has fog, consider it under fog
+        if (map.fogOfWar.paintedCells.some(cell => cell.key === cellKey)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Filter tokens - hidden tokens and tokens under fog only visible to DM or owner
+  const visibleTokens = map?.tokens.filter((token) => {
+    // DM sees all tokens
+    if (isDungeonMaster()) return true;
+
+    // Token owner can always see their own token
+    if (isTokenOwner(token.ownerId)) return true;
+
+    // Hidden tokens (visible=false) are not shown to non-owners
+    if (!token.visible) return false;
+
+    // Tokens under fog are not shown to non-owners
+    if (isTokenUnderFog(token)) return false;
+
+    return true;
+  }) ?? [];
+
   // Token list component (reused in both modes)
   const TokenList = () => (
     <>
-      {map && map.tokens.length > 0 && (
+      {map && visibleTokens.length > 0 && (
         <div className={mode === "create" ? "pt-4 border-t border-gray-200 dark:border-gray-700" : ""}>
           <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Units ({map.tokens.length})
+            Units ({visibleTokens.length})
           </h4>
           <div ref={listRef} className="space-y-1 max-h-60 overflow-y-auto">
-            {map.tokens.map((token, index) => {
-              const isOwnToken = canMoveToken(token.ownerId);
-              const canEdit = canEditToken(token.ownerId);
-              const canDelete = canDeleteToken(token.ownerId);
+            {visibleTokens.map((token, index) => {
+              const isOwnToken = isTokenOwner(token.ownerId);
+              const canEdit = canEditToken(token.ownerId); // DM can edit all, players can edit their own
+              const canDelete = canDeleteToken(token.ownerId); // DM or owner
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index && draggedIndex !== index;
               const showTopBorder = isDragOver && dropPosition === "above";
@@ -224,8 +258,8 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
                     isDragging ? "opacity-50" : ""
                   } ${showTopBorder ? "border-t-2 border-blue-500" : ""} ${showBottomBorder ? "border-b-2 border-blue-500" : ""}`}
                 >
-                  {/* Drag handle */}
-                  {isOwner() && (
+                  {/* Drag handle - DM only */}
+                  {isDungeonMaster() && (
                     <div
                       onMouseDown={(e) => handleMouseDown(e, index)}
                       className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 p-1 -m-1"
@@ -240,6 +274,21 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
                     className="w-4 h-4 rounded-full flex-shrink-0"
                     style={{ backgroundColor: token.color }}
                   />
+                  {/* Select and center button - shown for owners and DM */}
+                  {(isOwnToken || isDungeonMaster()) && onSelectAndCenter && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectAndCenter(token);
+                      }}
+                      className="flex-shrink-0 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 cursor-pointer p-0.5 -m-0.5"
+                      title="Select and center on map"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
                   <span className="text-gray-900 dark:text-white flex-1 truncate cursor-pointer">
                     {token.name}
                   </span>
@@ -259,9 +308,19 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
                       </svg>
                     </button>
                   )}
-                  {!isOwnToken && (
+                  {!isOwnToken && !isDungeonMaster() && (
                     <span className="text-xs text-gray-400 dark:text-gray-500">
                       (locked)
+                    </span>
+                  )}
+                  {isDungeonMaster() && !token.visible && (
+                    <span className="text-xs text-yellow-500 dark:text-yellow-400" title="Token is set to hidden - not visible to players">
+                      (hidden)
+                    </span>
+                  )}
+                  {isDungeonMaster() && token.visible && isTokenUnderFog(token) && (
+                    <span className="text-xs text-purple-500 dark:text-purple-400" title="Token is under fog of war - hidden from players">
+                      (fogged)
                     </span>
                   )}
                 </div>
@@ -271,7 +330,7 @@ export function TokenPanel({ onEditToken, mode = "list", readOnly = false, mapId
         </div>
       )}
 
-      {map && map.tokens.length === 0 && mode === "list" && (
+      {map && visibleTokens.length === 0 && mode === "list" && (
         <div className="text-center text-gray-500 dark:text-gray-400 py-8">
           <p className="text-sm">No units on the map</p>
         </div>

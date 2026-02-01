@@ -24,6 +24,7 @@ export function BackgroundLayer({ background, grid }: BackgroundLayerProps) {
       width={gridWidth}
       height={gridHeight}
       opacity={0.8}
+      listening={false}
     />
   );
 }

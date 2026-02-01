@@ -58,6 +58,7 @@ interface TokenItemProps {
   isMovable: boolean;
   selectedTool: string;
   isDragging: boolean;
+  isLockedMouseDown: boolean;
   actions: TokenItemActions;
   onMouseDown: (e: any) => void;
   onHoverStart: () => void;
@@ -74,6 +75,7 @@ function TokenItem({
   isMovable,
   selectedTool,
   isDragging,
+  isLockedMouseDown,
   actions,
   onMouseDown,
   onHoverStart,
@@ -120,6 +122,8 @@ function TokenItem({
   const handleClick = (e: any) => {
     // Allow selection in select mode and draw mode (for color picking)
     if (selectedTool !== "select" && selectedTool !== "draw") return;
+    // Only allow selection if user can move this token (has access)
+    if (!isMovable) return;
     e.cancelBubble = true;
     actions.select();
   };
@@ -149,14 +153,13 @@ function TokenItem({
 
   // HP bar dimensions - flush on top of token
   const hpBarWidth = hasImageUrl ? imgWidth : radius * 2;
-  const hpBarHeight = 6;
+  const hpBarHeight = 10;
   const hpBarY = hasImageUrl ? -imgHeight / 2 - hpBarHeight / 2 : -radius - hpBarHeight / 2;
 
-  // AC shield dimensions - above HP bar (smaller shield: square top + triangle bottom)
-  const acShieldSize = 16; // Width of the square part
-  const acShieldTriangleHeight = 6; // Height of the triangle at bottom
-  const acShieldTotalHeight = acShieldSize + acShieldTriangleHeight;
-  const acShieldY = hpBarY - hpBarHeight / 2 - acShieldTotalHeight / 2 - 2;
+  // AC shield dimensions - cute shield above HP bar
+  const acShieldWidth = 14;
+  const acShieldHeight = 16;
+  const acShieldY = hpBarY - hpBarHeight / 2 - acShieldHeight / 2 - 1; // Above HP bar
 
   // Token name position - flush under the token
   const nameY = hasImageUrl ? imgHeight / 2 + 10 : radius + 10;
@@ -177,8 +180,8 @@ function TokenItem({
       y={y}
       rotation={token.rotation}
       opacity={isDragging ? 0.5 : 1}
-      onMouseDown={isMovable ? onMouseDown : undefined}
-      onTouchStart={isMovable ? onMouseDown : undefined}
+      onMouseDown={onMouseDown}
+      onTouchStart={onMouseDown}
       onClick={handleClick}
       onTap={handleClick}
       onDblClick={handleDoubleClick}
@@ -199,17 +202,6 @@ function TokenItem({
               stroke={hoverStroke}
               strokeWidth={hoverStrokeWidth}
               cornerRadius={4}
-            />
-          )}
-          {isSelected && !isDragging && (
-            <Rect
-              width={imgWidth + 8}
-              height={imgHeight + 8}
-              offsetX={imgWidth / 2 + 4}
-              offsetY={imgHeight / 2 + 4}
-              stroke={isMovable ? token.color : "#9ca3af"}
-              strokeWidth={3}
-              dash={[5, 5]}
             />
           )}
           {image && (
@@ -257,14 +249,6 @@ function TokenItem({
               strokeWidth={hoverStrokeWidth}
             />
           )}
-          {isSelected && !isDragging && (
-            <Circle
-              radius={radius + 4}
-              stroke={isMovable ? token.color : "#9ca3af"}
-              strokeWidth={3}
-              dash={[5, 5]}
-            />
-          )}
           <Circle radius={radius} fill={token.color} />
           <Text
             text={token.name.charAt(0).toUpperCase()}
@@ -278,15 +262,15 @@ function TokenItem({
         </>
       )}
 
-      {/* Lock indicator for non-movable tokens only */}
-      {!isMovable && isHovered && (
-        <Group y={lockY}>
+      {/* Lock indicator - centered on token, only shown when clicking on a locked token */}
+      {isLockedMouseDown && (
+        <Group>
           <Rect
-            width={50}
-            height={18}
-            offsetX={25}
-            offsetY={9}
-            fill="rgba(0, 0, 0, 0.7)"
+            width={42}
+            height={15}
+            offsetX={21}
+            offsetY={7.5}
+            fill="rgba(0, 0, 0, 0.8)"
             cornerRadius={3}
           />
           <Text
@@ -294,33 +278,61 @@ function TokenItem({
             fontSize={10}
             fill="#f87171"
             align="center"
-            width={50}
-            offsetX={25}
-            offsetY={5}
+            verticalAlign="middle"
+            width={42}
+            height={15}
+            offsetX={21}
+            offsetY={7.5}
           />
         </Group>
       )}
 
-      {/* Token name - flush under the token */}
+      {/* Token name and condition - flush under the token */}
       {isHovered && !isDragging && (
         <Group y={nameY}>
           <Rect
-            width={token.name.length * 7 + 12}
-            height={18}
-            offsetX={(token.name.length * 7 + 12) / 2}
-            offsetY={9}
+            width={token.name.length * 5.5 + 4}
+            height={13}
+            offsetX={(token.name.length * 5.5 + 4) / 2}
+            offsetY={6.5}
             fill="rgba(0, 0, 0, 0.75)"
-            cornerRadius={3}
+            cornerRadius={2}
           />
           <Text
             text={token.name}
-            fontSize={11}
+            fontSize={10}
             fill="#ffffff"
             align="center"
-            width={token.name.length * 7 + 12}
-            offsetX={(token.name.length * 7 + 12) / 2}
-            offsetY={5}
+            verticalAlign="middle"
+            width={token.name.length * 5.5 + 4}
+            height={13}
+            offsetX={(token.name.length * 5.5 + 4) / 2}
+            offsetY={6.5}
           />
+          {/* Condition indicator - show if not Healthy */}
+          {sheet?.condition && sheet.condition !== "Healthy" && (
+            <Group y={14}>
+              <Rect
+                width={sheet.condition.length * 5 + 6}
+                height={12}
+                offsetX={(sheet.condition.length * 5 + 6) / 2}
+                offsetY={6}
+                fill="rgba(220, 38, 38, 0.9)"
+                cornerRadius={2}
+              />
+              <Text
+                text={sheet.condition}
+                fontSize={9}
+                fill="#ffffff"
+                align="center"
+                verticalAlign="middle"
+                width={sheet.condition.length * 5 + 6}
+                height={12}
+                offsetX={(sheet.condition.length * 5 + 6) / 2}
+                offsetY={6}
+              />
+            </Group>
+          )}
         </Group>
       )}
 
@@ -348,43 +360,50 @@ function TokenItem({
           {/* HP text */}
           <Text
             text={`${sheet!.hpCurrent}/${sheet!.hpMax}`}
-            fontSize={7}
+            fontSize={8}
             fill="#ffffff"
             align="center"
+            verticalAlign="middle"
             width={hpBarWidth}
+            height={hpBarHeight}
             offsetX={hpBarWidth / 2}
-            offsetY={3}
+            offsetY={hpBarHeight / 2}
           />
         </Group>
       )}
 
-      {/* AC Shield - shown when selected or hovered and has character sheet */}
+      {/* AC Shield - cute shield shape above HP bar */}
       {showStats && (
         <Group x={0} y={acShieldY}>
-          {/* Shield shape: square top + inverted triangle bottom */}
+          {/* Shield shape with curved top and pointed bottom */}
           <Line
             points={[
-              -acShieldSize / 2, -acShieldTotalHeight / 2,                    // Top left
-              acShieldSize / 2, -acShieldTotalHeight / 2,                     // Top right
-              acShieldSize / 2, -acShieldTotalHeight / 2 + acShieldSize,      // Bottom right of square
-              0, acShieldTotalHeight / 2,                                      // Bottom point (triangle tip)
-              -acShieldSize / 2, -acShieldTotalHeight / 2 + acShieldSize,     // Bottom left of square
+              -acShieldWidth / 2, -acShieldHeight / 2 + 2,  // Top left (slightly down for curve effect)
+              -acShieldWidth / 2 + 2, -acShieldHeight / 2,  // Curve to top
+              acShieldWidth / 2 - 2, -acShieldHeight / 2,   // Top right curve start
+              acShieldWidth / 2, -acShieldHeight / 2 + 2,   // Top right
+              acShieldWidth / 2, acShieldHeight / 4,        // Right side
+              0, acShieldHeight / 2,                         // Bottom point
+              -acShieldWidth / 2, acShieldHeight / 4,       // Left side
             ]}
             closed
             fill={token.color}
             stroke={acStrokeColor}
-            strokeWidth={1.5}
+            strokeWidth={1}
+            tension={0.3}
           />
           {/* AC number */}
           <Text
             text={String(sheet!.ac)}
-            fontSize={10}
+            fontSize={8}
             fontStyle="bold"
             fill={acTextColor}
             align="center"
-            width={acShieldSize}
-            offsetX={acShieldSize / 2}
-            offsetY={acShieldTotalHeight / 2 - 3}
+            verticalAlign="middle"
+            width={acShieldWidth}
+            height={acShieldHeight}
+            offsetX={acShieldWidth / 2}
+            offsetY={acShieldHeight / 2 + 1}
           />
         </Group>
       )}
@@ -473,6 +492,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
+  const [lockedMouseDownId, setLockedMouseDownId] = useState<string | null>(null);
   const draggingTokenRef = useRef<Token | null>(null);
   const isDraggingRef = useRef(false);
   const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -593,8 +613,14 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
   const handleMouseDown = useCallback(
     (token: Token, e: any) => {
       if (selectedTool !== "select") return;
+
       // Check if user can move this token
-      if (!canMoveToken(token.ownerId)) return;
+      if (!canMoveToken(token.ownerId)) {
+        // Show locked indicator while mouse is down
+        setLockedMouseDownId(token.id);
+        e.cancelBubble = true;
+        return;
+      }
 
       e.cancelBubble = true;
 
@@ -624,6 +650,21 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
     },
     [selectedTool, cellSize, setSelectedElements, canMoveToken]
   );
+
+  // Clear locked mouse down state on mouse up
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setLockedMouseDownId(null);
+    };
+
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("touchend", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchend", handleMouseUp);
+    };
+  }, []);
 
   const isPanning = useEditorStore((s) => s.isPanning);
 
@@ -779,6 +820,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
             isMovable={isMovable}
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
+            isLockedMouseDown={lockedMouseDownId === token.id}
             actions={actions}
             onMouseDown={(e) => handleMouseDown(token, e)}
             onHoverStart={() => handleHoverStart(token.id)}
@@ -791,6 +833,62 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
           />
         );
       })}
+    </>
+  );
+}
+
+// Selection overlay - renders above fog layer so selection is always visible
+interface SelectedTokenOverlayProps {
+  tokens: Token[];
+  cellSize: number;
+}
+
+export function SelectedTokenOverlay({ tokens, cellSize }: SelectedTokenOverlayProps) {
+  const selectedIds = useEditorStore((s) => s.selectedElementIds);
+
+  return (
+    <>
+      {tokens
+        .filter((token) => selectedIds.includes(token.id))
+        .map((token) => {
+          const x = token.position.col * cellSize + (token.size * cellSize) / 2;
+          const y = token.position.row * cellSize + (token.size * cellSize) / 2;
+          const tokenSizePx = token.size * cellSize;
+
+          // For tokens with images, render the dotted rect border
+          if (token.imageUrl) {
+            return (
+              <Rect
+                key={`selection-overlay-${token.id}`}
+                x={x}
+                y={y}
+                width={tokenSizePx + 2}
+                height={tokenSizePx + 2}
+                offsetX={(tokenSizePx + 2) / 2}
+                offsetY={(tokenSizePx + 2) / 2}
+                stroke={token.color}
+                strokeWidth={2}
+                dash={[4, 4]}
+                listening={false}
+              />
+            );
+          }
+
+          // For circle tokens, render the dotted circle border
+          const radius = tokenSizePx / 2;
+          return (
+            <Circle
+              key={`selection-overlay-${token.id}`}
+              x={x}
+              y={y}
+              radius={radius + 1}
+              stroke={token.color}
+              strokeWidth={2}
+              dash={[4, 4]}
+              listening={false}
+            />
+          );
+        })}
     </>
   );
 }

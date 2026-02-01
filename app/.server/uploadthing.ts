@@ -81,9 +81,9 @@ export const uploadRouter = {
         throw new UploadThingError("Map ID is required");
       }
 
-      // Check if user has edit permission for this map
+      // Check if user has edit permission for this map (only DM can change background)
       const access = await getMapAccess(mapId, session.user.id);
-      const canEditMap = access.isOwner || access.customPermissions?.canEditMap;
+      const canEditMap = access.isDungeonMaster || access.customPermissions?.canEditMap;
 
       if (!canEditMap) {
         throw new UploadThingError("You don't have permission to edit this map");

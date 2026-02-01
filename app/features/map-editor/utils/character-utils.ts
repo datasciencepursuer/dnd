@@ -129,6 +129,9 @@ export function formatSkillName(skill: keyof SkillProficiencies): string {
 
 export function createDefaultCharacterSheet(): CharacterSheet {
   return {
+    // Version tracking
+    lastModified: Date.now(),
+
     // Basic info
     background: null,
     characterClass: null,

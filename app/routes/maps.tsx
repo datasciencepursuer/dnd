@@ -148,7 +148,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         groupId: m.groupId,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
-        permission: "owner" as const,
+        permission: "dm" as const, // Map creator is the Dungeon Master
         groupName: m.groupId ? groupNameMap[m.groupId] : null,
         gridWidth,
         gridHeight,
@@ -163,7 +163,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         groupId: m.groupId,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
-        permission: "view" as const,
+        permission: "player" as const, // Group members are Players
         groupName: m.groupId ? groupNameMap[m.groupId] : null,
         gridWidth,
         gridHeight,
@@ -408,17 +408,16 @@ export default function Maps() {
           <h3 className="font-semibold text-gray-900 dark:text-white truncate">
             {map.name}
           </h3>
-          {map.permission !== "owner" && (
-            <span
-              className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
-                map.permission === "edit"
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
-                  : "bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
-              }`}
-            >
-              {map.permission}
-            </span>
-          )}
+          {/* Show role badge */}
+          <span
+            className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
+              map.permission === "dm"
+                ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
+                : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+            }`}
+          >
+            {map.permission === "dm" ? "DM" : "Player"}
+          </span>
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-3">
           <span>{map.gridWidth}x{map.gridHeight}</span>

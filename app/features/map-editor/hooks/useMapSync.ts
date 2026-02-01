@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useMapStore } from "../store/map-store";
-import type { GridPosition } from "../types";
+import type { GridPosition, Token } from "../types";
 
 /**
  * Hook for syncing map changes to the server.
@@ -116,10 +116,10 @@ export function useMapSync(mapId: string | undefined) {
    * Uses PUT endpoint with full token data to create/upsert the token.
    */
   const syncTokenCreate = useCallback(
-    async (token: Record<string, unknown>) => {
+    async (token: Token) => {
       if (!mapId) return;
 
-      const tokenId = token.id as string;
+      const tokenId = token.id;
       if (!tokenId) return;
 
       try {

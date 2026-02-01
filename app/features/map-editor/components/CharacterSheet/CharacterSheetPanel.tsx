@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, ClassFeature, FeatureCategory, Weapon, Coins, Condition, Spell, Equipment, RechargeCondition } from "../../types";
+import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
+import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
 
@@ -260,6 +261,7 @@ export function CharacterSheetPanel({
   const draftRecoveredRef = useRef(false);
 
   // Fetch linked character's sheet on mount (for token-based linked characters)
+  // Linked tokens have characterSheet = null, so we always fetch from library
   useEffect(() => {
     if (isStandalone || !token?.characterId) {
       return;
@@ -273,7 +275,15 @@ export function CharacterSheetPanel({
       })
       .then((data) => {
         // API returns { character: { characterSheet, ... } }
-        setLinkedCharacterSheet(data.character?.characterSheet || null);
+        // Library is the single source of truth for linked characters
+        const fetchedSheet = data.character?.characterSheet || null;
+        setLinkedCharacterSheet(fetchedSheet);
+
+        // Also update token's cached copy for display (HP bar, AC icon on hover)
+        // This ensures hover display works even before any edits are made
+        if (fetchedSheet && onUpdate) {
+          onUpdate(fetchedSheet);
+        }
       })
       .catch((err) => {
         console.error("Failed to fetch linked character:", err);
@@ -282,7 +292,7 @@ export function CharacterSheetPanel({
       .finally(() => {
         setIsLoadingLinked(false);
       });
-  }, [isStandalone, token?.characterId]);
+  }, [isStandalone, token?.characterId, onUpdate]);
 
   // Sync to server function (for API-saved characters)
   const syncToServer = useCallback(async (sheetToSync: CharacterSheet) => {
@@ -361,17 +371,23 @@ export function CharacterSheetPanel({
     (updates: Partial<CharacterSheet>) => {
       if (!sheet) return;
 
-      const newSheet = { ...sheet, ...updates };
+      // Always update lastModified for version tracking
+      const newSheet = { ...sheet, ...updates, lastModified: Date.now() };
       if (updates.abilities) {
         newSheet.abilities = { ...sheet.abilities, ...updates.abilities };
       }
 
       if (isLinked && characterId) {
-        // API-saved characters: localStorage + debounced sync
+        // API-saved characters: localStorage + debounced sync to library
         setLinkedCharacterSheet(newSheet);
         saveDraftToStorage(characterId, newSheet);
         setHasPendingChanges(true);
         setSyncError(null);
+
+        // Also update token's cached copy for display (HP bar, AC icon)
+        if (onUpdate) {
+          onUpdate({ ...updates, lastModified: Date.now() });
+        }
 
         if (syncTimeoutRef.current) {
           clearTimeout(syncTimeoutRef.current);
@@ -381,8 +397,8 @@ export function CharacterSheetPanel({
           syncToServer(newSheet);
         }, 5000); // 5 second debounce
       } else if (onUpdate) {
-        // Token inline sheet: use callback
-        onUpdate(updates);
+        // Token inline sheet: use callback (include lastModified for version tracking)
+        onUpdate({ ...updates, lastModified: Date.now() });
       }
     },
     [sheet, isLinked, characterId, syncToServer, onUpdate]
@@ -863,7 +879,12 @@ export function CharacterSheetPanel({
                           <span className="text-gray-400">+</span>
                           <NumericInput value={weapon.bonus} onChange={(val) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, bonus: val }; handleUpdate({ weapons: u }); }} min={-10} max={30} defaultValue={0} className="w-8 px-0.5 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <ExpandingTextInput value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} placeholder="1d6" baseClassName="w-12 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <ExpandingTextInput value={weapon.damageType} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: v }; handleUpdate({ weapons: u }); }} placeholder="Type" baseClassName="w-20 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <select value={weapon.damageType} onChange={(e) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: e.target.value as DamageType }; handleUpdate({ weapons: u }); }} className="w-24 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
+                            <option value="">Type</option>
+                            {DAMAGE_TYPES.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
                           <ExpandingTextInput value={weapon.notes} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, notes: v }; handleUpdate({ weapons: u }); }} placeholder="Notes" baseClassName="flex-1 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <button onClick={() => { const u = (sheet.weapons || []).filter((_, i) => i !== index); handleUpdate({ weapons: u }); }} className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer" title="Remove">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">

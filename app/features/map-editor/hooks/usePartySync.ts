@@ -51,6 +51,7 @@ interface FogEraseMessage {
   col: number;
   row: number;
   userId: string;
+  isDM: boolean;
 }
 
 interface FogPaintRangeMessage {
@@ -70,6 +71,7 @@ interface FogEraseRangeMessage {
   endCol: number;
   endRow: number;
   userId: string;
+  isDM: boolean;
 }
 
 interface PresenceMessage {
@@ -88,6 +90,51 @@ interface PingMessage {
   userId: string;
 }
 
+interface DrawingAddMessage {
+  type: "drawing-add";
+  path: {
+    id: string;
+    points: number[];
+    color: string;
+    width: number;
+  };
+  userId: string;
+}
+
+interface DrawingRemoveMessage {
+  type: "drawing-remove";
+  pathId: string;
+  userId: string;
+}
+
+interface DmTransferMessage {
+  type: "dm-transfer";
+  newDmId: string;
+  userId: string;
+}
+
+interface CombatRequestMessage {
+  type: "combat-request";
+  requesterId: string;
+  requesterName: string;
+}
+
+interface CombatResponseMessage {
+  type: "combat-response";
+  accepted: boolean;
+  initiativeOrder: Array<{
+    tokenId: string;
+    tokenName: string;
+    tokenColor: string;
+    initiative: number;
+  }> | null;
+}
+
+interface CombatEndMessage {
+  type: "combat-end";
+  userId: string;
+}
+
 type ServerMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
@@ -100,7 +147,13 @@ type ServerMessage =
   | FogEraseRangeMessage
   | PresenceMessage
   | UserLeaveMessage
-  | PingMessage;
+  | PingMessage
+  | DrawingAddMessage
+  | DrawingRemoveMessage
+  | DmTransferMessage
+  | CombatRequestMessage
+  | CombatResponseMessage
+  | CombatEndMessage;
 
 // PartyKit host from environment variable
 // In development: defaults to localhost
@@ -129,12 +182,24 @@ export function usePartySync({
   const eraseFogCell = useMapStore((s) => s.eraseFogCell);
   const paintFogInRange = useMapStore((s) => s.paintFogInRange);
   const eraseFogInRange = useMapStore((s) => s.eraseFogInRange);
+  const addFreehandPath = useMapStore((s) => s.addFreehandPath);
+  const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
   const setUsers = usePresenceStore((s) => s.setUsers);
   const setConnected = usePresenceStore((s) => s.setConnected);
   const setError = usePresenceStore((s) => s.setError);
 
   // Active pings state - pings expire after 3 seconds
   const [activePings, setActivePings] = useState<Ping[]>([]);
+
+  // Combat state
+  const [combatRequest, setCombatRequest] = useState<{ requesterId: string; requesterName: string } | null>(null);
+  const [initiativeOrder, setInitiativeOrder] = useState<Array<{
+    tokenId: string;
+    tokenName: string;
+    tokenColor: string;
+    initiative: number;
+  }> | null>(null);
+  const [isInCombat, setIsInCombat] = useState(false);
 
   // Only create query params if we have valid user data
   const queryParams = userId
@@ -204,7 +269,8 @@ export function usePartySync({
 
           case "fog-erase":
             if (message.userId !== userId) {
-              eraseFogCell(message.col, message.row);
+              // Use the sender's isDM flag to determine erase permissions
+              eraseFogCell(message.col, message.row, message.userId, message.isDM);
             }
             break;
 
@@ -216,7 +282,8 @@ export function usePartySync({
 
           case "fog-erase-range":
             if (message.userId !== userId) {
-              eraseFogInRange(message.startCol, message.startRow, message.endCol, message.endRow);
+              // Use the sender's isDM flag to determine erase permissions
+              eraseFogInRange(message.startCol, message.startRow, message.endCol, message.endRow, message.userId, message.isDM);
             }
             break;
 
@@ -240,6 +307,46 @@ export function usePartySync({
             setTimeout(() => {
               setActivePings((prev) => prev.filter((p) => p.id !== message.ping.id));
             }, 3000);
+            break;
+
+          case "drawing-add":
+            if (message.userId !== userId) {
+              addFreehandPath(message.path);
+            }
+            break;
+
+          case "drawing-remove":
+            if (message.userId !== userId) {
+              removeFreehandPath(message.pathId);
+            }
+            break;
+
+          case "dm-transfer":
+            // Reload the page to refresh permissions for all clients
+            window.location.reload();
+            break;
+
+          case "combat-request":
+            // DM receives combat request from player
+            setCombatRequest({
+              requesterId: message.requesterId,
+              requesterName: message.requesterName,
+            });
+            break;
+
+          case "combat-response":
+            // All clients receive combat response
+            if (message.accepted && message.initiativeOrder) {
+              setInitiativeOrder(message.initiativeOrder);
+              setIsInCombat(true);
+            }
+            setCombatRequest(null);
+            break;
+
+          case "combat-end":
+            // All clients receive combat end
+            setInitiativeOrder(null);
+            setIsInCombat(false);
             break;
         }
       } catch (error) {
@@ -346,13 +453,14 @@ export function usePartySync({
 
   // Broadcast fog erase to other clients
   const broadcastFogErase = useCallback(
-    (col: number, row: number) => {
+    (col: number, row: number, isDM: boolean) => {
       if (!isSocketReady() || !userId) return;
       socket!.send(JSON.stringify({
         type: "fog-erase",
         col,
         row,
         userId,
+        isDM,
       }));
     },
     [isSocketReady, socket, userId]
@@ -377,7 +485,7 @@ export function usePartySync({
 
   // Broadcast fog erase range to other clients
   const broadcastFogEraseRange = useCallback(
-    (startCol: number, startRow: number, endCol: number, endRow: number) => {
+    (startCol: number, startRow: number, endCol: number, endRow: number, isDM: boolean) => {
       if (!isSocketReady() || !userId) return;
       socket!.send(JSON.stringify({
         type: "fog-erase-range",
@@ -386,6 +494,7 @@ export function usePartySync({
         endCol,
         endRow,
         userId,
+        isDM,
       }));
     },
     [isSocketReady, socket, userId]
@@ -411,6 +520,103 @@ export function usePartySync({
     [isSocketReady, socket, userId]
   );
 
+  // Broadcast drawing add to other clients
+  const broadcastDrawingAdd = useCallback(
+    (path: { id: string; points: number[]; color: string; width: number }) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "drawing-add",
+        path,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast drawing remove to other clients
+  const broadcastDrawingRemove = useCallback(
+    (pathId: string) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "drawing-remove",
+        pathId,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast DM transfer to all clients (triggers page reload)
+  const broadcastDmTransfer = useCallback(
+    (newDmId: string) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "dm-transfer",
+        newDmId,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast combat request (player -> DM)
+  const broadcastCombatRequest = useCallback(
+    () => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "combat-request",
+        requesterId: userId,
+        requesterName: userName || "Unknown",
+      }));
+    },
+    [isSocketReady, socket, userId, userName]
+  );
+
+  // Broadcast combat response (DM -> all clients)
+  const broadcastCombatResponse = useCallback(
+    (accepted: boolean, initiativeOrder: Array<{
+      tokenId: string;
+      tokenName: string;
+      tokenColor: string;
+      initiative: number;
+    }> | null) => {
+      if (!isSocketReady() || !userId) return;
+      const message = {
+        type: "combat-response",
+        accepted,
+        initiativeOrder,
+      };
+      socket!.send(JSON.stringify(message));
+      // Also update local state
+      if (accepted && initiativeOrder) {
+        setInitiativeOrder(initiativeOrder);
+        setIsInCombat(true);
+      }
+      setCombatRequest(null);
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast combat end (DM -> all clients)
+  const broadcastCombatEnd = useCallback(
+    () => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "combat-end",
+        userId,
+      }));
+      // Also update local state
+      setInitiativeOrder(null);
+      setIsInCombat(false);
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Clear combat request (for DM to dismiss without responding)
+  const clearCombatRequest = useCallback(() => {
+    setCombatRequest(null);
+  }, []);
+
   return {
     broadcastTokenMove,
     broadcastTokenUpdate,
@@ -422,7 +628,17 @@ export function usePartySync({
     broadcastFogPaintRange,
     broadcastFogEraseRange,
     broadcastPing,
+    broadcastDrawingAdd,
+    broadcastDrawingRemove,
+    broadcastDmTransfer,
+    broadcastCombatRequest,
+    broadcastCombatResponse,
+    broadcastCombatEnd,
+    clearCombatRequest,
     activePings,
+    combatRequest,
+    initiativeOrder,
+    isInCombat,
     isConnected: socket?.readyState === WebSocket.OPEN,
   };
 }

@@ -146,60 +146,45 @@ export const maps = pgTable("maps", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-// D&D role enum - simplified for tabletop gaming
-export const dndRoleEnum = pgEnum("dnd_role", ["dm", "player", "observer"]);
+// Map role enum - dm (dungeon master) or player
+export type MapRole = "dm" | "player";
 
-// D&D permissions - optimized for 7 players + 1 DM use case
+// Simplified permissions for map roles
 export interface PlayerPermissions {
-  canCreateTokens: boolean;
-  canEditOwnTokens: boolean;
-  canEditAllTokens: boolean;
-  canDeleteOwnTokens: boolean;
-  canDeleteAllTokens: boolean;
-  canMoveOwnTokens: boolean;
-  canMoveAllTokens: boolean;
-  canViewMap: boolean;
-  canEditMap: boolean;
-  canManagePlayers: boolean;
+  canCreateTokens: boolean;      // All roles can create tokens
+  canEditOwnTokens: boolean;     // Players can only edit their own tokens
+  canEditAllTokens: boolean;     // Only DM can edit any token
+  canDeleteOwnTokens: boolean;   // All roles can delete tokens they own
+  canDeleteAllTokens: boolean;   // Only DM can delete any token
+  canMoveOwnTokens: boolean;     // Players can only move their own tokens
+  canMoveAllTokens: boolean;     // Only DM can move any token
+  canEditMap: boolean;           // Only DM can edit map settings
+  canChangeTokenOwner: boolean;  // Only DM can reassign token ownership
 }
 
 // Default permissions for each role (matches frontend types.ts exactly)
-export const DEFAULT_PERMISSIONS: Record<"view" | "edit" | "owner", PlayerPermissions> = {
-  view: {
-    canCreateTokens: false,
-    canEditOwnTokens: false,
-    canEditAllTokens: false,
-    canDeleteOwnTokens: false,
-    canDeleteAllTokens: false,
-    canMoveOwnTokens: true, // View users can move their own tokens
-    canMoveAllTokens: false,
-    canViewMap: true,
-    canEditMap: false,
-    canManagePlayers: false,
+export const DEFAULT_PERMISSIONS: Record<MapRole, PlayerPermissions> = {
+  player: {
+    canCreateTokens: true,       // Players can create tokens (auto-owned)
+    canEditOwnTokens: true,      // Players can edit their own tokens
+    canEditAllTokens: false,     // Players cannot edit others' tokens
+    canDeleteOwnTokens: true,    // Players can delete their own tokens
+    canDeleteAllTokens: false,   // Players cannot delete others' tokens
+    canMoveOwnTokens: true,      // Players can move their own tokens
+    canMoveAllTokens: false,     // Players cannot move others' tokens
+    canEditMap: false,           // Players cannot edit map settings
+    canChangeTokenOwner: false,  // Players cannot reassign ownership
   },
-  edit: {
-    canCreateTokens: true, // Admins can create tokens
-    canEditOwnTokens: true,
-    canEditAllTokens: true, // Admins can edit all tokens
-    canDeleteOwnTokens: true,
-    canDeleteAllTokens: true, // Admins can delete all tokens
-    canMoveOwnTokens: true,
-    canMoveAllTokens: true, // Admins can move all tokens
-    canViewMap: true,
-    canEditMap: true, // Admins can edit map
-    canManagePlayers: false, // Only owners can manage players
-  },
-  owner: {
-    canCreateTokens: true,
-    canEditOwnTokens: true,
-    canEditAllTokens: true,
-    canDeleteOwnTokens: true,
-    canDeleteAllTokens: true,
-    canMoveOwnTokens: true,
-    canMoveAllTokens: true,
-    canViewMap: true,
-    canEditMap: true,
-    canManagePlayers: true,
+  dm: {
+    canCreateTokens: true,       // DM can create tokens
+    canEditOwnTokens: true,      // DM can edit own tokens
+    canEditAllTokens: true,      // DM can edit any token
+    canDeleteOwnTokens: true,    // DM can delete own tokens
+    canDeleteAllTokens: true,    // DM can delete any token
+    canMoveOwnTokens: true,      // DM can move own tokens
+    canMoveAllTokens: true,      // DM can move any token
+    canEditMap: true,            // DM can edit map settings
+    canChangeTokenOwner: true,   // DM can reassign token ownership
   },
 };
 
@@ -343,7 +328,7 @@ export type NewGroupInvitation = typeof groupInvitations.$inferInsert;
 export type { GroupRole } from "~/types/group";
 export type Map = typeof maps.$inferSelect;
 export type NewMap = typeof maps.$inferInsert;
-export type PermissionLevel = "view" | "edit" | "owner";
+export type PermissionLevel = "dm" | "player";
 export type Upload = typeof uploads.$inferSelect;
 export type NewUpload = typeof uploads.$inferInsert;
 export type UploadType = "token" | "map";

@@ -41,9 +41,9 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   // Check if user can move this token
-  const canMove =
-    permissions.canMoveAllTokens ||
-    (permissions.canMoveOwnTokens && token.ownerId === session.user.id);
+  // DM can move all tokens, players can only move their own
+  const isTokenOwner = token.ownerId === session.user.id || (token.ownerId === null && access.isDungeonMaster);
+  const canMove = permissions.canMoveAllTokens || (permissions.canMoveOwnTokens && isTokenOwner);
 
   if (!canMove) {
     return new Response("You don't have permission to move this token", { status: 403 });

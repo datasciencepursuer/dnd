@@ -77,13 +77,10 @@ export default function PlaygroundWithMap() {
     }
   }, [data, loadMapStore]);
 
-  const isReadOnly = data.permission === "view";
-
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <MapEditor
         mapId={mapId}
-        readOnly={isReadOnly}
         permission={data.permission}
         customPermissions={data.customPermissions}
         userId={data.userId}

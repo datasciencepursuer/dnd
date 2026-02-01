@@ -25,6 +25,7 @@ export function GridLayer({ grid }: GridLayerProps) {
         stroke={gridColor}
         strokeWidth={1}
         opacity={gridOpacity}
+        listening={false}
       />
     );
   }
@@ -39,6 +40,7 @@ export function GridLayer({ grid }: GridLayerProps) {
         stroke={gridColor}
         strokeWidth={1}
         opacity={gridOpacity}
+        listening={false}
       />
     );
   }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMapStore } from "../store";
+import { useMapStore, useEditorStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
 import { useUploadThing } from "~/utils/uploadthing";
@@ -25,7 +25,6 @@ interface TokenEditDialogProps {
   token: Token;
   onClose: () => void;
   groupMembers?: GroupMemberInfo[];
-  canAssignOwner?: boolean;
   onSave?: () => void;
   onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
   mapId?: string;
@@ -36,13 +35,20 @@ export function TokenEditDialog({
   token,
   onClose,
   groupMembers = [],
-  canAssignOwner = false,
   onSave,
   onTokenUpdate,
   mapId,
   groupId,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
+
+  // Permission checks from editor store
+  const canChangeTokenOwner = useEditorStore((s) => s.canChangeTokenOwner);
+  const canLinkOrSaveToken = useEditorStore((s) => s.canLinkOrSaveToken);
+
+  // Check if current user can link/save this specific token
+  const canLinkOrSave = canLinkOrSaveToken(token.ownerId);
+  const canAssignOwner = canChangeTokenOwner();
 
   const [name, setName] = useState(token.name);
   const [color, setColor] = useState(token.color);
@@ -61,6 +67,17 @@ export function TokenEditDialog({
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [saveToLibraryError, setSaveToLibraryError] = useState<string | null>(null);
+
+  // Import conflict state - when token has a sheet and we're importing a character
+  const [importConflict, setImportConflict] = useState<{
+    character: LibraryCharacter;
+    tokenHasSheet: boolean;
+    libraryHasSheet: boolean;
+  } | null>(null);
+
+  // Pending character sheet to save (from imported character or conflict resolution)
+  // undefined = no import happened, null = imported character has no sheet, CharacterSheet = imported sheet
+  const [pendingCharacterSheet, setPendingCharacterSheet] = useState<CharacterSheet | null | undefined>(undefined);
 
   // Fetch available characters from library
   useEffect(() => {
@@ -120,10 +137,10 @@ export function TokenEditDialog({
       characterId,
     };
 
-    // Clear characterSheet when linking to avoid redundant data storage
-    // The sheet is stored on the library character, not the token
-    if (characterId) {
-      updates.characterSheet = null;
+    // If we imported a character, use the pending sheet for display (HP bar, AC icon)
+    // The library is the source of truth for editing, but token keeps cached copy for rendering
+    if (pendingCharacterSheet !== undefined) {
+      updates.characterSheet = pendingCharacterSheet;
     }
 
     // Update locally first for responsive UI
@@ -136,20 +153,70 @@ export function TokenEditDialog({
     onClose();
   };
 
-  // Link to an existing character from the library
-  const handleLinkCharacter = (character: LibraryCharacter) => {
+  // Import an existing character from the library
+  const handleImportCharacter = (character: LibraryCharacter) => {
+    const tokenHasSheet = !!token.characterSheet;
+    const libraryHasSheet = !!character.characterSheet;
+
+    // If both have sheets, show conflict dialog
+    if (tokenHasSheet && libraryHasSheet) {
+      setImportConflict({ character, tokenHasSheet, libraryHasSheet });
+      return;
+    }
+
+    // If only token has sheet, sync it to library then import
+    if (tokenHasSheet && !libraryHasSheet) {
+      // Sync token's sheet to library character
+      fetch(`/api/characters/${character.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          characterSheet: { ...token.characterSheet, lastModified: Date.now() }
+        }),
+      }).catch(console.error);
+    }
+
+    // Complete the import
+    completeImport(character);
+  };
+
+  // Complete the import process (used after conflict resolution)
+  const completeImport = (character: LibraryCharacter, useSheet?: CharacterSheet | null) => {
     setCharacterId(character.id);
-    // Optionally sync appearance from character
+    // Sync appearance from character
     setName(character.name);
     setImageUrl(character.imageUrl);
     setColor(character.color);
     setSize(character.size);
     setLayer(character.layer as TokenLayer);
+    // Set character sheet for display (HP bar, AC icon)
+    setPendingCharacterSheet(useSheet !== undefined ? useSheet : character.characterSheet);
     setShowCharacterPicker(false);
+    setImportConflict(null);
   };
 
-  // Unlink from character
-  const handleUnlinkCharacter = () => {
+  // Resolve import conflict - use token's sheet
+  const handleUseTokenSheet = async () => {
+    if (!importConflict) return;
+    const sheetToUse = token.characterSheet ? { ...token.characterSheet, lastModified: Date.now() } : null;
+    // Sync token's sheet to library
+    await fetch(`/api/characters/${importConflict.character.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ characterSheet: sheetToUse }),
+    });
+    completeImport(importConflict.character, sheetToUse);
+  };
+
+  // Resolve import conflict - use library's sheet
+  const handleUseLibrarySheet = () => {
+    if (!importConflict) return;
+    // Use library's sheet for display
+    completeImport(importConflict.character, importConflict.character.characterSheet);
+  };
+
+  // Remove imported character
+  const handleRemoveImport = () => {
     setCharacterId(null);
   };
 
@@ -175,7 +242,7 @@ export function TokenEditDialog({
 
       if (response.ok) {
         const data = await response.json();
-        // Link this token to the new character
+        // Import this token from the new library character
         setCharacterId(data.character.id);
         // Refresh available characters
         setAvailableCharacters((prev) => [data.character, ...prev]);
@@ -191,7 +258,7 @@ export function TokenEditDialog({
     }
   };
 
-  const linkedCharacter = characterId
+  const importedCharacter = characterId
     ? availableCharacters.find((c) => c.id === characterId)
     : null;
 
@@ -227,6 +294,40 @@ export function TokenEditDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {/* Import Conflict Dialog */}
+      {importConflict && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-60">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              Character Sheet Conflict
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Both this token and <strong>{importConflict.character.name}</strong> have character sheets. Which one should be kept?
+            </p>
+            <div className="space-y-2">
+              <button
+                onClick={handleUseTokenSheet}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer text-sm"
+              >
+                Use Token's Sheet (sync to library)
+              </button>
+              <button
+                onClick={handleUseLibrarySheet}
+                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer text-sm"
+              >
+                Use Library's Sheet (discard token's)
+              </button>
+              <button
+                onClick={() => setImportConflict(null)}
+                className="w-full px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
         onKeyDown={handleKeyDown}
@@ -439,118 +540,120 @@ export function TokenEditDialog({
             </div>
           )}
 
-          {/* Character Library Section */}
-          <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Character Library
-            </label>
+          {/* Character Library Section - only shown if user can link/save this token */}
+          {canLinkOrSave && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Character Library
+              </label>
 
-            {linkedCharacter ? (
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded border border-indigo-200 dark:border-indigo-800">
-                <div className="flex items-center gap-3">
-                  {linkedCharacter.imageUrl ? (
-                    <img
-                      src={linkedCharacter.imageUrl}
-                      alt={linkedCharacter.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                      style={{ backgroundColor: linkedCharacter.color }}
+              {importedCharacter ? (
+                <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded border border-indigo-200 dark:border-indigo-800">
+                  <div className="flex items-center gap-3">
+                    {importedCharacter.imageUrl ? (
+                      <img
+                        src={importedCharacter.imageUrl}
+                        alt={importedCharacter.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                        style={{ backgroundColor: importedCharacter.color }}
+                      >
+                        {importedCharacter.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {importedCharacter.name}
+                      </p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                        Imported from library
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveImport}
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline cursor-pointer"
                     >
-                      {linkedCharacter.name.charAt(0).toUpperCase()}
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Import a character to sync data across maps, or save this token to the library.
+                  </p>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCharacterPicker(!showCharacterPicker)}
+                      className="flex-1 px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 cursor-pointer"
+                    >
+                      {showCharacterPicker ? "Hide Characters" : "Import Character"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveToLibrary}
+                      disabled={isSavingToLibrary}
+                      className="flex-1 px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSavingToLibrary ? "Saving..." : "Save to Library"}
+                    </button>
+                  </div>
+
+                  {saveToLibraryError && (
+                    <p className="text-xs text-red-600 dark:text-red-400">{saveToLibraryError}</p>
+                  )}
+
+                  {showCharacterPicker && (
+                    <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                      {availableCharacters.length === 0 ? (
+                        <p className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          No characters in library yet
+                        </p>
+                      ) : (
+                        availableCharacters.map((char) => (
+                          <button
+                            key={char.id}
+                            type="button"
+                            onClick={() => handleImportCharacter(char)}
+                            className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-left"
+                          >
+                            {char.imageUrl ? (
+                              <img
+                                src={char.imageUrl}
+                                alt={char.name}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                                style={{ backgroundColor: char.color }}
+                              >
+                                {char.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
+                              {char.name}
+                            </span>
+                            {char.characterSheet && (
+                              <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                Sheet
+                              </span>
+                            )}
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      {linkedCharacter.name}
-                    </p>
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400">
-                      Linked to library character
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleUnlinkCharacter}
-                    className="text-xs text-red-600 dark:text-red-400 hover:underline cursor-pointer"
-                  >
-                    Unlink
-                  </button>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Link to a shared character to sync data across maps, or save this token to the library.
-                </p>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCharacterPicker(!showCharacterPicker)}
-                    className="flex-1 px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800 cursor-pointer"
-                  >
-                    {showCharacterPicker ? "Hide Characters" : "Link to Character"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveToLibrary}
-                    disabled={isSavingToLibrary}
-                    className="flex-1 px-3 py-1.5 text-sm bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer disabled:opacity-50"
-                  >
-                    {isSavingToLibrary ? "Saving..." : "Save to Library"}
-                  </button>
-                </div>
-
-                {saveToLibraryError && (
-                  <p className="text-xs text-red-600 dark:text-red-400">{saveToLibraryError}</p>
-                )}
-
-                {showCharacterPicker && (
-                  <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
-                    {availableCharacters.length === 0 ? (
-                      <p className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
-                        No characters in library yet
-                      </p>
-                    ) : (
-                      availableCharacters.map((char) => (
-                        <button
-                          key={char.id}
-                          type="button"
-                          onClick={() => handleLinkCharacter(char)}
-                          className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-left"
-                        >
-                          {char.imageUrl ? (
-                            <img
-                              src={char.imageUrl}
-                              alt={char.name}
-                              className="w-8 h-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                              style={{ backgroundColor: char.color }}
-                            >
-                              {char.name.charAt(0).toUpperCase()}
-                            </div>
-                          )}
-                          <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
-                            {char.name}
-                          </span>
-                          {char.characterSheet && (
-                            <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                              Sheet
-                            </span>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">

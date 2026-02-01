@@ -47,6 +47,7 @@ interface FogEraseMessage {
   col: number;
   row: number;
   userId: string;
+  isDM: boolean;
 }
 
 interface FogPaintRangeMessage {
@@ -66,6 +67,7 @@ interface FogEraseRangeMessage {
   endCol: number;
   endRow: number;
   userId: string;
+  isDM: boolean;
 }
 
 interface PingMessage {
@@ -78,6 +80,51 @@ interface PingMessage {
     userId: string;
     timestamp: number;
   };
+  userId: string;
+}
+
+interface DrawingAddMessage {
+  type: "drawing-add";
+  path: {
+    id: string;
+    points: number[];
+    color: string;
+    width: number;
+  };
+  userId: string;
+}
+
+interface DrawingRemoveMessage {
+  type: "drawing-remove";
+  pathId: string;
+  userId: string;
+}
+
+interface DmTransferMessage {
+  type: "dm-transfer";
+  newDmId: string;
+  userId: string;
+}
+
+interface CombatRequestMessage {
+  type: "combat-request";
+  requesterId: string;
+  requesterName: string;
+}
+
+interface CombatResponseMessage {
+  type: "combat-response";
+  accepted: boolean;
+  initiativeOrder: Array<{
+    tokenId: string;
+    tokenName: string;
+    tokenColor: string;
+    initiative: number;
+  }> | null;
+}
+
+interface CombatEndMessage {
+  type: "combat-end";
   userId: string;
 }
 
@@ -102,7 +149,13 @@ type ClientMessage =
   | FogEraseMessage
   | FogPaintRangeMessage
   | FogEraseRangeMessage
-  | PingMessage;
+  | PingMessage
+  | DrawingAddMessage
+  | DrawingRemoveMessage
+  | DmTransferMessage
+  | CombatRequestMessage
+  | CombatResponseMessage
+  | CombatEndMessage;
 
 // Track connected users
 interface ConnectedUser {
