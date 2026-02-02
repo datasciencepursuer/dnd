@@ -79,6 +79,7 @@ export function createNewMap(options: CreateMapOptions | string): DnDMap {
     freehand: [],
     fogOfWar: { ...DEFAULT_FOG },
     rollHistory: [],
+    monsterGroups: [],
     viewport: { ...DEFAULT_VIEWPORT },
   };
 }

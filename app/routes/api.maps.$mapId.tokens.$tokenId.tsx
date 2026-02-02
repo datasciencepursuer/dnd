@@ -105,6 +105,7 @@ export async function action({ request, params }: Route.ActionArgs) {
           ownerId: body.ownerId ?? null,
           characterSheet: body.characterSheet ?? null,
           characterId: body.characterId ?? null,
+          monsterGroupId: body.monsterGroupId ?? null,
           ...body,
         };
 

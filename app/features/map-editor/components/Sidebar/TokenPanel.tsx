@@ -32,6 +32,7 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
   const addToken = useMapStore((s) => s.addToken);
   const removeToken = useMapStore((s) => s.removeToken);
   const reorderTokens = useMapStore((s) => s.reorderTokens);
+  const duplicateToken = useMapStore((s) => s.duplicateToken);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const userId = useEditorStore((s) => s.userId);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
@@ -96,6 +97,7 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
       ownerId: isDungeonMaster() ? null : userId, // DM's tokens have null ownerId, players get their userId
       characterSheet: null,
       characterId: null,
+      monsterGroupId: null,
     };
 
     addToken(token);
@@ -115,6 +117,18 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
 
     // Then sync to server via callback
     onTokenDelete?.(tokenId);
+  };
+
+  const handleDuplicateToken = (e: React.MouseEvent, tokenId: string) => {
+    e.stopPropagation(); // Prevent opening edit dialog
+
+    // Duplicate with same monster group
+    const newToken = duplicateToken(tokenId, { sameGroup: true });
+
+    // Sync the new token to server
+    if (newToken) {
+      onTokenCreate?.(newToken);
+    }
   };
 
   // Mouse-based drag handlers for immediate response
@@ -296,6 +310,16 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
                     <span className="text-xs text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       Edit
                     </span>
+                  )}
+                  {/* Duplicate button - DM only, for monster tokens */}
+                  {isDungeonMaster() && token.layer === "monster" && (
+                    <button
+                      onClick={(e) => handleDuplicateToken(e, token.id)}
+                      className="text-xs font-bold text-gray-400 hover:text-purple-500 dark:text-gray-500 dark:hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer px-1"
+                      title="Add another monster (keeps same group)"
+                    >
+                      +1
+                    </button>
                   )}
                   {canDelete && (
                     <button

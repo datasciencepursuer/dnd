@@ -216,27 +216,91 @@ export function MapEditor({
   );
 
   // Handler for starting combat - rolls initiative for visible, non-fogged tokens
+  // Objects are excluded, monsters in groups share initiative
   const handleStartCombat = useCallback(() => {
     if (!map) return;
 
-    // Get visible tokens that are not under fog
+    // Get visible tokens that are not under fog and not objects
     const eligibleTokens = map.tokens.filter((token) => {
       if (!token.visible) return false;
       if (isTokenUnderFog(token)) return false;
+      // Exclude objects from combat
+      if (token.layer === "object") return false;
       return true;
     });
 
-    // Roll initiative for each token (d20 + initiative modifier)
-    const initiativeRolls = eligibleTokens.map((token) => {
+    // Separate characters and monsters
+    const characters = eligibleTokens.filter((t) => t.layer === "character");
+    const monsters = eligibleTokens.filter((t) => t.layer === "monster");
+
+    // Group monsters by monsterGroupId
+    const monstersByGroup = new Map<string | null, typeof monsters>();
+    monsters.forEach((monster) => {
+      const groupId = monster.monsterGroupId;
+      if (!monstersByGroup.has(groupId)) {
+        monstersByGroup.set(groupId, []);
+      }
+      monstersByGroup.get(groupId)!.push(monster);
+    });
+
+    type InitiativeEntry = {
+      tokenId: string;
+      tokenName: string;
+      tokenColor: string;
+      initiative: number;
+      layer: string;
+      groupId: string | null;
+      groupCount: number;
+      groupTokenIds: string[];
+    };
+
+    const initiativeRolls: InitiativeEntry[] = [];
+
+    // Roll initiative for each character individually
+    characters.forEach((token) => {
       const initMod = token.characterSheet?.initiative ?? 0;
       const roll = Math.floor(Math.random() * 20) + 1;
       const initiative = roll + initMod;
-      return {
+      initiativeRolls.push({
         tokenId: token.id,
         tokenName: token.name,
         tokenColor: token.color,
         initiative,
-      };
+        layer: token.layer,
+        groupId: null,
+        groupCount: 1,
+        groupTokenIds: [token.id],
+      });
+    });
+
+    // Roll initiative for each monster group (shared roll)
+    monstersByGroup.forEach((groupMonsters, groupId) => {
+      if (groupMonsters.length === 0) return;
+
+      // Use first monster's stats for the group roll
+      const firstMonster = groupMonsters[0];
+      const initMod = firstMonster.characterSheet?.initiative ?? 0;
+      const roll = Math.floor(Math.random() * 20) + 1;
+      const initiative = roll + initMod;
+
+      // Get group name if it exists
+      const group = groupId ? map.monsterGroups?.find((g) => g.id === groupId) : null;
+      const displayName = group
+        ? `${group.name} (${groupMonsters.length})`
+        : groupMonsters.length > 1
+          ? `${firstMonster.name} x${groupMonsters.length}`
+          : firstMonster.name;
+
+      initiativeRolls.push({
+        tokenId: firstMonster.id, // Use first monster's ID as representative
+        tokenName: displayName,
+        tokenColor: firstMonster.color,
+        initiative,
+        layer: "monster",
+        groupId,
+        groupCount: groupMonsters.length,
+        groupTokenIds: groupMonsters.map((m) => m.id),
+      });
     });
 
     // Sort by initiative (highest first)

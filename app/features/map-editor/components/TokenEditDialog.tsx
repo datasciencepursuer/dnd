@@ -3,7 +3,7 @@ import { useMapStore, useEditorStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
 import { useUploadThing } from "~/utils/uploadthing";
-import type { Token, TokenLayer, CharacterSheet } from "../types";
+import type { Token, TokenLayer, CharacterSheet, MonsterGroup } from "../types";
 
 interface GroupMemberInfo {
   id: string;
@@ -41,6 +41,10 @@ export function TokenEditDialog({
   groupId,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
+  const map = useMapStore((s) => s.map);
+  const createMonsterGroup = useMapStore((s) => s.createMonsterGroup);
+  const addToMonsterGroup = useMapStore((s) => s.addToMonsterGroup);
+  const removeFromMonsterGroup = useMapStore((s) => s.removeFromMonsterGroup);
 
   // Permission checks from editor store
   const canChangeTokenOwner = useEditorStore((s) => s.canChangeTokenOwner);
@@ -78,6 +82,15 @@ export function TokenEditDialog({
   // Pending character sheet to save (from imported character or conflict resolution)
   // undefined = no import happened, null = imported character has no sheet, CharacterSheet = imported sheet
   const [pendingCharacterSheet, setPendingCharacterSheet] = useState<CharacterSheet | null | undefined>(undefined);
+
+  // Monster group state (for monster layer tokens)
+  const [monsterGroupId, setMonsterGroupId] = useState<string | null>(token.monsterGroupId || null);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const isDM = useEditorStore((s) => s.isDungeonMaster)();
+
+  // Get available monster groups from the map
+  const monsterGroups: MonsterGroup[] = map?.monsterGroups || [];
 
   // Fetch available characters from library
   useEffect(() => {
@@ -123,6 +136,7 @@ export function TokenEditDialog({
     setOwnerId(token.ownerId);
     setImageUrl(token.imageUrl);
     setCharacterId(token.characterId || null);
+    setMonsterGroupId(token.monsterGroupId || null);
   }, [token]);
 
   const handleSave = () => {
@@ -135,6 +149,7 @@ export function TokenEditDialog({
       ownerId,
       imageUrl,
       characterId,
+      monsterGroupId: layer === "monster" ? monsterGroupId : null, // Only monsters can have groups
     };
 
     // If we imported a character, use the pending sheet for display (HP bar, AC icon)
@@ -151,6 +166,26 @@ export function TokenEditDialog({
 
     onSave?.();
     onClose();
+  };
+
+  // Handle creating a new monster group
+  const handleCreateGroup = () => {
+    if (!newGroupName.trim()) return;
+    const groupId = createMonsterGroup(newGroupName.trim(), [token.id]);
+    setMonsterGroupId(groupId);
+    setNewGroupName("");
+    setShowCreateGroup(false);
+  };
+
+  // Handle monster group selection
+  const handleGroupChange = (value: string) => {
+    if (value === "none") {
+      setMonsterGroupId(null);
+    } else if (value === "new") {
+      setShowCreateGroup(true);
+    } else {
+      setMonsterGroupId(value);
+    }
   };
 
   // Import an existing character from the library
@@ -486,7 +521,13 @@ export function TokenEditDialog({
               {(["character", "monster", "object"] as TokenLayer[]).map((l) => (
                 <button
                   key={l}
-                  onClick={() => setLayer(l)}
+                  onClick={() => {
+                    setLayer(l);
+                    // Clear monster group if changing away from monster layer
+                    if (l !== "monster") {
+                      setMonsterGroupId(null);
+                    }
+                  }}
                   className={`px-2 py-1.5 text-sm rounded border cursor-pointer capitalize ${
                     layer === l
                       ? "bg-blue-600 text-white border-blue-600"
@@ -498,6 +539,61 @@ export function TokenEditDialog({
               ))}
             </div>
           </div>
+
+          {/* Monster Group - only shown for monster layer tokens and DM */}
+          {layer === "monster" && isDM && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Monster Group
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
+                  (share initiative in combat)
+                </span>
+              </label>
+              {showCreateGroup ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    placeholder="Group name (e.g., Goblin Pack)"
+                    className="flex-1 px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateGroup();
+                      if (e.key === "Escape") setShowCreateGroup(false);
+                    }}
+                  />
+                  <button
+                    onClick={handleCreateGroup}
+                    disabled={!newGroupName.trim()}
+                    className="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer text-sm"
+                  >
+                    Create
+                  </button>
+                  <button
+                    onClick={() => setShowCreateGroup(false)}
+                    className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={monsterGroupId || "none"}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <option value="none">No group (individual initiative)</option>
+                  {monsterGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                  <option value="new">+ Create new group...</option>
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Visibility */}
           <div className="flex items-center gap-2">

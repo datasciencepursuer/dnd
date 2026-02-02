@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup } from "../types";
 import { createNewMap } from "../constants";
 import { createDefaultCharacterSheet } from "../utils/character-utils";
 import { normalizeGridRange } from "../utils/grid-utils";
@@ -67,6 +67,15 @@ interface MapState {
   updateCharacterSheet: (tokenId: string, updates: Partial<CharacterSheet>) => void;
   initializeCharacterSheet: (tokenId: string) => void;
   removeCharacterSheet: (tokenId: string) => void;
+
+  // Monster group actions
+  createMonsterGroup: (name: string, tokenIds: string[]) => string;
+  addToMonsterGroup: (groupId: string, tokenId: string) => void;
+  removeFromMonsterGroup: (tokenId: string) => void;
+  deleteMonsterGroup: (groupId: string) => void;
+
+  // Token duplication
+  duplicateToken: (tokenId: string, options?: { sameGroup?: boolean }) => Token | null;
 }
 
 export const useMapStore = create<MapState>()(
@@ -76,12 +85,34 @@ export const useMapStore = create<MapState>()(
       dirtyTokens: new Set<string>(),
       dirtyTimestamps: new Map<string, number>(),
 
-      loadMap: (map) => set({ map, dirtyTokens: new Set(), dirtyTimestamps: new Map() }),
+      loadMap: (map) => set({
+        map: {
+          ...map,
+          // Ensure new fields have defaults for older maps
+          monsterGroups: map.monsterGroups || [],
+          tokens: map.tokens.map((t) => ({
+            ...t,
+            monsterGroupId: t.monsterGroupId ?? null,
+          })),
+        },
+        dirtyTokens: new Set(),
+        dirtyTimestamps: new Map()
+      }),
 
       // Sync map data from server while preserving local dirty tokens and viewport
       syncMap: (serverMap) =>
         set((state) => {
-          if (!state.map) return { map: serverMap };
+          // Ensure monsterGroups exists for backward compatibility
+          const normalizedServerMap = {
+            ...serverMap,
+            monsterGroups: serverMap.monsterGroups || [],
+            tokens: serverMap.tokens.map((t) => ({
+              ...t,
+              monsterGroupId: t.monsterGroupId ?? null,
+            })),
+          };
+
+          if (!state.map) return { map: normalizedServerMap };
 
           const now = Date.now();
 
@@ -95,7 +126,7 @@ export const useMapStore = create<MapState>()(
           }
 
           // Merge tokens: keep local dirty tokens, take server's for others
-          const mergedTokens = serverMap.tokens.map((serverToken) => {
+          const mergedTokens = normalizedServerMap.tokens.map((serverToken) => {
             // If this token is dirty locally, keep our version
             if (activeDirtyTokens.has(serverToken.id)) {
               const localToken = state.map!.tokens.find((t) => t.id === serverToken.id);
@@ -107,14 +138,14 @@ export const useMapStore = create<MapState>()(
           });
 
           // Also preserve any local-only tokens that are dirty but not yet on server
-          const serverTokenIds = new Set(serverMap.tokens.map((t) => t.id));
+          const serverTokenIds = new Set(normalizedServerMap.tokens.map((t) => t.id));
           const localOnlyDirtyTokens = state.map.tokens.filter(
             (t) => activeDirtyTokens.has(t.id) && !serverTokenIds.has(t.id)
           );
 
           return {
             map: {
-              ...serverMap,
+              ...normalizedServerMap,
               tokens: [...mergedTokens, ...localOnlyDirtyTokens],
               viewport: state.map.viewport, // Preserve viewport
             },
@@ -657,6 +688,158 @@ export const useMapStore = create<MapState>()(
             dirtyTimestamps: newDirtyTimestamps,
           };
         }),
+
+      // Monster group actions
+      createMonsterGroup: (name, tokenIds) => {
+        const groupId = crypto.randomUUID();
+        set((state) => {
+          if (!state.map) return state;
+          const newGroup: MonsterGroup = { id: groupId, name };
+          const newDirtyTokens = new Set(state.dirtyTokens);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps);
+
+          // Mark all affected tokens as dirty
+          tokenIds.forEach((id) => {
+            newDirtyTokens.add(id);
+            newDirtyTimestamps.set(id, Date.now());
+          });
+
+          return {
+            map: {
+              ...state.map,
+              monsterGroups: [...(state.map.monsterGroups || []), newGroup],
+              tokens: state.map.tokens.map((t) =>
+                tokenIds.includes(t.id) ? { ...t, monsterGroupId: groupId } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        });
+        return groupId;
+      },
+
+      addToMonsterGroup: (groupId, tokenId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === tokenId ? { ...t, monsterGroupId: groupId } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      removeFromMonsterGroup: (tokenId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens).add(tokenId);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(tokenId, Date.now());
+
+          return {
+            map: {
+              ...state.map,
+              tokens: state.map.tokens.map((t) =>
+                t.id === tokenId ? { ...t, monsterGroupId: null } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      deleteMonsterGroup: (groupId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const newDirtyTokens = new Set(state.dirtyTokens);
+          const newDirtyTimestamps = new Map(state.dirtyTimestamps);
+
+          // Mark all tokens in this group as dirty
+          state.map.tokens.forEach((t) => {
+            if (t.monsterGroupId === groupId) {
+              newDirtyTokens.add(t.id);
+              newDirtyTimestamps.set(t.id, Date.now());
+            }
+          });
+
+          return {
+            map: {
+              ...state.map,
+              monsterGroups: (state.map.monsterGroups || []).filter((g) => g.id !== groupId),
+              tokens: state.map.tokens.map((t) =>
+                t.monsterGroupId === groupId ? { ...t, monsterGroupId: null } : t
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      // Token duplication
+      duplicateToken: (tokenId, options = {}) => {
+        const state = get();
+        if (!state.map) return null;
+
+        const sourceToken = state.map.tokens.find((t) => t.id === tokenId);
+        if (!sourceToken) return null;
+
+        // Extract base name and number for incrementing
+        const nameMatch = sourceToken.name.match(/^(.+?)\s*(\d+)?$/);
+        const baseName = nameMatch ? nameMatch[1].trim() : sourceToken.name;
+
+        // Find the highest number used for this base name
+        let maxNumber = 0;
+        state.map.tokens.forEach((t) => {
+          const match = t.name.match(new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(\\d+)?$`));
+          if (match) {
+            const num = match[1] ? parseInt(match[1], 10) : 1;
+            if (num > maxNumber) maxNumber = num;
+          }
+        });
+
+        const newToken: Token = {
+          ...sourceToken,
+          id: crypto.randomUUID(),
+          name: `${baseName} ${maxNumber + 1}`,
+          position: {
+            col: sourceToken.position.col + 1,
+            row: sourceToken.position.row,
+          },
+          // Keep same group if sameGroup option is true, otherwise no group
+          monsterGroupId: options.sameGroup ? sourceToken.monsterGroupId : null,
+          // Don't copy character link - duplicates should be independent
+          characterId: null,
+        };
+
+        set((prevState) => {
+          if (!prevState.map) return prevState;
+          const newDirtyTokens = new Set(prevState.dirtyTokens).add(newToken.id);
+          const newDirtyTimestamps = new Map(prevState.dirtyTimestamps).set(newToken.id, Date.now());
+
+          return {
+            map: {
+              ...prevState.map,
+              tokens: [...prevState.map.tokens, newToken],
+              updatedAt: new Date().toISOString(),
+            },
+            dirtyTokens: newDirtyTokens,
+            dirtyTimestamps: newDirtyTimestamps,
+          };
+        });
+
+        return newToken;
+      },
     }),
     { limit: 50 }
   )

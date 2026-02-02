@@ -5,6 +5,10 @@ interface InitiativeEntry {
   tokenName: string;
   tokenColor: string;
   initiative: number;
+  layer?: string;
+  groupId?: string | null;
+  groupCount?: number;
+  groupTokenIds?: string[];
 }
 
 interface CombatPanelProps {
@@ -23,6 +27,24 @@ function CrossedSwordsIcon({ className }: { className?: string }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 24 24" fill="currentColor">
       <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z"/>
+    </svg>
+  );
+}
+
+// Character icon (person)
+function CharacterIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+// Monster icon (skull-like)
+function MonsterIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.5 8a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM10 12a2 2 0 100-4 2 2 0 000 4zm-3 2a1 1 0 112 0 1 1 0 01-2 0zm5 0a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" />
     </svg>
   );
 }
@@ -101,30 +123,52 @@ export function CombatPanel({
           {/* Initiative Order List */}
           {initiativeOrder && initiativeOrder.length > 0 && (
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {initiativeOrder.map((entry, index) => (
-                <div
-                  key={entry.tokenId}
-                  className="flex items-center gap-2 p-1.5 rounded bg-gray-50 dark:bg-gray-700/50"
-                >
-                  {/* Rank */}
-                  <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-4">
-                    {index + 1}.
-                  </span>
-                  {/* Token color dot */}
+              {initiativeOrder.map((entry, index) => {
+                const isMonsterGroup = entry.layer === "monster" && (entry.groupCount ?? 1) > 1;
+                return (
                   <div
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: entry.tokenColor }}
-                  />
-                  {/* Name */}
-                  <span className="flex-1 text-sm text-gray-700 dark:text-gray-300 truncate">
-                    {entry.tokenName}
-                  </span>
-                  {/* Initiative score */}
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {entry.initiative}
-                  </span>
-                </div>
-              ))}
+                    key={entry.tokenId}
+                    className={`flex items-center gap-2 p-1.5 rounded ${
+                      isMonsterGroup
+                        ? "bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800"
+                        : "bg-gray-50 dark:bg-gray-700/50"
+                    }`}
+                  >
+                    {/* Rank */}
+                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-4">
+                      {index + 1}.
+                    </span>
+                    {/* Layer icon */}
+                    {entry.layer === "character" ? (
+                      <CharacterIcon className="w-3 h-3 text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                    ) : entry.layer === "monster" ? (
+                      <MonsterIcon className="w-3 h-3 text-red-500 dark:text-red-400 flex-shrink-0" />
+                    ) : (
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: entry.tokenColor }}
+                      />
+                    )}
+                    {/* Token color dot */}
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: entry.tokenColor }}
+                    />
+                    {/* Name */}
+                    <span className={`flex-1 text-sm truncate ${
+                      isMonsterGroup
+                        ? "text-purple-700 dark:text-purple-300 font-medium"
+                        : "text-gray-700 dark:text-gray-300"
+                    }`}>
+                      {entry.tokenName}
+                    </span>
+                    {/* Initiative score */}
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {entry.initiative}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

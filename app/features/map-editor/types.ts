@@ -25,6 +25,12 @@ export interface GridPosition {
 // Token Types
 export type TokenLayer = "character" | "monster" | "object";
 
+// Monster Group - allows multiple monsters to share initiative
+export interface MonsterGroup {
+  id: string;
+  name: string; // e.g., "Goblin Pack"
+}
+
 // Character Sheet Types
 export interface AbilityScore {
   score: number; // 1-30, default 10
@@ -278,6 +284,8 @@ export interface Token {
   // If set, this token is linked to a shared character from the library
   // The character's data (name, image, color, size, characterSheet) takes precedence
   characterId: string | null;
+  // If set, this monster token shares initiative with other monsters in the same group
+  monsterGroupId: string | null;
 }
 
 // Permission levels for map access
@@ -419,6 +427,7 @@ export interface DnDMap {
   freehand: FreehandPath[];
   fogOfWar: FogOfWar;
   rollHistory: RollResult[];
+  monsterGroups: MonsterGroup[];
   viewport: {
     x: number;
     y: number;

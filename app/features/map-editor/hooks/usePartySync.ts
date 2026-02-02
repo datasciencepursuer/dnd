@@ -119,15 +119,21 @@ interface CombatRequestMessage {
   requesterName: string;
 }
 
+interface InitiativeEntry {
+  tokenId: string;
+  tokenName: string;
+  tokenColor: string;
+  initiative: number;
+  layer?: string;
+  groupId?: string | null;
+  groupCount?: number;
+  groupTokenIds?: string[];
+}
+
 interface CombatResponseMessage {
   type: "combat-response";
   accepted: boolean;
-  initiativeOrder: Array<{
-    tokenId: string;
-    tokenName: string;
-    tokenColor: string;
-    initiative: number;
-  }> | null;
+  initiativeOrder: InitiativeEntry[] | null;
 }
 
 interface CombatEndMessage {
@@ -193,12 +199,7 @@ export function usePartySync({
 
   // Combat state
   const [combatRequest, setCombatRequest] = useState<{ requesterId: string; requesterName: string } | null>(null);
-  const [initiativeOrder, setInitiativeOrder] = useState<Array<{
-    tokenId: string;
-    tokenName: string;
-    tokenColor: string;
-    initiative: number;
-  }> | null>(null);
+  const [initiativeOrder, setInitiativeOrder] = useState<InitiativeEntry[] | null>(null);
   const [isInCombat, setIsInCombat] = useState(false);
 
   // Only create query params if we have valid user data
@@ -574,22 +575,17 @@ export function usePartySync({
 
   // Broadcast combat response (DM -> all clients)
   const broadcastCombatResponse = useCallback(
-    (accepted: boolean, initiativeOrder: Array<{
-      tokenId: string;
-      tokenName: string;
-      tokenColor: string;
-      initiative: number;
-    }> | null) => {
+    (accepted: boolean, order: InitiativeEntry[] | null) => {
       if (!isSocketReady() || !userId) return;
       const message = {
         type: "combat-response",
         accepted,
-        initiativeOrder,
+        initiativeOrder: order,
       };
       socket!.send(JSON.stringify(message));
       // Also update local state
-      if (accepted && initiativeOrder) {
-        setInitiativeOrder(initiativeOrder);
+      if (accepted && order) {
+        setInitiativeOrder(order);
         setIsInCombat(true);
       }
       setCombatRequest(null);

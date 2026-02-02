@@ -322,6 +322,7 @@ export default function Maps() {
           ownerId: null, // Map owner owns imported tokens
           characterSheet: t.characterSheet,
           characterId: t.characterId || null, // Link to shared character if available
+          monsterGroupId: null, // Imported tokens don't have a group
         };
 
         // Move to next position
