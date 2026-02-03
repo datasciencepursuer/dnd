@@ -1001,17 +1001,6 @@ export function CharacterSheetPanel({
                                   defaultValue={1}
                                   className="w-6 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                 />
-                                <button
-                                  onClick={() => {
-                                    const updated = [...(sheet.classFeatures || [])];
-                                    updated[index] = { ...feature, charges: null, recharge: "none" };
-                                    handleUpdate({ classFeatures: updated });
-                                  }}
-                                  className="text-gray-400 hover:text-red-500 cursor-pointer text-xs"
-                                  title="Remove charges"
-                                >
-                                  ×
-                                </button>
                               </>
                             ) : (
                               <button
@@ -1050,11 +1039,17 @@ export function CharacterSheetPanel({
                           )}
                           <button
                             onClick={() => {
-                              const updated = (sheet.classFeatures || []).filter((_, i) => i !== index);
-                              handleUpdate({ classFeatures: updated });
+                              if (feature.charges) {
+                                const updated = [...(sheet.classFeatures || [])];
+                                updated[index] = { ...feature, charges: null, recharge: "none" };
+                                handleUpdate({ classFeatures: updated });
+                              } else {
+                                const updated = (sheet.classFeatures || []).filter((_, i) => i !== index);
+                                handleUpdate({ classFeatures: updated });
+                              }
                             }}
                             className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer"
-                            title="Remove"
+                            title={feature.charges ? "Remove uses" : "Remove feature"}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
