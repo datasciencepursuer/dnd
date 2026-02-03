@@ -22,6 +22,7 @@ interface MapListItem {
   permission: PermissionLevel;
   gridWidth: number;
   gridHeight: number;
+  thumbnailUrl: string | null;
 }
 
 interface GroupInfo {
@@ -129,18 +130,22 @@ export async function loader({ request }: Route.LoaderArgs) {
     groupsData.map((g) => [g.id, g.name])
   );
 
-  // Helper to extract grid dimensions from map data
-  const getGridDimensions = (data: unknown) => {
-    const mapData = data as { grid?: { width?: number; height?: number } } | null;
+  // Helper to extract grid dimensions and background image from map data
+  const getMapPreviewData = (data: unknown) => {
+    const mapData = data as {
+      grid?: { width?: number; height?: number };
+      background?: { imageUrl?: string } | null;
+    } | null;
     return {
       gridWidth: mapData?.grid?.width ?? 20,
       gridHeight: mapData?.grid?.height ?? 15,
+      thumbnailUrl: mapData?.background?.imageUrl ?? null,
     };
   };
 
   return {
     owned: ownedMaps.map((m) => {
-      const { gridWidth, gridHeight } = getGridDimensions(m.data);
+      const { gridWidth, gridHeight, thumbnailUrl } = getMapPreviewData(m.data);
       return {
         id: m.id,
         name: m.name,
@@ -152,10 +157,11 @@ export async function loader({ request }: Route.LoaderArgs) {
         groupName: m.groupId ? groupNameMap[m.groupId] : null,
         gridWidth,
         gridHeight,
+        thumbnailUrl,
       };
     }),
     group: groupMapsData.map((m) => {
-      const { gridWidth, gridHeight } = getGridDimensions(m.data);
+      const { gridWidth, gridHeight, thumbnailUrl } = getMapPreviewData(m.data);
       return {
         id: m.id,
         name: m.name,
@@ -167,6 +173,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         groupName: m.groupId ? groupNameMap[m.groupId] : null,
         gridWidth,
         gridHeight,
+        thumbnailUrl,
       };
     }),
     groups: groupsData,
@@ -396,8 +403,12 @@ export default function Maps() {
       key={map.id}
       className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
     >
-      <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center relative">
-        <span className="text-4xl">🗺️</span>
+      <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center relative overflow-hidden">
+        {map.thumbnailUrl ? (
+          <img src={map.thumbnailUrl} alt={map.name} className="w-full h-full object-cover blur-sm hover:blur-none transition-all duration-300" />
+        ) : (
+          <span className="text-4xl">🗺️</span>
+        )}
         {map.groupName && (
           <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
             {map.groupName}
@@ -803,8 +814,11 @@ Play
 
         {/* My Maps Section */}
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
             My Maps
+            <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">
+              Hover to see details but there's spoilers!
+            </span>
           </h2>
           {filteredOwned.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
