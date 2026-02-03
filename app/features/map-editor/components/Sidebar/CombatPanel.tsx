@@ -1,19 +1,7 @@
 import { useState, useEffect } from "react";
 
-interface InitiativeEntry {
-  tokenId: string;
-  tokenName: string;
-  tokenColor: string;
-  initiative: number;
-  layer?: string;
-  groupId?: string | null;
-  groupCount?: number;
-  groupTokenIds?: string[];
-}
-
 interface CombatPanelProps {
   isInCombat: boolean;
-  initiativeOrder: InitiativeEntry[] | null;
   onCombatRequest?: () => void;
   onStartCombat?: () => void;
   onEndCombat?: () => void;
@@ -31,27 +19,8 @@ function CrossedSwordsIcon({ className }: { className?: string }) {
   );
 }
 
-// Character icon (person)
-function CharacterIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-// Monster icon (skull-like)
-function MonsterIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6.5 8a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm7 0a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM10 12a2 2 0 100-4 2 2 0 000 4zm-3 2a1 1 0 112 0 1 1 0 01-2 0zm5 0a1 1 0 112 0 1 1 0 01-2 0z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
 export function CombatPanel({
   isInCombat,
-  initiativeOrder,
   onCombatRequest,
   onStartCombat,
   onEndCombat,
@@ -73,13 +42,13 @@ export function CombatPanel({
     onCombatRequest?.();
   };
 
-  // Show pending state if this player requested or if there's an active request
+  // Show pending state if this player requested
   const isRequestPending = hasRequested;
 
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 p-3">
-      {/* Combat Button */}
       {!isInCombat ? (
+        // Not in combat - show Start/Request button
         isDM ? (
           <button
             onClick={onStartCombat}
@@ -103,75 +72,21 @@ export function CombatPanel({
           </button>
         )
       ) : (
-        <div className="space-y-2">
-          {/* Initiative Order Header */}
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
-              <CrossedSwordsIcon className="h-4 w-4" />
-              Combat Active
-            </h4>
-            {isDM && (
-              <button
-                onClick={onEndCombat}
-                className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer"
-              >
-                End
-              </button>
-            )}
+        // In combat - show End button (DM only) or status
+        isDM ? (
+          <button
+            onClick={onEndCombat}
+            className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-all bg-gray-600 hover:bg-gray-700 active:scale-95 text-white flex items-center justify-center gap-2"
+          >
+            <CrossedSwordsIcon className="h-5 w-5" />
+            End Combat
+          </button>
+        ) : (
+          <div className="w-full px-4 py-2 rounded font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 flex items-center justify-center gap-2">
+            <CrossedSwordsIcon className="h-5 w-5" />
+            <span className="text-sm">Combat Active</span>
           </div>
-
-          {/* Initiative Order List */}
-          {initiativeOrder && initiativeOrder.length > 0 && (
-            <div className="space-y-1 max-h-32 overflow-y-auto">
-              {initiativeOrder.map((entry, index) => {
-                const isMonsterGroup = entry.layer === "monster" && (entry.groupCount ?? 1) > 1;
-                return (
-                  <div
-                    key={entry.tokenId}
-                    className={`flex items-center gap-2 p-1.5 rounded ${
-                      isMonsterGroup
-                        ? "bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800"
-                        : "bg-gray-50 dark:bg-gray-700/50"
-                    }`}
-                  >
-                    {/* Rank */}
-                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-4">
-                      {index + 1}.
-                    </span>
-                    {/* Layer icon */}
-                    {entry.layer === "character" ? (
-                      <CharacterIcon className="w-3 h-3 text-blue-500 dark:text-blue-400 flex-shrink-0" />
-                    ) : entry.layer === "monster" ? (
-                      <MonsterIcon className="w-3 h-3 text-red-500 dark:text-red-400 flex-shrink-0" />
-                    ) : (
-                      <div
-                        className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: entry.tokenColor }}
-                      />
-                    )}
-                    {/* Token color dot */}
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: entry.tokenColor }}
-                    />
-                    {/* Name */}
-                    <span className={`flex-1 text-sm truncate ${
-                      isMonsterGroup
-                        ? "text-purple-700 dark:text-purple-300 font-medium"
-                        : "text-gray-700 dark:text-gray-300"
-                    }`}>
-                      {entry.tokenName}
-                    </span>
-                    {/* Initiative score */}
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
-                      {entry.initiative}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        )
       )}
     </div>
   );

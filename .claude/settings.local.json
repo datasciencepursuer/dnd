@@ -27,7 +27,8 @@
       "Bash(bun:*)",
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git -C /mnt/d/product/DnD log --oneline -20)"
     ]
   }
 }

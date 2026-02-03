@@ -1,9 +1,10 @@
-import { useEffect, lazy, Suspense, useState, useCallback, useRef } from "react";
+import { useEffect, lazy, Suspense, useState, useCallback, useRef, useMemo } from "react";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
+import { InitiativeSetupModal } from "./InitiativeSetupModal";
 import { useMapStore, useEditorStore } from "../store";
 import { useMapSync } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
@@ -49,9 +50,12 @@ export function MapEditor({
   const openCharacterSheetTokenId = useEditorStore((s) => s.openCharacterSheetTokenId);
   const closeCharacterSheet = useEditorStore((s) => s.closeCharacterSheet);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
+  const canEditToken = useEditorStore((s) => s.canEditToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const getCanvasDimensions = useEditorStore((s) => s.getCanvasDimensions);
+  const setCombatTurnTokenIds = useEditorStore((s) => s.setCombatTurnTokenIds);
 
   // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
@@ -215,16 +219,30 @@ export function MapEditor({
     [map?.fogOfWar?.paintedCells]
   );
 
-  // Handler for starting combat - rolls initiative for visible, non-fogged tokens
-  // Objects are excluded, monsters in groups share initiative
-  const handleStartCombat = useCallback(() => {
-    if (!map) return;
+  // State for initiative setup modal
+  type DraftInitiativeEntry = {
+    tokenId: string;
+    tokenName: string;
+    tokenColor: string;
+    initiative: number;
+    initMod: number;
+    roll: number;
+    layer: string;
+    groupId: string | null;
+    groupCount: number;
+    groupTokenIds: string[];
+  };
+  const [showInitiativeSetup, setShowInitiativeSetup] = useState(false);
+  const [draftInitiativeEntries, setDraftInitiativeEntries] = useState<DraftInitiativeEntry[]>([]);
+
+  // Helper to prepare initiative entries for the setup modal
+  const prepareInitiativeEntries = useCallback((): DraftInitiativeEntry[] => {
+    if (!map) return [];
 
     // Get visible tokens that are not under fog and not objects
     const eligibleTokens = map.tokens.filter((token) => {
       if (!token.visible) return false;
       if (isTokenUnderFog(token)) return false;
-      // Exclude objects from combat
       if (token.layer === "object") return false;
       return true;
     });
@@ -243,18 +261,7 @@ export function MapEditor({
       monstersByGroup.get(groupId)!.push(monster);
     });
 
-    type InitiativeEntry = {
-      tokenId: string;
-      tokenName: string;
-      tokenColor: string;
-      initiative: number;
-      layer: string;
-      groupId: string | null;
-      groupCount: number;
-      groupTokenIds: string[];
-    };
-
-    const initiativeRolls: InitiativeEntry[] = [];
+    const initiativeRolls: DraftInitiativeEntry[] = [];
 
     // Roll initiative for each character individually
     characters.forEach((token) => {
@@ -266,6 +273,8 @@ export function MapEditor({
         tokenName: token.name,
         tokenColor: token.color,
         initiative,
+        initMod,
+        roll,
         layer: token.layer,
         groupId: null,
         groupCount: 1,
@@ -277,13 +286,11 @@ export function MapEditor({
     monstersByGroup.forEach((groupMonsters, groupId) => {
       if (groupMonsters.length === 0) return;
 
-      // Use first monster's stats for the group roll
       const firstMonster = groupMonsters[0];
       const initMod = firstMonster.characterSheet?.initiative ?? 0;
       const roll = Math.floor(Math.random() * 20) + 1;
       const initiative = roll + initMod;
 
-      // Get group name if it exists
       const group = groupId ? map.monsterGroups?.find((g) => g.id === groupId) : null;
       const displayName = group
         ? `${group.name} (${groupMonsters.length})`
@@ -292,10 +299,12 @@ export function MapEditor({
           : firstMonster.name;
 
       initiativeRolls.push({
-        tokenId: firstMonster.id, // Use first monster's ID as representative
+        tokenId: firstMonster.id,
         tokenName: displayName,
         tokenColor: firstMonster.color,
         initiative,
+        initMod,
+        roll,
         layer: "monster",
         groupId,
         groupCount: groupMonsters.length,
@@ -303,12 +312,39 @@ export function MapEditor({
       });
     });
 
-    // Sort by initiative (highest first)
-    initiativeRolls.sort((a, b) => b.initiative - a.initiative);
+    return initiativeRolls;
+  }, [map, isTokenUnderFog]);
 
-    // Broadcast the initiative order
-    broadcastCombatResponse(true, initiativeRolls);
-  }, [map, isTokenUnderFog, broadcastCombatResponse]);
+  // Handler for starting combat - opens initiative setup modal
+  const handleStartCombat = useCallback(() => {
+    const entries = prepareInitiativeEntries();
+    setDraftInitiativeEntries(entries);
+    setShowInitiativeSetup(true);
+  }, [prepareInitiativeEntries]);
+
+  // Handler for confirming combat from the setup modal
+  const handleConfirmCombat = useCallback(
+    (entries: DraftInitiativeEntry[]) => {
+      // Convert to the format expected by broadcastCombatResponse (without initMod and roll)
+      const initiativeOrder = entries.map(({ initMod, roll, ...rest }) => rest);
+      broadcastCombatResponse(true, initiativeOrder);
+      setShowInitiativeSetup(false);
+      setDraftInitiativeEntries([]);
+      // Clear the combat request if one exists
+      clearCombatRequest();
+    },
+    [broadcastCombatResponse, clearCombatRequest]
+  );
+
+  // Handler for canceling initiative setup
+  const handleCancelInitiativeSetup = useCallback(() => {
+    setShowInitiativeSetup(false);
+    setDraftInitiativeEntries([]);
+    // If this was triggered by a combat request, deny it
+    if (combatRequest) {
+      broadcastCombatResponse(false, null);
+    }
+  }, [combatRequest, broadcastCombatResponse]);
 
   // Handler for accepting combat request from player
   const handleAcceptCombatRequest = useCallback(() => {
@@ -320,7 +356,96 @@ export function MapEditor({
     broadcastCombatResponse(false, null);
   }, [broadcastCombatResponse]);
 
+  // Turn tracking state
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+
+  // Reset turn index when combat ends
+  useEffect(() => {
+    if (!isInCombat) {
+      setCurrentTurnIndex(0);
+      setCombatTurnTokenIds(null);
+    }
+  }, [isInCombat, setCombatTurnTokenIds]);
+
+  // Sync combat turn token IDs to editor store for movement permission gating
+  useEffect(() => {
+    if (!isInCombat || !initiativeOrder || initiativeOrder.length === 0) {
+      setCombatTurnTokenIds(null);
+      return;
+    }
+
+    const currentEntry = initiativeOrder[currentTurnIndex];
+    if (!currentEntry) {
+      setCombatTurnTokenIds(null);
+      return;
+    }
+
+    // Allow movement for all tokens in the current turn (handles monster groups)
+    const turnTokenIds = currentEntry.groupTokenIds ?? [currentEntry.tokenId];
+    setCombatTurnTokenIds(turnTokenIds);
+  }, [isInCombat, initiativeOrder, currentTurnIndex, setCombatTurnTokenIds]);
+
+  // Turn navigation handlers
+  const handleNextTurn = useCallback(() => {
+    if (!initiativeOrder) return;
+    setCurrentTurnIndex((prev) =>
+      prev < initiativeOrder.length - 1 ? prev + 1 : prev
+    );
+  }, [initiativeOrder]);
+
+  const handlePrevTurn = useCallback(() => {
+    setCurrentTurnIndex((prev) => (prev > 0 ? prev - 1 : prev));
+  }, []);
+
   const [editingToken, setEditingToken] = useState<Token | null>(null);
+
+  // Compute the navigable token list (matches what TokenPanel shows)
+  const editableTokens = useMemo(() => {
+    if (!map) return [];
+
+    // Filter to visible tokens (same logic as TokenPanel)
+    const visible = map.tokens.filter((token) => {
+      if (isDungeonMaster()) return true;
+      if (isTokenOwner(token.ownerId)) return true;
+      if (!token.visible) return false;
+      if (isTokenUnderFog(token)) return false;
+      return true;
+    });
+
+    // During combat, filter to combatants and sort by initiative
+    if (isInCombat && initiativeOrder) {
+      const initMap = new Map<string, number>();
+      initiativeOrder.forEach((entry) => {
+        if (entry.groupTokenIds) {
+          entry.groupTokenIds.forEach((id) => initMap.set(id, entry.initiative));
+        } else {
+          initMap.set(entry.tokenId, entry.initiative);
+        }
+      });
+
+      return visible
+        .filter((t) => initMap.has(t.id))
+        .sort((a, b) => (initMap.get(b.id) ?? 0) - (initMap.get(a.id) ?? 0));
+    }
+
+    // Only include tokens the user can edit
+    return visible.filter((t) => canEditToken(t.ownerId));
+  }, [map, isDungeonMaster, isTokenOwner, isTokenUnderFog, canEditToken, isInCombat, initiativeOrder]);
+
+  // Current index of editing token in the navigable list
+  const editingTokenIndex = editingToken
+    ? editableTokens.findIndex((t) => t.id === editingToken.id)
+    : -1;
+
+  const handleEditTokenNext = useCallback(() => {
+    if (editingTokenIndex < 0 || editingTokenIndex >= editableTokens.length - 1) return;
+    setEditingToken(editableTokens[editingTokenIndex + 1]);
+  }, [editingTokenIndex, editableTokens]);
+
+  const handleEditTokenPrev = useCallback(() => {
+    if (editingTokenIndex <= 0) return;
+    setEditingToken(editableTokens[editingTokenIndex - 1]);
+  }, [editingTokenIndex, editableTokens]);
 
   // Find the token for the open character sheet
   const characterSheetToken = openCharacterSheetTokenId
@@ -529,6 +654,9 @@ export function MapEditor({
           initiativeOrder={initiativeOrder}
           pendingCombatRequest={combatRequest}
           currentUserName={userName}
+          currentTurnIndex={currentTurnIndex}
+          onNextTurn={handleNextTurn}
+          onPrevTurn={handlePrevTurn}
         />
         <Suspense
           fallback={
@@ -562,6 +690,12 @@ export function MapEditor({
           onTokenUpdate={handleTokenUpdate}
           mapId={mapId}
           groupId={groupId}
+          onNext={handleEditTokenNext}
+          onPrev={handleEditTokenPrev}
+          hasNext={editingTokenIndex >= 0 && editingTokenIndex < editableTokens.length - 1}
+          hasPrev={editingTokenIndex > 0}
+          tokenIndex={editingTokenIndex >= 0 ? editingTokenIndex : undefined}
+          tokenCount={editableTokens.length}
         />
       )}
 
@@ -575,7 +709,7 @@ export function MapEditor({
       )}
 
       {/* Combat Request Modal - shown to DM when player requests combat */}
-      {combatRequest && isDungeonMaster() && (
+      {combatRequest && isDungeonMaster() && !showInitiativeSetup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
             <div className="flex items-center gap-3 mb-4">
@@ -608,6 +742,14 @@ export function MapEditor({
           </div>
         </div>
       )}
+
+      {/* Initiative Setup Modal - shown when DM starts or accepts combat */}
+      <InitiativeSetupModal
+        isOpen={showInitiativeSetup}
+        entries={draftInitiativeEntries}
+        onConfirm={handleConfirmCombat}
+        onCancel={handleCancelInitiativeSetup}
+      />
     </div>
   );
 }

@@ -582,7 +582,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
         const row = Math.round((position.y - offset) / cellSize);
 
         // Only move if user can move this token
-        if (canMoveToken(token.ownerId)) {
+        if (canMoveToken(token.ownerId, token.id)) {
           moveToken(token.id, { col, row });
           // Trigger immediate sync for real-time updates
           onTokenMoved?.(token.id, { col, row });
@@ -615,7 +615,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
       if (selectedTool !== "select") return;
 
       // Check if user can move this token
-      if (!canMoveToken(token.ownerId)) {
+      if (!canMoveToken(token.ownerId, token.id)) {
         // Show locked indicator while mouse is down
         setLockedMouseDownId(token.id);
         e.cancelBubble = true;
@@ -806,7 +806,7 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
         if (!token.visible) return null;
 
         const isEditable = canEditToken(token.ownerId);
-        const isMovable = canMoveToken(token.ownerId);
+        const isMovable = canMoveToken(token.ownerId, token.id);
         const actions = createTokenActions(token, isEditable);
 
         return (

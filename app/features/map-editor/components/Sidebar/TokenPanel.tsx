@@ -3,7 +3,18 @@ import { useMapStore, useEditorStore } from "../../store";
 import { TOKEN_COLORS } from "../../constants";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
-import type { Token } from "../../types";
+import type { Token, TokenLayer, MonsterGroup } from "../../types";
+
+interface InitiativeEntry {
+  tokenId: string;
+  tokenName: string;
+  tokenColor: string;
+  initiative: number;
+  layer?: string;
+  groupId?: string | null;
+  groupCount?: number;
+  groupTokenIds?: string[];
+}
 
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
@@ -12,16 +23,38 @@ interface TokenPanelProps {
   onTokenDelete?: (tokenId: string) => void;
   onTokenCreate?: (token: Token) => void;
   onSelectAndCenter?: (token: Token) => void;
+  // Combat props
+  isInCombat?: boolean;
+  initiativeOrder?: InitiativeEntry[] | null;
+  currentTurnIndex?: number;
+  onNextTurn?: () => void;
+  onPrevTurn?: () => void;
 }
 
-export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, onTokenCreate, onSelectAndCenter }: TokenPanelProps) {
+export function TokenPanel({
+  onEditToken,
+  mode = "list",
+  mapId,
+  onTokenDelete,
+  onTokenCreate,
+  onSelectAndCenter,
+  isInCombat = false,
+  initiativeOrder = null,
+  currentTurnIndex = 0,
+  onNextTurn,
+  onPrevTurn,
+}: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
   const [tokenSize, setTokenSize] = useState(1);
+  const [tokenLayer, setTokenLayer] = useState<TokenLayer>("character");
   const [tokenImageUrl, setTokenImageUrl] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [tokenMonsterGroupId, setTokenMonsterGroupId] = useState<string | null>(null);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
@@ -33,6 +66,7 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
   const removeToken = useMapStore((s) => s.removeToken);
   const reorderTokens = useMapStore((s) => s.reorderTokens);
   const duplicateToken = useMapStore((s) => s.duplicateToken);
+  const createMonsterGroup = useMapStore((s) => s.createMonsterGroup);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const userId = useEditorStore((s) => s.userId);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
@@ -77,6 +111,27 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
     setShowLibrary(false);
   };
 
+  // Monster groups from the map
+  const monsterGroups: MonsterGroup[] = map?.monsterGroups || [];
+
+  const handleCreateGroup = () => {
+    if (!newGroupName.trim()) return;
+    const groupId = createMonsterGroup(newGroupName.trim(), []);
+    setTokenMonsterGroupId(groupId);
+    setNewGroupName("");
+    setShowCreateGroup(false);
+  };
+
+  const handleGroupChange = (value: string) => {
+    if (value === "none") {
+      setTokenMonsterGroupId(null);
+    } else if (value === "new") {
+      setShowCreateGroup(true);
+    } else {
+      setTokenMonsterGroupId(value);
+    }
+  };
+
   const handleAddToken = () => {
     if (!tokenName.trim() || !map || !canCreateToken()) return;
 
@@ -93,11 +148,11 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
       rotation: 0,
       flipped: false,
       visible: true,
-      layer: "character",
+      layer: tokenLayer,
       ownerId: isDungeonMaster() ? null : userId, // DM's tokens have null ownerId, players get their userId
       characterSheet: null,
       characterId: null,
-      monsterGroupId: null,
+      monsterGroupId: tokenLayer === "monster" ? tokenMonsterGroupId : null,
     };
 
     addToken(token);
@@ -243,16 +298,94 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
     return true;
   }) ?? [];
 
+  // During combat, create a map of tokenId -> initiative entry for quick lookup
+  const initiativeMap = new Map<string, InitiativeEntry>();
+  if (isInCombat && initiativeOrder) {
+    initiativeOrder.forEach((entry) => {
+      // Map all token IDs in a group to the same entry
+      if (entry.groupTokenIds) {
+        entry.groupTokenIds.forEach((id) => initiativeMap.set(id, entry));
+      } else {
+        initiativeMap.set(entry.tokenId, entry);
+      }
+    });
+  }
+
+  // During combat, filter to only combatants and sort by initiative
+  const displayTokens = isInCombat && initiativeOrder
+    ? visibleTokens
+        .filter((token) => initiativeMap.has(token.id))
+        .sort((a, b) => {
+          const aInit = initiativeMap.get(a.id)?.initiative ?? 0;
+          const bInit = initiativeMap.get(b.id)?.initiative ?? 0;
+          return bInit - aInit; // Highest first
+        })
+    : visibleTokens;
+
+  // Get current turn token ID from initiative order
+  const currentTurnTokenId = isInCombat && initiativeOrder && initiativeOrder[currentTurnIndex]
+    ? initiativeOrder[currentTurnIndex].tokenId
+    : null;
+
+  // Check if a token is the current turn (handles groups)
+  const isCurrentTurn = (tokenId: string): boolean => {
+    if (!isInCombat || !initiativeOrder || currentTurnIndex >= initiativeOrder.length) return false;
+    const currentEntry = initiativeOrder[currentTurnIndex];
+    if (currentEntry.groupTokenIds) {
+      return currentEntry.groupTokenIds.includes(tokenId);
+    }
+    return currentEntry.tokenId === tokenId;
+  };
+
   // Token list component (reused in both modes)
   const TokenList = () => (
     <>
-      {map && visibleTokens.length > 0 && (
+      {map && displayTokens.length > 0 && (
         <div className={mode === "create" ? "pt-4 border-t border-gray-200 dark:border-gray-700" : ""}>
-          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Units ({visibleTokens.length})
-          </h4>
+          {/* Combat header with turn controls */}
+          {isInCombat && initiativeOrder ? (
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z"/>
+                </svg>
+                Turn Order
+              </h4>
+              {isDungeonMaster() && onNextTurn && onPrevTurn && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={onPrevTurn}
+                    disabled={currentTurnIndex <= 0}
+                    className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="Previous turn"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[3rem] text-center">
+                    {currentTurnIndex + 1}/{initiativeOrder.length}
+                  </span>
+                  <button
+                    onClick={onNextTurn}
+                    disabled={currentTurnIndex >= initiativeOrder.length - 1}
+                    className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    title="Next turn"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Units ({displayTokens.length})
+            </h4>
+          )}
           <div ref={listRef} className="space-y-1 max-h-60 overflow-y-auto">
-            {visibleTokens.map((token, index) => {
+            {displayTokens.map((token, index) => {
               const isOwnToken = isTokenOwner(token.ownerId);
               const canEdit = canEditToken(token.ownerId); // DM can edit all, players can edit their own
               const canDelete = canDeleteToken(token.ownerId); // DM or owner
@@ -260,20 +393,34 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
               const isDragOver = dragOverIndex === index && draggedIndex !== index;
               const showTopBorder = isDragOver && dropPosition === "above";
               const showBottomBorder = isDragOver && dropPosition === "below";
+              const initEntry = initiativeMap.get(token.id);
+              const isCurrent = isCurrentTurn(token.id);
               return (
                 <div
                   key={token.id}
                   onClick={() => canEdit && onEditToken?.(token)}
                   className={`group flex items-center gap-2 p-2 rounded text-sm transition-all select-none ${
-                    selectedIds.includes(token.id)
-                      ? "bg-blue-100 dark:bg-blue-900"
-                      : "bg-gray-50 dark:bg-gray-700"
+                    isCurrent
+                      ? "bg-yellow-100 dark:bg-yellow-900/40 ring-2 ring-yellow-400 dark:ring-yellow-600"
+                      : selectedIds.includes(token.id)
+                        ? "bg-blue-100 dark:bg-blue-900"
+                        : "bg-gray-50 dark:bg-gray-700"
                   } ${canEdit ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" : ""} ${
                     isDragging ? "opacity-50" : ""
                   } ${showTopBorder ? "border-t-2 border-blue-500" : ""} ${showBottomBorder ? "border-b-2 border-blue-500" : ""}`}
                 >
-                  {/* Drag handle - DM only */}
-                  {isDungeonMaster() && (
+                  {/* Initiative rank during combat */}
+                  {isInCombat && initEntry && (
+                    <span className={`text-xs font-bold w-5 text-center flex-shrink-0 ${
+                      isCurrent ? "text-yellow-700 dark:text-yellow-300" : "text-gray-400 dark:text-gray-500"
+                    }`}>
+                      {initiativeOrder?.findIndex(e => e.tokenId === initEntry.tokenId) !== undefined
+                        ? (initiativeOrder?.findIndex(e => e.tokenId === initEntry.tokenId) ?? 0) + 1
+                        : ""}
+                    </span>
+                  )}
+                  {/* Drag handle - DM only, not during combat */}
+                  {isDungeonMaster() && !isInCombat && (
                     <div
                       onMouseDown={(e) => handleMouseDown(e, index)}
                       className="flex-shrink-0 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 p-1 -m-1"
@@ -303,16 +450,28 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
                       </svg>
                     </button>
                   )}
-                  <span className="text-gray-900 dark:text-white flex-1 truncate cursor-pointer">
+                  <span className={`flex-1 truncate cursor-pointer ${
+                    isCurrent ? "text-yellow-800 dark:text-yellow-200 font-medium" : "text-gray-900 dark:text-white"
+                  }`}>
                     {token.name}
                   </span>
-                  {canEdit && onEditToken && (
+                  {/* Initiative score during combat */}
+                  {isInCombat && initEntry && (
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                      isCurrent
+                        ? "bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200"
+                        : "bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
+                    }`}>
+                      {initEntry.initiative}
+                    </span>
+                  )}
+                  {!isInCombat && canEdit && onEditToken && (
                     <span className="text-xs text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       Edit
                     </span>
                   )}
-                  {/* Duplicate button - DM only, for monster tokens */}
-                  {isDungeonMaster() && token.layer === "monster" && (
+                  {/* Duplicate button - DM only, for monster tokens, not during combat */}
+                  {!isInCombat && isDungeonMaster() && token.layer === "monster" && (
                     <button
                       onClick={(e) => handleDuplicateToken(e, token.id)}
                       className="text-xs font-bold text-gray-400 hover:text-purple-500 dark:text-gray-500 dark:hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer px-1"
@@ -321,7 +480,7 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
                       +1
                     </button>
                   )}
-                  {canDelete && (
+                  {!isInCombat && canDelete && (
                     <button
                       onClick={(e) => handleDeleteToken(e, token.id)}
                       className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 -m-1"
@@ -332,17 +491,17 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
                       </svg>
                     </button>
                   )}
-                  {!isOwnToken && !isDungeonMaster() && (
+                  {!isInCombat && !isOwnToken && !isDungeonMaster() && (
                     <span className="text-xs text-gray-400 dark:text-gray-500">
                       (locked)
                     </span>
                   )}
-                  {isDungeonMaster() && !token.visible && (
+                  {!isInCombat && isDungeonMaster() && !token.visible && (
                     <span className="text-xs text-yellow-500 dark:text-yellow-400" title="Token is set to hidden - not visible to players">
                       (hidden)
                     </span>
                   )}
-                  {isDungeonMaster() && token.visible && isTokenUnderFog(token) && (
+                  {!isInCombat && isDungeonMaster() && token.visible && isTokenUnderFog(token) && (
                     <span className="text-xs text-purple-500 dark:text-purple-400" title="Token is under fog of war - hidden from players">
                       (fogged)
                     </span>
@@ -354,9 +513,9 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
         </div>
       )}
 
-      {map && visibleTokens.length === 0 && mode === "list" && (
+      {map && displayTokens.length === 0 && mode === "list" && (
         <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-          <p className="text-sm">No units on the map</p>
+          <p className="text-sm">{isInCombat ? "No combatants" : "No units on the map"}</p>
         </div>
       )}
     </>
@@ -503,6 +662,93 @@ export function TokenPanel({ onEditToken, mode = "list", mapId, onTokenDelete, o
                 ))}
               </div>
             </div>
+
+            {/* Layer / Type */}
+            <div>
+              <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                Type
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {(["character", "monster", "object"] as TokenLayer[]).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => {
+                      setTokenLayer(l);
+                      if (l !== "monster") {
+                        setTokenMonsterGroupId(null);
+                        setShowCreateGroup(false);
+                      }
+                    }}
+                    className={`px-2 py-1 text-xs rounded border cursor-pointer capitalize ${
+                      tokenLayer === l
+                        ? l === "character"
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : l === "monster"
+                            ? "bg-red-600 text-white border-red-600"
+                            : "bg-gray-600 text-white border-gray-600"
+                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Monster Group - shown when layer is monster and user is DM */}
+            {tokenLayer === "monster" && isDungeonMaster() && (
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
+                  Monster Group
+                  <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+                    (share initiative)
+                  </span>
+                </label>
+                {showCreateGroup ? (
+                  <div className="flex gap-1">
+                    <input
+                      type="text"
+                      value={newGroupName}
+                      onChange={(e) => setNewGroupName(e.target.value)}
+                      placeholder="Group name"
+                      className="flex-1 px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreateGroup();
+                        if (e.key === "Escape") setShowCreateGroup(false);
+                      }}
+                    />
+                    <button
+                      onClick={handleCreateGroup}
+                      disabled={!newGroupName.trim()}
+                      className="px-2 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer text-xs"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setShowCreateGroup(false)}
+                      className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer text-xs"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={tokenMonsterGroupId || "none"}
+                    onChange={(e) => handleGroupChange(e.target.value)}
+                    className="w-full px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="none">No group (individual initiative)</option>
+                    {monsterGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                    <option value="new">+ Create new group...</option>
+                  </select>
+                )}
+              </div>
+            )}
 
             <button
               onClick={handleAddToken}

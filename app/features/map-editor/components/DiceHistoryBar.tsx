@@ -43,7 +43,7 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
     : null;
 
   // Can only roll if a token is selected AND user has permission to control it
-  const canRoll = !!selectedToken && canMoveToken(selectedToken.ownerId);
+  const canRoll = !!selectedToken && canMoveToken(selectedToken.ownerId, selectedToken.id);
 
   const handleRoll = (dice: DiceType) => {
     if (!selectedToken) return;

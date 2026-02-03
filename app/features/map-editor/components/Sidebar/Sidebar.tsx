@@ -13,6 +13,10 @@ interface InitiativeEntry {
   tokenName: string;
   tokenColor: string;
   initiative: number;
+  layer?: string;
+  groupId?: string | null;
+  groupCount?: number;
+  groupTokenIds?: string[];
 }
 
 interface SidebarProps {
@@ -30,6 +34,10 @@ interface SidebarProps {
   initiativeOrder?: InitiativeEntry[] | null;
   pendingCombatRequest?: { requesterId: string; requesterName: string } | null;
   currentUserName?: string | null;
+  // Turn tracking props
+  currentTurnIndex?: number;
+  onNextTurn?: () => void;
+  onPrevTurn?: () => void;
 }
 
 export function Sidebar({
@@ -46,6 +54,9 @@ export function Sidebar({
   initiativeOrder = null,
   pendingCombatRequest = null,
   currentUserName = null,
+  currentTurnIndex = 0,
+  onNextTurn,
+  onPrevTurn,
 }: SidebarProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("none");
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -57,7 +68,7 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+    <div className="w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
       {/* Action Buttons */}
       <div className="p-3 space-y-2 border-b border-gray-200 dark:border-gray-700">
         {/* Edit Map - DM only */}
@@ -91,18 +102,43 @@ export function Sidebar({
       {/* Collapsible Panels / Units List */}
       <div className="flex-1 overflow-y-auto">
         {canEditMap() && activePanel === "editMap" && <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />}
-        {canCreateToken() && activePanel === "createUnit" && <TokenPanel onEditToken={onEditToken} mode="create" mapId={mapId} onTokenDelete={onTokenDelete} onTokenCreate={onTokenCreate} onSelectAndCenter={onSelectAndCenter} />}
+        {canCreateToken() && activePanel === "createUnit" && (
+          <TokenPanel
+            onEditToken={onEditToken}
+            mode="create"
+            mapId={mapId}
+            onTokenDelete={onTokenDelete}
+            onTokenCreate={onTokenCreate}
+            onSelectAndCenter={onSelectAndCenter}
+            isInCombat={isInCombat}
+            initiativeOrder={initiativeOrder}
+            currentTurnIndex={currentTurnIndex}
+            onNextTurn={onNextTurn}
+            onPrevTurn={onPrevTurn}
+          />
+        )}
 
         {/* Token List - Always visible when no panel is open */}
         {activePanel === "none" && (
-          <TokenPanel onEditToken={onEditToken} mode="list" mapId={mapId} onTokenDelete={onTokenDelete} onTokenCreate={onTokenCreate} onSelectAndCenter={onSelectAndCenter} />
+          <TokenPanel
+            onEditToken={onEditToken}
+            mode="list"
+            mapId={mapId}
+            onTokenDelete={onTokenDelete}
+            onTokenCreate={onTokenCreate}
+            onSelectAndCenter={onSelectAndCenter}
+            isInCombat={isInCombat}
+            initiativeOrder={initiativeOrder}
+            currentTurnIndex={currentTurnIndex}
+            onNextTurn={onNextTurn}
+            onPrevTurn={onPrevTurn}
+          />
         )}
       </div>
 
       {/* Combat Panel */}
       <CombatPanel
         isInCombat={isInCombat}
-        initiativeOrder={initiativeOrder}
         onCombatRequest={onCombatRequest}
         onStartCombat={onStartCombat}
         onEndCombat={onEndCombat}

@@ -25,6 +25,9 @@ interface EditorState {
   // Canvas dimensions for centering calculations
   canvasDimensions: { width: number; height: number };
 
+  // Combat turn context - token IDs allowed to move this turn (null = no combat restriction)
+  combatTurnTokenIds: string[] | null;
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -54,11 +57,14 @@ interface EditorState {
   setCanvasDimensions: (width: number, height: number) => void;
   getCanvasDimensions: () => { width: number; height: number };
 
+  // Combat turn context
+  setCombatTurnTokenIds: (tokenIds: string[] | null) => void;
+
   // Permission helpers
   isDungeonMaster: () => boolean;
   isTokenOwner: (tokenOwnerId: string | null) => boolean;
   canEditToken: (tokenOwnerId: string | null) => boolean;
-  canMoveToken: (tokenOwnerId: string | null) => boolean;
+  canMoveToken: (tokenOwnerId: string | null, tokenId?: string) => boolean;
   canDeleteToken: (tokenOwnerId: string | null) => boolean;
   canEditMap: () => boolean;
   canCreateToken: () => boolean;
@@ -84,6 +90,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   pingTimestamps: [],
   openCharacterSheetTokenId: null,
   canvasDimensions: { width: 800, height: 600 },
+  combatTurnTokenIds: null,
 
   setTool: (tool) =>
     set((state) => ({
@@ -155,6 +162,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCanvasDimensions: (width, height) => set({ canvasDimensions: { width, height } }),
   getCanvasDimensions: () => get().canvasDimensions,
 
+  // Combat turn context
+  setCombatTurnTokenIds: (tokenIds) => set({ combatTurnTokenIds: tokenIds }),
+
   // Permission helpers
   isDungeonMaster: () => get().permission === "dm",
 
@@ -186,18 +196,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return false;
   },
 
-  // DM can move any token, players can only move their own
-  canMoveToken: (tokenOwnerId: string | null) => {
+  // DM can move any token, players can only move their own (and during combat, only on their turn)
+  canMoveToken: (tokenOwnerId: string | null, tokenId?: string) => {
     const state = get();
     const perms = state.permissions;
 
-    // DM can move any token
+    // DM can always move any token - full flexibility regardless of turn
     if (perms.canMoveAllTokens) return true;
 
     // Players can move their own tokens
     if (perms.canMoveOwnTokens) {
-      if (tokenOwnerId === null) return state.permission === "dm";
-      return tokenOwnerId === state.userId && state.userId !== null;
+      const isOwner = tokenOwnerId === null
+        ? state.permission === "dm"
+        : tokenOwnerId === state.userId && state.userId !== null;
+
+      if (!isOwner) return false;
+
+      // During combat, players can only move their token on their turn
+      if (state.combatTurnTokenIds && tokenId) {
+        return state.combatTurnTokenIds.includes(tokenId);
+      }
+
+      return true;
     }
 
     return false;

@@ -29,6 +29,13 @@ interface TokenEditDialogProps {
   onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
   mapId?: string;
   groupId?: string | null;
+  // Navigation between tokens
+  onNext?: () => void;
+  onPrev?: () => void;
+  hasNext?: boolean;
+  hasPrev?: boolean;
+  tokenIndex?: number;
+  tokenCount?: number;
 }
 
 export function TokenEditDialog({
@@ -39,6 +46,12 @@ export function TokenEditDialog({
   onTokenUpdate,
   mapId,
   groupId,
+  onNext,
+  onPrev,
+  hasNext = false,
+  hasPrev = false,
+  tokenIndex,
+  tokenCount,
 }: TokenEditDialogProps) {
   const updateToken = useMapStore((s) => s.updateToken);
   const map = useMapStore((s) => s.map);
@@ -126,7 +139,7 @@ export function TokenEditDialog({
     },
   });
 
-  // Update local state if token changes
+  // Update local state if token changes (e.g., when navigating between tokens)
   useEffect(() => {
     setName(token.name);
     setColor(token.color);
@@ -137,6 +150,11 @@ export function TokenEditDialog({
     setImageUrl(token.imageUrl);
     setCharacterId(token.characterId || null);
     setMonsterGroupId(token.monsterGroupId || null);
+    setPendingCharacterSheet(undefined);
+    setImportConflict(null);
+    setShowCharacterPicker(false);
+    setShowLibrary(false);
+    setShowCreateGroup(false);
   }, [token]);
 
   const handleSave = () => {
@@ -319,6 +337,41 @@ export function TokenEditDialog({
     setShowLibrary(false);
   };
 
+  // Save current edits without closing the dialog
+  const saveCurrentEdits = () => {
+    const updates: Record<string, unknown> = {
+      name: name.trim() || "Unnamed Token",
+      color,
+      size,
+      layer,
+      visible,
+      ownerId,
+      imageUrl,
+      characterId,
+      monsterGroupId: layer === "monster" ? monsterGroupId : null,
+    };
+
+    if (pendingCharacterSheet !== undefined) {
+      updates.characterSheet = pendingCharacterSheet;
+    }
+
+    updateToken(token.id, updates);
+    onTokenUpdate?.(token.id, updates);
+    onSave?.();
+  };
+
+  const handleNavigateNext = () => {
+    if (!onNext || !hasNext) return;
+    saveCurrentEdits();
+    onNext();
+  };
+
+  const handleNavigatePrev = () => {
+    if (!onPrev || !hasPrev) return;
+    saveCurrentEdits();
+    onPrev();
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       handleSave();
@@ -371,12 +424,44 @@ export function TokenEditDialog({
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             Edit Token
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
-          >
-            <span className="text-2xl">&times;</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Token navigation */}
+            {(onNext || onPrev) && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleNavigatePrev}
+                  disabled={!hasPrev}
+                  className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  title="Previous token"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {tokenIndex !== undefined && tokenCount !== undefined && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 min-w-[3rem] text-center">
+                    {tokenIndex + 1}/{tokenCount}
+                  </span>
+                )}
+                <button
+                  onClick={handleNavigateNext}
+                  disabled={!hasNext}
+                  className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  title="Next token"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
+            >
+              <span className="text-2xl">&times;</span>
+            </button>
+          </div>
         </div>
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">

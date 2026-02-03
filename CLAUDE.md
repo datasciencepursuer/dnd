@@ -9,10 +9,13 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 ## Commands
 
 - `pnpm run dev` - Start development server with HMR (http://localhost:5173)
+- `pnpm run dev:party` - Start PartyKit WebSocket server for real-time sync
+- `pnpm run dev:all` - Start both React Router and PartyKit servers concurrently
 - `pnpm run typecheck` - Run TypeScript type checking and generate route types
-- `pnpm drizzle-kit push` - Push schema changes to database
+- `pnpm run email:dev` - Preview email templates at http://localhost:3000
 - `pnpm drizzle-kit generate` - Generate migration files
 - `pnpm drizzle-kit migrate` - Apply pending migrations
+- `pnpm run party:deploy` - Deploy PartyKit to production
 
 **Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it.
 
@@ -46,6 +49,7 @@ Uses better-auth for email/password authentication.
 - `BETTER_AUTH_URL` - App URL (defaults to http://localhost:5173)
 - `DATABASE_URL` - Neon PostgreSQL connection string
 - `UPLOADTHING_TOKEN` - UploadThing API token for image uploads
+- `RESEND_API_KEY` - Resend API key for sending emails (verification, password reset)
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
@@ -74,6 +78,7 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/playground/:mapId` - Edit existing map
 - `/groups` - Group list
 - `/groups/:groupId` - Group detail with maps
+- `/characters` - Character library
 - `/invite/group/:token` - Accept group invitation
 
 **Map API Routes**:
@@ -92,6 +97,9 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/groups/:groupId/invite` - Send group invitations
 - `/api/groups/:groupId/leave` - Leave a group
 
+**Character API Routes**:
+- `/api/characters` - Character library CRUD (GET list, POST create)
+
 ### Groups & Team Collaboration
 - `groups` - Team organizations with name and owner
 - `groupMembers` - Membership with roles (owner/admin/member)
@@ -105,12 +113,10 @@ Canvas-based map editor using Konva.js (`react-konva`).
 ### Real-Time Collaboration (PartyKit)
 WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 - Config: `partykit.json`
-- Client hook: `app/features/map-editor/hooks/useMapSync.ts`
-- Syncs: token operations, fog painting, pings, and presence
-- Commands:
-  - `pnpm run dev:party` - Start PartyKit dev server
-  - `pnpm run dev:all` - Start both React Router and PartyKit servers
-  - `pnpm run party:deploy` - Deploy PartyKit to production
+- Client hooks: `useMapSync.ts` (HTTP sync), `usePartySync.ts` (WebSocket)
+- Syncs: token operations, fog painting, pings, drawings, combat, and presence
+- Auto-save: 2-second debounce after changes
+- Dirty token tracking: Prevents server updates from overwriting local optimistic updates
 
 ### File Uploads
 Uses UploadThing for image uploads (token images, map backgrounds).
@@ -121,3 +127,9 @@ Uses UploadThing for image uploads (token images, map backgrounds).
 ### Styling
 - Tailwind CSS v4 with Vite plugin
 - Dark mode via `prefers-color-scheme`
+
+### Permissions Model
+- Map owner = Dungeon Master (DM) with full permissions
+- Group members viewing a map = Player with limited permissions
+- `PlayerPermissions` interface defines granular permissions (create/edit/delete/move tokens)
+- Permission checks via `editor-store.ts`: `isDungeonMaster()`, `canEditToken()`, `canMoveToken()`
