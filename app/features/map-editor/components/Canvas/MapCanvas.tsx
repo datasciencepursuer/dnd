@@ -56,6 +56,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const canPing = useEditorStore((s) => s.canPing);
   const recordPing = useEditorStore((s) => s.recordPing);
   const setCanvasDimensions = useEditorStore((s) => s.setCanvasDimensions);
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
 
   const stageRef = useRef<any>(null);
 
@@ -480,6 +481,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
             paintedCells={map.fogOfWar.paintedCells || []}
             grid={map.grid}
             currentUserId={userId}
+            isPlayingLocally={isPlayingLocally}
           />
         </Layer>
         <Layer name="token-selection">

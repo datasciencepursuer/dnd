@@ -41,6 +41,8 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
   const setTool = useEditorStore((s) => s.setTool);
   const canEditMap = useEditorStore((s) => s.canEditMap);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
+  const togglePlayingLocally = useEditorStore((s) => s.togglePlayingLocally);
 
   const map = useMapStore((s) => s.map);
   const updateGrid = useMapStore((s) => s.updateGrid);
@@ -350,6 +352,23 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                   Apply
                 </button>
               )}
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+            </>
+          )}
+          {isDungeonMaster() && (
+            <>
+              <button
+                onClick={togglePlayingLocally}
+                className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border cursor-pointer transition-colors ${
+                  isPlayingLocally
+                    ? "bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-300"
+                    : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
+                }`}
+                title={isPlayingLocally ? "Local play: fog is opaque to you" : "Enable local play to see fog as players do"}
+              >
+                <span>{isPlayingLocally ? "🎲" : "👁"}</span>
+                <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
+              </button>
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
             </>
           )}

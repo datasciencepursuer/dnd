@@ -631,14 +631,45 @@ export const useMapStore = create<MapState>()(
           // If token has no characterSheet, initialize with defaults before applying updates
           const baseSheet = token.characterSheet ?? createDefaultCharacterSheet();
 
+          // Fields that stay individual per monster in a group
+          const individualFields = new Set<string>(['hpCurrent', 'deathSaves', 'condition']);
+
+          // Build shared updates (everything except individual fields)
+          const sharedUpdates: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(updates)) {
+            if (!individualFields.has(key)) {
+              sharedUpdates[key] = value;
+            }
+          }
+
+          // Find sibling tokens in the same monster group
+          const groupId = token.monsterGroupId;
+          const hasSiblings = groupId && Object.keys(sharedUpdates).length > 0;
+
+          // Mark siblings as dirty too
+          if (hasSiblings) {
+            for (const t of state.map.tokens) {
+              if (t.id !== tokenId && t.monsterGroupId === groupId) {
+                newDirtyTokens.add(t.id);
+                newDirtyTimestamps.set(t.id, Date.now());
+              }
+            }
+          }
+
           return {
             map: {
               ...state.map,
-              tokens: state.map.tokens.map((t) =>
-                t.id === tokenId
-                  ? { ...t, characterSheet: { ...baseSheet, ...updates } }
-                  : t
-              ),
+              tokens: state.map.tokens.map((t) => {
+                if (t.id === tokenId) {
+                  return { ...t, characterSheet: { ...baseSheet, ...updates } };
+                }
+                // Propagate shared fields to siblings in the same monster group
+                if (hasSiblings && t.monsterGroupId === groupId) {
+                  const siblingBase = t.characterSheet ?? createDefaultCharacterSheet();
+                  return { ...t, characterSheet: { ...siblingBase, ...sharedUpdates } };
+                }
+                return t;
+              }),
               updatedAt: new Date().toISOString(),
             },
             dirtyTokens: newDirtyTokens,
@@ -808,6 +839,21 @@ export const useMapStore = create<MapState>()(
           }
         });
 
+        // When duplicating into the same group, reset individual combat state
+        const duplicatedSheet = sourceToken.characterSheet
+          ? options.sameGroup
+            ? {
+                ...sourceToken.characterSheet,
+                hpCurrent: sourceToken.characterSheet.hpMax,
+                deathSaves: {
+                  successes: [false, false, false] as [boolean, boolean, boolean],
+                  failures: [false, false, false] as [boolean, boolean, boolean],
+                },
+                condition: "Healthy" as const,
+              }
+            : { ...sourceToken.characterSheet }
+          : sourceToken.characterSheet;
+
         const newToken: Token = {
           ...sourceToken,
           id: crypto.randomUUID(),
@@ -820,6 +866,8 @@ export const useMapStore = create<MapState>()(
           monsterGroupId: options.sameGroup ? sourceToken.monsterGroupId : null,
           // Don't copy character link - duplicates should be independent
           characterId: null,
+          // Use reset character sheet for group duplicates
+          characterSheet: duplicatedSheet,
         };
 
         set((prevState) => {

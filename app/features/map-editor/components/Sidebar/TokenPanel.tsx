@@ -435,8 +435,8 @@ export function TokenPanel({
                     className="w-4 h-4 rounded-full flex-shrink-0"
                     style={{ backgroundColor: token.color }}
                   />
-                  {/* Select and center button - shown for owners and DM */}
-                  {(isOwnToken || isDungeonMaster()) && onSelectAndCenter && (
+                  {/* Select and center button - shown for all visible tokens */}
+                  {onSelectAndCenter && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

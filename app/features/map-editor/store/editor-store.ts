@@ -28,6 +28,9 @@ interface EditorState {
   // Combat turn context - token IDs allowed to move this turn (null = no combat restriction)
   combatTurnTokenIds: string[] | null;
 
+  // Local play mode - DM sees fog as opaque (player perspective)
+  isPlayingLocally: boolean;
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -60,6 +63,9 @@ interface EditorState {
   // Combat turn context
   setCombatTurnTokenIds: (tokenIds: string[] | null) => void;
 
+  // Local play mode
+  togglePlayingLocally: () => void;
+
   // Permission helpers
   isDungeonMaster: () => boolean;
   isTokenOwner: (tokenOwnerId: string | null) => boolean;
@@ -91,6 +97,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openCharacterSheetTokenId: null,
   canvasDimensions: { width: 800, height: 600 },
   combatTurnTokenIds: null,
+  isPlayingLocally: false,
 
   setTool: (tool) =>
     set((state) => ({
@@ -165,6 +172,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Combat turn context
   setCombatTurnTokenIds: (tokenIds) => set({ combatTurnTokenIds: tokenIds }),
 
+  // Local play mode
+  togglePlayingLocally: () => set((state) => ({ isPlayingLocally: !state.isPlayingLocally })),
+
   // Permission helpers
   isDungeonMaster: () => get().permission === "dm",
 
@@ -196,12 +206,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return false;
   },
 
-  // DM can move any token, players can only move their own (and during combat, only on their turn)
-  canMoveToken: (tokenOwnerId: string | null, tokenId?: string) => {
+  // DM can move any token, players can only move their own
+  canMoveToken: (tokenOwnerId: string | null, _tokenId?: string) => {
     const state = get();
     const perms = state.permissions;
 
-    // DM can always move any token - full flexibility regardless of turn
+    // DM can always move any token
     if (perms.canMoveAllTokens) return true;
 
     // Players can move their own tokens
@@ -210,14 +220,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         ? state.permission === "dm"
         : tokenOwnerId === state.userId && state.userId !== null;
 
-      if (!isOwner) return false;
-
-      // During combat, players can only move their token on their turn
-      if (state.combatTurnTokenIds && tokenId) {
-        return state.combatTurnTokenIds.includes(tokenId);
-      }
-
-      return true;
+      return isOwner;
     }
 
     return false;

@@ -7,6 +7,7 @@ interface FogLayerProps {
   grid: GridSettings;
   currentUserId: string | null;
   showFluffyClouds?: boolean;
+  isPlayingLocally?: boolean;
 }
 
 interface FogRegion {
@@ -275,7 +276,7 @@ function drawFluff(ctx: CanvasRenderingContext2D, fluff: FluffInfo) {
   ctx.arc(fluff.x, fluff.y, fluff.r, 0, Math.PI * 2);
 }
 
-export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true }: FogLayerProps) {
+export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true, isPlayingLocally = false }: FogLayerProps) {
   const { cellSize, width, height } = grid;
 
   const regions = useMemo(() => {
@@ -295,7 +296,7 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
     <Group>
       {/* Base fog layer */}
       {regions.map((region, idx) => {
-        const isCreator = currentUserId && region.creatorId === currentUserId;
+        const isCreator = currentUserId && region.creatorId === currentUserId && !isPlayingLocally;
         // Creator sees semi-transparent fog, others see fully opaque
         const baseOpacity = isCreator ? 0.35 : 1;
         const fillColor = isCreator ? "#e8e8e8" : "#c8c8c8";
@@ -360,7 +361,7 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
 
       {/* Fluffy cloud puffs layer */}
       {showFluffyClouds && regions.map((region, idx) => {
-        const isCreator = currentUserId && region.creatorId === currentUserId;
+        const isCreator = currentUserId && region.creatorId === currentUserId && !isPlayingLocally;
         const cloudOpacity = isCreator ? 0.3 : 1;
         const fluffs = regionClouds[idx] || [];
 
@@ -411,7 +412,7 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
 
       {/* Soft outer glow layer */}
       {regions.map((region, idx) => {
-        const isCreator = currentUserId && region.creatorId === currentUserId;
+        const isCreator = currentUserId && region.creatorId === currentUserId && !isPlayingLocally;
         const glowOpacity = isCreator ? 0.1 : 0.35;
 
         return (
