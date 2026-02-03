@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Image } from "react-konva";
 import type { Background, GridSettings } from "../../types";
 import { useImage } from "../../hooks";
@@ -7,7 +8,7 @@ interface BackgroundLayerProps {
   grid: GridSettings;
 }
 
-export function BackgroundLayer({ background, grid }: BackgroundLayerProps) {
+export const BackgroundLayer = memo(function BackgroundLayer({ background, grid }: BackgroundLayerProps) {
   const image = useImage(background?.imageUrl ?? null);
 
   if (!image || !background) return null;
@@ -27,4 +28,4 @@ export function BackgroundLayer({ background, grid }: BackgroundLayerProps) {
       listening={false}
     />
   );
-}
+});

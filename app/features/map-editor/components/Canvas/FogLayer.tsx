@@ -1,5 +1,5 @@
 import { Shape, Group } from "react-konva";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { FogCell, GridSettings } from "../../types";
 
 interface FogLayerProps {
@@ -276,7 +276,7 @@ function drawFluff(ctx: CanvasRenderingContext2D, fluff: FluffInfo) {
   ctx.arc(fluff.x, fluff.y, fluff.r, 0, Math.PI * 2);
 }
 
-export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true, isPlayingLocally = false }: FogLayerProps) {
+export const FogLayer = memo(function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true, isPlayingLocally = false }: FogLayerProps) {
   const { cellSize, width, height } = grid;
 
   const regions = useMemo(() => {
@@ -502,4 +502,4 @@ export function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds =
       })}
     </Group>
   );
-}
+});

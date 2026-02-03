@@ -1,5 +1,5 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, memo } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
@@ -28,27 +28,6 @@ interface DragState {
   currentY: number;
 }
 
-/**
- * Token-specific actions interface.
- * Each token gets its own set of bound actions that can be extended.
- */
-export interface TokenItemActions {
-  // Core actions
-  move: (position: GridPosition) => void;
-  flip: () => void;
-  select: () => void;
-  setName: (name: string) => void;
-
-  // Extensible action hooks (can be customized per token)
-  onDragStart?: () => void;
-  onDragEnd?: () => void;
-  onDoubleClick?: () => void;
-  onRightClick?: () => void;
-
-  // Custom actions (can be added for specific token types)
-  custom?: Record<string, () => void>;
-}
-
 interface TokenItemProps {
   token: Token;
   cellSize: number;
@@ -59,14 +38,15 @@ interface TokenItemProps {
   selectedTool: string;
   isDragging: boolean;
   isLockedMouseDown: boolean;
-  actions: TokenItemActions;
-  onMouseDown: (e: any) => void;
-  onHoverStart: () => void;
+  onMouseDown: (tokenId: string, e: any) => void;
+  onFlip: (tokenId: string) => void;
+  onSelect: (tokenId: string) => void;
+  onHoverStart: (tokenId: string) => void;
   onHoverEnd: () => void;
-  onDoubleClick: () => void;
+  onDoubleClick: (tokenId: string) => void;
 }
 
-function TokenItem({
+const TokenItem = memo(function TokenItem({
   token,
   cellSize,
   isSelected,
@@ -76,8 +56,9 @@ function TokenItem({
   selectedTool,
   isDragging,
   isLockedMouseDown,
-  actions,
   onMouseDown,
+  onFlip,
+  onSelect,
   onHoverStart,
   onHoverEnd,
   onDoubleClick,
@@ -111,7 +92,7 @@ function TokenItem({
   const handleFlipClick = (e: any) => {
     if (!isEditable) return;
     e.cancelBubble = true;
-    actions.flip();
+    onFlip(token.id);
   };
 
   const handleFlipMouseDown = (e: any) => {
@@ -125,13 +106,25 @@ function TokenItem({
     // Only allow selection if user can move this token (has access)
     if (!isMovable) return;
     e.cancelBubble = true;
-    actions.select();
+    onSelect(token.id);
   };
 
   const handleRightClick = (e: any) => {
     e.cancelBubble = true;
     e.evt?.preventDefault();
-    actions.onRightClick?.();
+  };
+
+  const handleMouseDown = (e: any) => {
+    onMouseDown(token.id, e);
+  };
+
+  const handleHoverStart = () => {
+    onHoverStart(token.id);
+  };
+
+  const handleDoubleClick = (e: any) => {
+    e.cancelBubble = true;
+    onDoubleClick(token.id);
   };
 
   // Flip button size and position
@@ -169,25 +162,20 @@ function TokenItem({
   const acTextColor = isLight ? "#000000" : "#ffffff";
   const acStrokeColor = isLight ? "#374151" : "#ffffff";
 
-  const handleDoubleClick = (e: any) => {
-    e.cancelBubble = true;
-    onDoubleClick();
-  };
-
   return (
     <Group
       x={x}
       y={y}
       rotation={token.rotation}
       opacity={isDragging ? 0.5 : 1}
-      onMouseDown={onMouseDown}
-      onTouchStart={onMouseDown}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleMouseDown}
       onClick={handleClick}
       onTap={handleClick}
       onDblClick={handleDoubleClick}
       onDblTap={handleDoubleClick}
       onContextMenu={handleRightClick}
-      onMouseEnter={onHoverStart}
+      onMouseEnter={handleHoverStart}
       onMouseLeave={onHoverEnd}
     >
       {hasImageUrl ? (
@@ -409,7 +397,7 @@ function TokenItem({
       )}
     </Group>
   );
-}
+});
 
 // Ghost preview of token at drag destination
 function TokenGhost({
@@ -471,6 +459,87 @@ function TokenGhost({
   );
 }
 
+// Drag overlay — renders path line, distance label, and ghost during drag
+// Isolated so drag position updates don't re-render TokenItems
+interface DragOverlayProps {
+  dragState: DragState;
+  token: Token;
+  cellSize: number;
+}
+
+function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
+  const offset = (token.size * cellSize) / 2;
+
+  // Get snapped destination for ghost
+  const col = Math.round((dragState.currentX - offset) / cellSize);
+  const row = Math.round((dragState.currentY - offset) / cellSize);
+  const snappedX = col * cellSize + offset;
+  const snappedY = row * cellSize + offset;
+
+  // Calculate distance in cells (using center-to-center)
+  const startCol = Math.round((dragState.startX - offset) / cellSize);
+  const startRow = Math.round((dragState.startY - offset) / cellSize);
+
+  // Calculate distance using Pythagorean theorem for diagonal movement
+  const deltaCol = Math.abs(col - startCol);
+  const deltaRow = Math.abs(row - startRow);
+  const distanceInCells = Math.sqrt(deltaCol * deltaCol + deltaRow * deltaRow);
+  const distanceInFeet = Math.round(distanceInCells * 5 * 10) / 10;
+
+  // Position the label at the midpoint of the line
+  const midX = (dragState.startX + snappedX) / 2;
+  const midY = (dragState.startY + snappedY) / 2;
+
+  // Format: show decimal only if not a whole number
+  const displayText = Number.isInteger(distanceInFeet)
+    ? `${distanceInFeet}ft`
+    : `${distanceInFeet.toFixed(1)}ft`;
+  const labelWidth = Math.max(40, displayText.length * 9 + 8);
+
+  return (
+    <>
+      <Line
+        points={[dragState.startX, dragState.startY, snappedX, snappedY]}
+        stroke={token.color}
+        strokeWidth={3}
+        dash={[10, 5]}
+        lineCap="round"
+        lineJoin="round"
+      />
+      {/* Distance label */}
+      {distanceInFeet > 0 && (
+        <Group x={midX} y={midY}>
+          <Rect
+            offsetX={labelWidth / 2}
+            offsetY={12}
+            width={labelWidth}
+            height={24}
+            fill="rgba(0, 0, 0, 0.8)"
+            cornerRadius={4}
+          />
+          <Text
+            text={displayText}
+            fontSize={14}
+            fontStyle="bold"
+            fill="white"
+            align="center"
+            width={labelWidth}
+            offsetX={labelWidth / 2}
+            offsetY={7}
+          />
+        </Group>
+      )}
+      {/* Ghost at destination */}
+      <TokenGhost
+        token={token}
+        cellSize={cellSize}
+        x={snappedX}
+        y={snappedY}
+      />
+    </>
+  );
+}
+
 interface TokenLayerProps {
   tokens: Token[];
   cellSize: number;
@@ -479,10 +548,9 @@ interface TokenLayerProps {
   onTokenFlip?: (tokenId: string) => void;
 }
 
-export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFlip }: TokenLayerProps) {
+export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFlip }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
-  const updateToken = useMapStore((s) => s.updateToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
@@ -497,50 +565,13 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
   const isDraggingRef = useRef(false);
   const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Create token-specific actions factory
-  const createTokenActions = useCallback(
-    (token: Token, isEditable: boolean): TokenItemActions => ({
-      move: (position: GridPosition) => {
-        if (isEditable) moveToken(token.id, position);
-      },
-      flip: () => {
-        if (isEditable) {
-          flipToken(token.id);
-          onTokenFlip?.(token.id);
-        }
-      },
-      select: () => setSelectedElements([token.id]),
-      setName: (name: string) => {
-        if (isEditable) updateToken(token.id, { name });
-      },
-
-      // Extensible hooks - can be customized based on token type/layer
-      onDragStart: () => {
-        // Can add token-specific drag start behavior
-      },
-      onDragEnd: () => {
-        // Can add token-specific drag end behavior
-      },
-      onRightClick: () => {
-        // Can open context menu
-        console.log(`Right-clicked token: ${token.name}`);
-      },
-
-      // Custom actions based on token layer type
-      custom: token.layer === "character"
-        ? {
-            openCharacterSheet: () => console.log("Open character sheet"),
-          }
-        : token.layer === "monster"
-        ? {
-            rollInitiative: () => console.log("Roll initiative"),
-          }
-        : {
-            toggleInteractable: () => console.log("Toggle interactable"),
-          },
-    }),
-    [moveToken, flipToken, updateToken, setSelectedElements, onTokenFlip]
-  );
+  // Stable refs for callback deps so the effect only re-runs when cellSize/stageRef change
+  const onTokenMovedRef = useRef(onTokenMoved);
+  onTokenMovedRef.current = onTokenMoved;
+  const moveTokenRef = useRef(moveToken);
+  moveTokenRef.current = moveToken;
+  const canMoveTokenRef = useRef(canMoveToken);
+  canMoveTokenRef.current = canMoveToken;
 
   // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move
   useEffect(() => {
@@ -582,10 +613,10 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
         const row = Math.round((position.y - offset) / cellSize);
 
         // Only move if user can move this token
-        if (canMoveToken(token.ownerId, token.id)) {
-          moveToken(token.id, { col, row });
+        if (canMoveTokenRef.current(token.ownerId, token.id)) {
+          moveTokenRef.current(token.id, { col, row });
           // Trigger immediate sync for real-time updates
-          onTokenMoved?.(token.id, { col, row });
+          onTokenMovedRef.current?.(token.id, { col, row });
         }
       }
 
@@ -608,11 +639,14 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
       window.removeEventListener("touchmove", handleMouseMove as any);
       window.removeEventListener("touchend", handleMouseUp);
     };
-  }, [cellSize, moveToken, stageRef, canMoveToken, onTokenMoved]); // Removed dragState from deps
+  }, [cellSize, stageRef]);
 
   const handleMouseDown = useCallback(
-    (token: Token, e: any) => {
+    (tokenId: string, e: any) => {
       if (selectedTool !== "select") return;
+
+      const token = tokens.find((t) => t.id === tokenId);
+      if (!token) return;
 
       // Check if user can move this token
       if (!canMoveToken(token.ownerId, token.id)) {
@@ -648,7 +682,32 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
 
       setSelectedElements([token.id]);
     },
-    [selectedTool, cellSize, setSelectedElements, canMoveToken]
+    [selectedTool, cellSize, setSelectedElements, canMoveToken, tokens]
+  );
+
+  const handleFlip = useCallback(
+    (tokenId: string) => {
+      flipToken(tokenId);
+      onTokenFlip?.(tokenId);
+    },
+    [flipToken, onTokenFlip]
+  );
+
+  const handleSelect = useCallback(
+    (tokenId: string) => {
+      setSelectedElements([tokenId]);
+    },
+    [setSelectedElements]
+  );
+
+  const handleDoubleClick = useCallback(
+    (tokenId: string) => {
+      const token = tokens.find((t) => t.id === tokenId);
+      if (token && canMoveToken(token.ownerId, token.id)) {
+        openCharacterSheet(tokenId);
+      }
+    },
+    [tokens, canMoveToken, openCharacterSheet]
   );
 
   // Clear locked mouse down state on mouse up
@@ -687,119 +746,15 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
     }
   }, [stageRef, isPanning]);
 
-  // Calculate straight line path points
-  const getPathPoints = (
-    startX: number,
-    startY: number,
-    endX: number,
-    endY: number
-  ): number[] => {
-    // Straight line from start to end
-    return [startX, startY, endX, endY];
-  };
-
-  // Get snapped destination for ghost
-  const getSnappedPosition = (token: Token, x: number, y: number) => {
-    const offset = (token.size * cellSize) / 2;
-    const col = Math.round((x - offset) / cellSize);
-    const row = Math.round((y - offset) / cellSize);
-    return {
-      x: col * cellSize + offset,
-      y: row * cellSize + offset,
-    };
-  };
-
   return (
     <>
-      {/* Draw path line when dragging */}
+      {/* Drag overlay - isolated from token list rendering */}
       {dragState && draggingTokenRef.current && (
-        <>
-          {(() => {
-            const token = draggingTokenRef.current;
-            const snapped = getSnappedPosition(
-              token,
-              dragState.currentX,
-              dragState.currentY
-            );
-
-            // Calculate distance in cells (using center-to-center)
-            const startCol = Math.round((dragState.startX - (token.size * cellSize) / 2) / cellSize);
-            const startRow = Math.round((dragState.startY - (token.size * cellSize) / 2) / cellSize);
-            const endCol = Math.round((snapped.x - (token.size * cellSize) / 2) / cellSize);
-            const endRow = Math.round((snapped.y - (token.size * cellSize) / 2) / cellSize);
-
-            // Calculate distance using Pythagorean theorem for diagonal movement
-            const deltaCol = Math.abs(endCol - startCol);
-            const deltaRow = Math.abs(endRow - startRow);
-            // Diagonal distance = sqrt(horizontal² + vertical²)
-            const distanceInCells = Math.sqrt(deltaCol * deltaCol + deltaRow * deltaRow);
-            // Round to 1 decimal place and convert to feet (1 cell = 5 feet)
-            const distanceInFeet = Math.round(distanceInCells * 5 * 10) / 10;
-
-            // Position the label at the midpoint of the line
-            const midX = (dragState.startX + snapped.x) / 2;
-            const midY = (dragState.startY + snapped.y) / 2;
-
-            return (
-              <>
-                <Line
-                  points={getPathPoints(
-                    dragState.startX,
-                    dragState.startY,
-                    snapped.x,
-                    snapped.y
-                  )}
-                  stroke={token.color}
-                  strokeWidth={3}
-                  dash={[10, 5]}
-                  lineCap="round"
-                  lineJoin="round"
-                />
-                {/* Distance label */}
-                {distanceInFeet > 0 && (
-                  <Group x={midX} y={midY}>
-                    {(() => {
-                      // Format: show decimal only if not a whole number
-                      const displayText = Number.isInteger(distanceInFeet)
-                        ? `${distanceInFeet}ft`
-                        : `${distanceInFeet.toFixed(1)}ft`;
-                      const labelWidth = Math.max(40, displayText.length * 9 + 8);
-                      return (
-                        <>
-                          <Rect
-                            offsetX={labelWidth / 2}
-                            offsetY={12}
-                            width={labelWidth}
-                            height={24}
-                            fill="rgba(0, 0, 0, 0.8)"
-                            cornerRadius={4}
-                          />
-                          <Text
-                            text={displayText}
-                            fontSize={14}
-                            fontStyle="bold"
-                            fill="white"
-                            align="center"
-                            width={labelWidth}
-                            offsetX={labelWidth / 2}
-                            offsetY={7}
-                          />
-                        </>
-                      );
-                    })()}
-                  </Group>
-                )}
-                {/* Ghost at destination */}
-                <TokenGhost
-                  token={token}
-                  cellSize={cellSize}
-                  x={snapped.x}
-                  y={snapped.y}
-                />
-              </>
-            );
-          })()}
-        </>
+        <DragOverlay
+          dragState={dragState}
+          token={draggingTokenRef.current}
+          cellSize={cellSize}
+        />
       )}
 
       {tokens.map((token) => {
@@ -807,7 +762,6 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
 
         const isEditable = canEditToken(token.ownerId);
         const isMovable = canMoveToken(token.ownerId, token.id);
-        const actions = createTokenActions(token, isEditable);
 
         return (
           <TokenItem
@@ -821,21 +775,18 @@ export function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFl
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
             isLockedMouseDown={lockedMouseDownId === token.id}
-            actions={actions}
-            onMouseDown={(e) => handleMouseDown(token, e)}
-            onHoverStart={() => handleHoverStart(token.id)}
+            onMouseDown={handleMouseDown}
+            onFlip={handleFlip}
+            onSelect={handleSelect}
+            onHoverStart={handleHoverStart}
             onHoverEnd={handleHoverEnd}
-            onDoubleClick={() => {
-              if (isMovable) {
-                openCharacterSheet(token.id);
-              }
-            }}
+            onDoubleClick={handleDoubleClick}
           />
         );
       })}
     </>
   );
-}
+});
 
 // Selection overlay - renders above fog layer so selection is always visible
 interface SelectedTokenOverlayProps {
@@ -843,7 +794,7 @@ interface SelectedTokenOverlayProps {
   cellSize: number;
 }
 
-export function SelectedTokenOverlay({ tokens, cellSize }: SelectedTokenOverlayProps) {
+export const SelectedTokenOverlay = memo(function SelectedTokenOverlay({ tokens, cellSize }: SelectedTokenOverlayProps) {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
 
   return (
@@ -891,4 +842,4 @@ export function SelectedTokenOverlay({ tokens, cellSize }: SelectedTokenOverlayP
         })}
     </>
   );
-}
+});

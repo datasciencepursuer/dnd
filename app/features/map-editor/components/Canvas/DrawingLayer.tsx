@@ -1,5 +1,5 @@
 import { Line } from "react-konva";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { FreehandPath } from "../../types";
 
 interface DrawingLayerProps {
@@ -11,7 +11,7 @@ interface DrawingLayerProps {
   onErasePath?: (id: string) => void;
 }
 
-export function DrawingLayer({
+export const DrawingLayer = memo(function DrawingLayer({
   paths,
   currentPath,
   currentColor,
@@ -58,4 +58,4 @@ export function DrawingLayer({
       )}
     </>
   );
-}
+});

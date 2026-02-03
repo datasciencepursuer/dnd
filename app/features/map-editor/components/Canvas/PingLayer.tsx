@@ -1,5 +1,5 @@
 import { Circle, Group } from "react-konva";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { Ping } from "../../types";
 
 interface PingLayerProps {
@@ -71,7 +71,7 @@ function AnimatedPing({ ping }: AnimatedPingProps) {
   );
 }
 
-export function PingLayer({ pings }: PingLayerProps) {
+export const PingLayer = memo(function PingLayer({ pings }: PingLayerProps) {
   return (
     <>
       {pings.map((ping) => (
@@ -79,4 +79,4 @@ export function PingLayer({ pings }: PingLayerProps) {
       ))}
     </>
   );
-}
+});

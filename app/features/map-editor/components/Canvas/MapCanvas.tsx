@@ -1,5 +1,5 @@
 import { Stage, Layer, Rect } from "react-konva";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { TokenLayer, SelectedTokenOverlay } from "./TokenLayer";
@@ -41,7 +41,15 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
 
-  const map = useMapStore((s) => s.map);
+  // Granular store selectors — each layer only re-renders when its specific data changes
+  const tokens = useMapStore((s) => s.map?.tokens);
+  const grid = useMapStore((s) => s.map?.grid);
+  const fogPaintedCells = useMapStore((s) => s.map?.fogOfWar?.paintedCells);
+  const background = useMapStore((s) => s.map?.background);
+  const freehand = useMapStore((s) => s.map?.freehand);
+  const viewport = useMapStore((s) => s.map?.viewport);
+  const mapId = useMapStore((s) => s.map?.id);
+
   const setViewport = useMapStore((s) => s.setViewport);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
@@ -59,11 +67,16 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
 
   const stageRef = useRef<any>(null);
+  const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Get selected token for drawing color
-  const selectedToken = map?.tokens.find((t) => selectedElementIds.includes(t.id));
+  const selectedToken = tokens?.find((t) => selectedElementIds.includes(t.id));
   const drawingColor = selectedToken?.color || "#ef4444";
   const drawingWidth = 3;
+
+  // Stable ref for freehand to use in mouseUp without causing re-renders
+  const freehandRef = useRef(freehand);
+  freehandRef.current = freehand;
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -82,22 +95,22 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   // Center the grid on initial load - always center for each client session
   useEffect(() => {
-    if (!map || dimensions.width === 0 || dimensions.height === 0) return;
+    if (!grid || !viewport || !mapId || dimensions.width === 0 || dimensions.height === 0) return;
 
     // Only center once per map (check if we've already centered this map)
-    if (hasCenteredRef.current === map.id) return;
+    if (hasCenteredRef.current === mapId) return;
 
-    const gridWidthPx = map.grid.width * map.grid.cellSize;
-    const gridHeightPx = map.grid.height * map.grid.cellSize;
-    const scale = map.viewport.scale;
+    const gridWidthPx = grid.width * grid.cellSize;
+    const gridHeightPx = grid.height * grid.cellSize;
+    const scale = viewport.scale;
 
     // Calculate position to center the grid on screen
     const centerX = (dimensions.width - gridWidthPx * scale) / 2;
     const centerY = (dimensions.height - gridHeightPx * scale) / 2;
 
     setViewport(centerX, centerY, scale);
-    hasCenteredRef.current = map.id;
-  }, [map?.id, map?.grid.width, map?.grid.height, map?.grid.cellSize, map?.viewport.scale, dimensions.width, dimensions.height, setViewport]);
+    hasCenteredRef.current = mapId;
+  }, [mapId, grid?.width, grid?.height, grid?.cellSize, viewport?.scale, dimensions.width, dimensions.height, setViewport]);
 
   // Set cursor during right-click panning (on body, container, and stage)
   useEffect(() => {
@@ -170,7 +183,16 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     };
   }, [setIsPanning, setViewport]); // Removed isRightClickPanning from deps
 
-  if (!map) return null;
+  // Cleanup viewport debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (viewportTimeoutRef.current) clearTimeout(viewportTimeoutRef.current);
+    };
+  }, []);
+
+  if (!grid || !viewport || !tokens || !freehand || !fogPaintedCells) return null;
+
+  const cellSize = grid.cellSize;
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
@@ -196,15 +218,21 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       y: pointer.y - mousePointTo.y * newScale,
     };
 
+    // Apply zoom to Konva Stage directly for immediate visual feedback
     stage.scale({ x: newScale, y: newScale });
     stage.position(newPos);
-    setViewport(newPos.x, newPos.y, newScale);
+
+    // Debounce the store update so React only reconciles once after scrolling stops
+    if (viewportTimeoutRef.current) clearTimeout(viewportTimeoutRef.current);
+    viewportTimeoutRef.current = setTimeout(() => {
+      setViewport(newPos.x, newPos.y, newScale);
+    }, 150);
   };
 
   // Helper to get grid cell from canvas position
   const getCellFromPosition = (pos: { x: number; y: number }) => {
-    const col = Math.floor(pos.x / map!.grid.cellSize);
-    const row = Math.floor(pos.y / map!.grid.cellSize);
+    const col = Math.floor(pos.x / cellSize);
+    const row = Math.floor(pos.y / cellSize);
     return { col, row };
   };
 
@@ -287,7 +315,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         const maxY = Math.max(dragStart.y, dragEnd.y);
 
         // Find and remove paths that have any point within the rectangle
-        map?.freehand.forEach((path) => {
+        freehandRef.current?.forEach((path) => {
           for (let i = 0; i < path.points.length; i += 2) {
             const px = path.points[i];
             const py = path.points[i + 1];
@@ -446,20 +474,20 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         onClick={handleClick}
         onTap={handleClick}
         onContextMenu={handleContextMenu}
-        x={map.viewport.x}
-        y={map.viewport.y}
-        scaleX={map.viewport.scale}
-        scaleY={map.viewport.scale}
+        x={viewport.x}
+        y={viewport.y}
+        scaleX={viewport.scale}
+        scaleY={viewport.scale}
       >
         <Layer name="background">
-          <BackgroundLayer background={map.background} grid={map.grid} />
+          <BackgroundLayer background={background ?? null} grid={grid} />
         </Layer>
         <Layer name="grid">
-          <GridLayer grid={map.grid} />
+          <GridLayer grid={grid} />
         </Layer>
         <Layer name="drawings">
           <DrawingLayer
-            paths={map.freehand}
+            paths={freehand}
             currentPath={currentPath}
             currentColor={drawingColor}
             currentWidth={drawingWidth}
@@ -469,8 +497,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         </Layer>
         <Layer name="tokens">
           <TokenLayer
-            tokens={map.tokens}
-            cellSize={map.grid.cellSize}
+            tokens={tokens}
+            cellSize={cellSize}
             stageRef={stageRef}
             onTokenMoved={onTokenMoved}
             onTokenFlip={onTokenFlip}
@@ -478,14 +506,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         </Layer>
         <Layer name="fog">
           <FogLayer
-            paintedCells={map.fogOfWar.paintedCells || []}
-            grid={map.grid}
+            paintedCells={fogPaintedCells || []}
+            grid={grid}
             currentUserId={userId}
             isPlayingLocally={isPlayingLocally}
           />
         </Layer>
         <Layer name="token-selection">
-          <SelectedTokenOverlay tokens={map.tokens} cellSize={map.grid.cellSize} />
+          <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
         </Layer>
         <Layer name="pings">
           <PingLayer pings={activePings} />

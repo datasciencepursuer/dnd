@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { Line } from "react-konva";
 import type { GridSettings } from "../../types";
 
@@ -6,7 +6,7 @@ interface GridLayerProps {
   grid: GridSettings;
 }
 
-export function GridLayer({ grid }: GridLayerProps) {
+export const GridLayer = memo(function GridLayer({ grid }: GridLayerProps) {
   if (!grid.showGrid) return null;
 
   const { cellSize, width, height, gridColor, gridOpacity } = grid;
@@ -46,4 +46,4 @@ export function GridLayer({ grid }: GridLayerProps) {
   }
 
   return <>{lines}</>;
-}
+});
