@@ -689,7 +689,6 @@ export function MapEditor({
           onSave={syncNow}
           onTokenUpdate={handleTokenUpdate}
           mapId={mapId}
-          groupId={groupId}
           onNext={handleEditTokenNext}
           onPrev={handleEditTokenPrev}
           hasNext={editingTokenIndex >= 0 && editingTokenIndex < editableTokens.length - 1}

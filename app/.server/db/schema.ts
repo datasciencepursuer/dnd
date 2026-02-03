@@ -206,7 +206,6 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   members: many(groupMembers),
   invitations: many(groupInvitations),
   maps: many(maps),
-  characters: many(characters),
 }));
 
 export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
@@ -254,8 +253,6 @@ export const characters = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // If set, character is shared with this group. If null, it's personal.
-    groupId: text("group_id").references(() => groups.id, { onDelete: "cascade" }),
     // Token display properties
     name: text("name").notNull(),
     imageUrl: text("image_url"),
@@ -270,7 +267,6 @@ export const characters = pgTable(
   },
   (table) => [
     index("characters_user_id_idx").on(table.userId),
-    index("characters_group_id_idx").on(table.groupId),
   ]
 );
 
@@ -278,10 +274,6 @@ export const charactersRelations = relations(characters, ({ one }) => ({
   owner: one(user, {
     fields: [characters.userId],
     references: [user.id],
-  }),
-  group: one(groups, {
-    fields: [characters.groupId],
-    references: [groups.id],
   }),
 }));
 

@@ -1,6 +1,6 @@
 import type { Route } from "./+types/characters";
-import { useState, useMemo, useCallback } from "react";
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import { useState } from "react";
+import { Link, useLoaderData } from "react-router";
 import type { CharacterSheet } from "~/features/map-editor/types";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "~/features/map-editor/components/ImageLibraryPicker";
@@ -9,7 +9,6 @@ import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterS
 interface CharacterData {
   id: string;
   userId: string;
-  groupId: string | null;
   name: string;
   imageUrl: string | null;
   color: string;
@@ -20,14 +19,8 @@ interface CharacterData {
   updatedAt: string;
 }
 
-interface GroupInfo {
-  id: string;
-  name: string;
-}
-
 interface LoaderData {
   characters: CharacterData[];
-  groups: GroupInfo[];
   userName: string;
 }
 
@@ -39,48 +32,28 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { eq, or, inArray, isNull, and, desc } = await import("drizzle-orm");
+  const { eq, desc } = await import("drizzle-orm");
   const { db } = await import("~/.server/db");
-  const { characters, groups, groupMembers } = await import("~/.server/db/schema");
+  const { characters } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
 
   const session = await requireAuth(request);
   const userId = session.user.id;
 
-  // Get only the current user's characters
   const characterList = await db
     .select()
     .from(characters)
     .where(eq(characters.userId, userId))
     .orderBy(desc(characters.updatedAt));
 
-  // Get user's groups (for the group filter dropdown)
-  const userGroups = await db
-    .select({ groupId: groupMembers.groupId })
-    .from(groupMembers)
-    .where(eq(groupMembers.userId, userId));
-
-  const groupIds = userGroups.map((g) => g.groupId);
-
-  // Get group info
-  const groupsData =
-    groupIds.length > 0
-      ? await db
-          .select({ id: groups.id, name: groups.name })
-          .from(groups)
-          .where(inArray(groups.id, groupIds))
-      : [];
-
   return {
     characters: characterList,
-    groups: groupsData,
     userName: session.user.name,
   };
 }
 
 export default function Characters() {
-  const { characters, groups, userName } = useLoaderData<LoaderData>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { characters, userName } = useLoaderData<LoaderData>();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<CharacterData | null>(null);
@@ -91,7 +64,6 @@ export default function Characters() {
   const [formName, setFormName] = useState("");
   const [formColor, setFormColor] = useState("#ef4444");
   const [formSize, setFormSize] = useState(1);
-  const [formGroupId, setFormGroupId] = useState<string>("");
   const [formImageUrl, setFormImageUrl] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -132,49 +104,10 @@ export default function Characters() {
     setShowLibrary(false);
   };
 
-  // Filter
-  const activeFilter = searchParams.get("group") || "all";
-
-  const filteredCharacters = useMemo(() => {
-    if (activeFilter === "all") return characters;
-    if (activeFilter === "personal") return characters.filter((c) => !c.groupId);
-    return characters.filter((c) => c.groupId === activeFilter);
-  }, [characters, activeFilter]);
-
-  // Group characters by group for display
-  const groupedCharacters = useMemo(() => {
-    const grouped: Record<string, CharacterData[]> = {
-      personal: [],
-    };
-
-    groups.forEach((g) => {
-      grouped[g.id] = [];
-    });
-
-    characters.forEach((c) => {
-      if (c.groupId && grouped[c.groupId]) {
-        grouped[c.groupId].push(c);
-      } else if (!c.groupId) {
-        grouped.personal.push(c);
-      }
-    });
-
-    return grouped;
-  }, [characters, groups]);
-
-  const handleFilterChange = (filter: string) => {
-    if (filter === "all") {
-      setSearchParams({});
-    } else {
-      setSearchParams({ group: filter });
-    }
-  };
-
   const openCreateModal = () => {
     setFormName("");
     setFormColor("#ef4444");
     setFormSize(1);
-    setFormGroupId(activeFilter !== "all" && activeFilter !== "personal" ? activeFilter : "");
     setFormImageUrl(null);
     setShowLibrary(false);
     setUploadError(null);
@@ -186,7 +119,6 @@ export default function Characters() {
     setFormName(character.name);
     setFormColor(character.color);
     setFormSize(character.size);
-    setFormGroupId(character.groupId || "");
     setFormImageUrl(character.imageUrl);
     setShowLibrary(false);
     setUploadError(null);
@@ -211,7 +143,6 @@ export default function Characters() {
           name: formName.trim(),
           color: formColor,
           size: formSize,
-          groupId: formGroupId || null,
           imageUrl: formImageUrl || null,
         }),
       });
@@ -255,10 +186,6 @@ export default function Characters() {
   ];
 
   const renderCharacterCard = (character: CharacterData) => {
-    const groupName = character.groupId
-      ? groups.find((g) => g.id === character.groupId)?.name
-      : null;
-
     return (
       <div
         key={character.id}
@@ -305,12 +232,6 @@ export default function Characters() {
               </p>
             )}
             <p className="text-xs">
-              {groupName ? (
-                <span className="text-indigo-600 dark:text-indigo-400">{groupName}</span>
-              ) : (
-                <span>Personal</span>
-              )}
-              {" · "}
               <span className="capitalize">{character.layer}</span>
               {" · "}
               Size {character.size}
@@ -372,50 +293,11 @@ export default function Characters() {
           </div>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            onClick={() => handleFilterChange("all")}
-            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
-              activeFilter === "all"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-            }`}
-          >
-            All ({characters.length})
-          </button>
-          <button
-            onClick={() => handleFilterChange("personal")}
-            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
-              activeFilter === "personal"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-            }`}
-          >
-            Personal ({groupedCharacters.personal.length})
-          </button>
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              onClick={() => handleFilterChange(group.id)}
-              className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
-                activeFilter === group.id
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
-              }`}
-            >
-              {group.name} ({groupedCharacters[group.id]?.length || 0})
-            </button>
-          ))}
-        </div>
-
         {/* Character List */}
-        {filteredCharacters.length === 0 ? (
+        {characters.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-4">
-              {activeFilter === "all"
-                ? "No characters yet. Create your first character!"
-                : "No characters in this category."}
+              No characters yet. Create your first character!
             </p>
             <button
               onClick={openCreateModal}
@@ -426,7 +308,7 @@ export default function Characters() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredCharacters.map(renderCharacterCard)}
+            {characters.map(renderCharacterCard)}
           </div>
         )}
 
@@ -489,29 +371,6 @@ export default function Characters() {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Share with Group
-                  </label>
-                  <select
-                    value={formGroupId}
-                    onChange={(e) => setFormGroupId(e.target.value)}
-                    className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  >
-                    <option value="">Personal (not shared)</option>
-                    {groups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {formGroupId
-                      ? "All group members can use this character"
-                      : "Only you can use this character"}
-                  </p>
                 </div>
 
                 <div>

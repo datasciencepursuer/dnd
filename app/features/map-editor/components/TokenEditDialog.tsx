@@ -18,7 +18,6 @@ interface LibraryCharacter {
   size: number;
   layer: string;
   characterSheet: CharacterSheet | null;
-  groupId: string | null;
 }
 
 interface TokenEditDialogProps {
@@ -28,7 +27,6 @@ interface TokenEditDialogProps {
   onSave?: () => void;
   onTokenUpdate?: (tokenId: string, updates: Record<string, unknown>) => void;
   mapId?: string;
-  groupId?: string | null;
   // Navigation between tokens
   onNext?: () => void;
   onPrev?: () => void;
@@ -45,7 +43,6 @@ export function TokenEditDialog({
   onSave,
   onTokenUpdate,
   mapId,
-  groupId,
   onNext,
   onPrev,
   hasNext = false,
@@ -109,10 +106,7 @@ export function TokenEditDialog({
   useEffect(() => {
     const fetchCharacters = async () => {
       try {
-        const url = groupId
-          ? `/api/characters?groupId=${groupId}`
-          : `/api/characters?groupId=personal`;
-        const response = await fetch(url);
+        const response = await fetch("/api/characters");
         if (response.ok) {
           const data = await response.json();
           setAvailableCharacters(data.characters || []);
@@ -123,7 +117,7 @@ export function TokenEditDialog({
     };
 
     fetchCharacters();
-  }, [groupId]);
+  }, []);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -288,7 +282,6 @@ export function TokenEditDialog({
           color,
           size,
           layer,
-          groupId: groupId || null,
           characterSheet: token.characterSheet,
         }),
       });

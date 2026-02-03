@@ -73,7 +73,7 @@ export async function loader({ request, params }: { request: Request; params: { 
     const libraryCharacters = await db
       .select()
       .from(characters)
-      .where(eq(characters.groupId, groupId));
+      .where(eq(characters.userId, userId));
 
     for (const char of libraryCharacters) {
       if (!includeAll && char.layer !== layerFilter) continue;
