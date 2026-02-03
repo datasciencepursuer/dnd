@@ -207,6 +207,7 @@ export default function Maps() {
   const [deleteModal, setDeleteModal] = useState<{ id: string; name: string } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [revealedThumbnails, setRevealedThumbnails] = useState<Set<string>>(new Set());
 
   // Check for localStorage maps on mount
   useEffect(() => {
@@ -405,7 +406,22 @@ export default function Maps() {
     >
       <div className="h-32 bg-gray-200 dark:bg-gray-700 flex items-center justify-center relative overflow-hidden">
         {map.thumbnailUrl ? (
-          <img src={map.thumbnailUrl} alt={map.name} className="w-full h-full object-cover blur-sm hover:blur-none transition-all duration-300" />
+          <div
+            className="w-full h-full cursor-pointer"
+            onClick={() => setRevealedThumbnails((prev) => {
+              const next = new Set(prev);
+              if (next.has(map.id)) next.delete(map.id);
+              else next.add(map.id);
+              return next;
+            })}
+          >
+            <img src={map.thumbnailUrl} alt={map.name} className={`w-full h-full object-cover transition-all duration-300 ${revealedThumbnails.has(map.id) ? "" : "blur-sm"}`} />
+            {!revealedThumbnails.has(map.id) && (
+              <span className="absolute inset-0 flex items-center justify-center text-white text-sm font-medium opacity-0 hover:opacity-100 transition-opacity bg-black/30">
+                Spoilers! Click to reveal
+              </span>
+            )}
+          </div>
         ) : (
           <span className="text-4xl">🗺️</span>
         )}
@@ -814,11 +830,8 @@ Play
 
         {/* My Maps Section */}
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             My Maps
-            <span className="text-xs text-gray-400 dark:text-gray-500 font-normal">
-              Hover to see details but there's spoilers!
-            </span>
           </h2>
           {filteredOwned.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
