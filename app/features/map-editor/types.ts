@@ -231,9 +231,10 @@ export interface CharacterSheet {
   shield: boolean;
   heroicInspiration: boolean;
   condition: Condition;
-  auraEnabled: boolean;
-  auraRange: number; // in feet (from token edge)
-  auraShape: "circle" | "square";
+  auraCircleEnabled: boolean;
+  auraCircleRange: number; // in feet (from token edge)
+  auraSquareEnabled: boolean;
+  auraSquareRange: number; // in feet (from token edge)
 
   // Death Saves
   deathSaves: {
