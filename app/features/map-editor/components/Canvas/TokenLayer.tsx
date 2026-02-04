@@ -557,6 +557,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const canEditToken = useEditorStore((s) => s.canEditToken);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
   const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
+  const isPanning = useEditorStore((s) => s.isPanning);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
@@ -565,13 +566,29 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const isDraggingRef = useRef(false);
   const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Stable refs for callback deps so the effect only re-runs when cellSize/stageRef change
+  // Stable refs — keep callbacks stable so React.memo on TokenItem actually works.
+  // Without these, every token/tool/cellSize change recreates callbacks,
+  // which defeats memo on ALL TokenItems.
   const onTokenMovedRef = useRef(onTokenMoved);
   onTokenMovedRef.current = onTokenMoved;
+  const onTokenFlipRef = useRef(onTokenFlip);
+  onTokenFlipRef.current = onTokenFlip;
   const moveTokenRef = useRef(moveToken);
   moveTokenRef.current = moveToken;
   const canMoveTokenRef = useRef(canMoveToken);
   canMoveTokenRef.current = canMoveToken;
+  const tokensRef = useRef(tokens);
+  tokensRef.current = tokens;
+  const selectedToolRef = useRef(selectedTool);
+  selectedToolRef.current = selectedTool;
+  const cellSizeRef = useRef(cellSize);
+  cellSizeRef.current = cellSize;
+  const isPanningRef = useRef(isPanning);
+  isPanningRef.current = isPanning;
+  const flipTokenRef = useRef(flipToken);
+  flipTokenRef.current = flipToken;
+  const openCharacterSheetRef = useRef(openCharacterSheet);
+  openCharacterSheetRef.current = openCharacterSheet;
 
   // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move
   useEffect(() => {
@@ -604,13 +621,14 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
       const token = draggingTokenRef.current;
       const position = dragPositionRef.current;
+      const cs = cellSizeRef.current;
 
       if (token && position) {
-        const offset = (token.size * cellSize) / 2;
+        const offset = (token.size * cs) / 2;
 
         // Snap to grid
-        const col = Math.round((position.x - offset) / cellSize);
-        const row = Math.round((position.y - offset) / cellSize);
+        const col = Math.round((position.x - offset) / cs);
+        const row = Math.round((position.y - offset) / cs);
 
         // Only move if user can move this token
         if (canMoveTokenRef.current(token.ownerId, token.id)) {
@@ -639,17 +657,18 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       window.removeEventListener("touchmove", handleMouseMove as any);
       window.removeEventListener("touchend", handleMouseUp);
     };
-  }, [cellSize, stageRef]);
+  }, [stageRef]); // Only stageRef — everything else via refs
 
+  // Stable callbacks — created once, read current values from refs
   const handleMouseDown = useCallback(
     (tokenId: string, e: any) => {
-      if (selectedTool !== "select") return;
+      if (selectedToolRef.current !== "select") return;
 
-      const token = tokens.find((t) => t.id === tokenId);
+      const token = tokensRef.current.find((t) => t.id === tokenId);
       if (!token) return;
 
       // Check if user can move this token
-      if (!canMoveToken(token.ownerId, token.id)) {
+      if (!canMoveTokenRef.current(token.ownerId, token.id)) {
         // Show locked indicator while mouse is down
         setLockedMouseDownId(token.id);
         e.cancelBubble = true;
@@ -663,9 +682,10 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
         e.evt.preventDefault();
       }
 
-      const offset = (token.size * cellSize) / 2;
-      const x = token.position.col * cellSize + offset;
-      const y = token.position.row * cellSize + offset;
+      const cs = cellSizeRef.current;
+      const offset = (token.size * cs) / 2;
+      const x = token.position.col * cs + offset;
+      const y = token.position.row * cs + offset;
 
       // Set refs for the drag handlers
       isDraggingRef.current = true;
@@ -682,15 +702,15 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
       setSelectedElements([token.id]);
     },
-    [selectedTool, cellSize, setSelectedElements, canMoveToken, tokens]
+    [setSelectedElements] // setSelectedElements is stable from zustand
   );
 
   const handleFlip = useCallback(
     (tokenId: string) => {
-      flipToken(tokenId);
-      onTokenFlip?.(tokenId);
+      flipTokenRef.current(tokenId);
+      onTokenFlipRef.current?.(tokenId);
     },
-    [flipToken, onTokenFlip]
+    []
   );
 
   const handleSelect = useCallback(
@@ -702,12 +722,12 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
   const handleDoubleClick = useCallback(
     (tokenId: string) => {
-      const token = tokens.find((t) => t.id === tokenId);
-      if (token && canMoveToken(token.ownerId, token.id)) {
-        openCharacterSheet(tokenId);
+      const token = tokensRef.current.find((t) => t.id === tokenId);
+      if (token && canMoveTokenRef.current(token.ownerId, token.id)) {
+        openCharacterSheetRef.current(tokenId);
       }
     },
-    [tokens, canMoveToken, openCharacterSheet]
+    []
   );
 
   // Clear locked mouse down state on mouse up
@@ -725,26 +745,24 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     };
   }, []);
 
-  const isPanning = useEditorStore((s) => s.isPanning);
-
   const handleHoverStart = useCallback(
     (tokenId: string) => {
       setHoveredTokenId(tokenId);
       // Change cursor to pointer (only if not panning)
-      if (stageRef.current && !isPanning) {
+      if (stageRef.current && !isPanningRef.current) {
         stageRef.current.container().style.cursor = "pointer";
       }
     },
-    [stageRef, isPanning]
+    [stageRef]
   );
 
   const handleHoverEnd = useCallback(() => {
     setHoveredTokenId(null);
     // Reset cursor (only if not panning)
-    if (stageRef.current && !isPanning) {
+    if (stageRef.current && !isPanningRef.current) {
       stageRef.current.container().style.cursor = "default";
     }
-  }, [stageRef, isPanning]);
+  }, [stageRef]);
 
   return (
     <>

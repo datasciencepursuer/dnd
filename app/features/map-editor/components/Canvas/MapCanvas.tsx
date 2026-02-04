@@ -47,8 +47,11 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const fogPaintedCells = useMapStore((s) => s.map?.fogOfWar?.paintedCells);
   const background = useMapStore((s) => s.map?.background);
   const freehand = useMapStore((s) => s.map?.freehand);
-  const viewport = useMapStore((s) => s.map?.viewport);
   const mapId = useMapStore((s) => s.map?.id);
+  // Viewport managed as ref — no selector subscription.
+  // The Konva Stage is updated imperatively; subscribing to viewport
+  // changes in the store would trigger a full React re-render on every
+  // zoom/pan, which is unnecessary since Konva already has the correct position.
 
   const setViewport = useMapStore((s) => s.setViewport);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
@@ -68,6 +71,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   const stageRef = useRef<any>(null);
   const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Viewport ref — source of truth for Stage position/scale, updated imperatively
+  const viewportRef = useRef({ x: 0, y: 0, scale: 1 });
 
   // Get selected token for drawing color
   const selectedToken = tokens?.find((t) => selectedElementIds.includes(t.id));
@@ -93,24 +98,50 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     return () => window.removeEventListener("resize", updateDimensions);
   }, [setCanvasDimensions]);
 
+  // Sync viewport ref from store when map changes (initial load / map switch)
+  useEffect(() => {
+    if (!mapId) return;
+    const vp = useMapStore.getState().map?.viewport;
+    if (vp) {
+      viewportRef.current = { x: vp.x, y: vp.y, scale: vp.scale };
+      // Also update Stage directly if it exists
+      if (stageRef.current) {
+        stageRef.current.x(vp.x);
+        stageRef.current.y(vp.y);
+        stageRef.current.scaleX(vp.scale);
+        stageRef.current.scaleY(vp.scale);
+        stageRef.current.batchDraw();
+      }
+    }
+  }, [mapId]);
+
   // Center the grid on initial load - always center for each client session
   useEffect(() => {
-    if (!grid || !viewport || !mapId || dimensions.width === 0 || dimensions.height === 0) return;
+    if (!grid || !mapId || dimensions.width === 0 || dimensions.height === 0) return;
 
     // Only center once per map (check if we've already centered this map)
     if (hasCenteredRef.current === mapId) return;
 
     const gridWidthPx = grid.width * grid.cellSize;
     const gridHeightPx = grid.height * grid.cellSize;
-    const scale = viewport.scale;
+    const scale = viewportRef.current.scale;
 
     // Calculate position to center the grid on screen
     const centerX = (dimensions.width - gridWidthPx * scale) / 2;
     const centerY = (dimensions.height - gridHeightPx * scale) / 2;
 
+    viewportRef.current = { x: centerX, y: centerY, scale };
+    // Update Stage directly
+    if (stageRef.current) {
+      stageRef.current.x(centerX);
+      stageRef.current.y(centerY);
+      stageRef.current.scaleX(scale);
+      stageRef.current.scaleY(scale);
+      stageRef.current.batchDraw();
+    }
     setViewport(centerX, centerY, scale);
     hasCenteredRef.current = mapId;
-  }, [mapId, grid?.width, grid?.height, grid?.cellSize, viewport?.scale, dimensions.width, dimensions.height, setViewport]);
+  }, [mapId, grid?.width, grid?.height, grid?.cellSize, dimensions.width, dimensions.height, setViewport]);
 
   // Set cursor during right-click panning (on body, container, and stage)
   useEffect(() => {
@@ -166,10 +197,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         setIsPanning(false);
         lastMousePos.current = null;
 
-        // Save final viewport position
+        // Save final viewport position to ref + store
         if (stageRef.current) {
           const stage = stageRef.current;
-          setViewport(stage.x(), stage.y(), stage.scaleX());
+          const vp = { x: stage.x(), y: stage.y(), scale: stage.scaleX() };
+          viewportRef.current = vp;
+          setViewport(vp.x, vp.y, vp.scale);
         }
       }
     };
@@ -181,7 +214,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [setIsPanning, setViewport]); // Removed isRightClickPanning from deps
+  }, [setIsPanning, setViewport]);
 
   // Cleanup viewport debounce timeout on unmount
   useEffect(() => {
@@ -190,7 +223,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     };
   }, []);
 
-  if (!grid || !viewport || !tokens || !freehand || !fogPaintedCells) return null;
+  if (!grid || !tokens || !freehand || !fogPaintedCells) return null;
 
   const cellSize = grid.cellSize;
 
@@ -222,7 +255,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     stage.scale({ x: newScale, y: newScale });
     stage.position(newPos);
 
-    // Debounce the store update so React only reconciles once after scrolling stops
+    // Update ref immediately
+    viewportRef.current = { x: newPos.x, y: newPos.y, scale: newScale };
+
+    // Debounce the store update for persistence only
     if (viewportTimeoutRef.current) clearTimeout(viewportTimeoutRef.current);
     viewportTimeoutRef.current = setTimeout(() => {
       setViewport(newPos.x, newPos.y, newScale);
@@ -361,7 +397,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     if (e.target !== stageRef.current) return;
     setIsPanning(false);
     const stage = stageRef.current;
-    setViewport(stage.x(), stage.y(), stage.scaleX());
+    const vp = { x: stage.x(), y: stage.y(), scale: stage.scaleX() };
+    viewportRef.current = vp;
+    setViewport(vp.x, vp.y, vp.scale);
   };
 
   const handleClick = (e: any) => {
@@ -474,10 +512,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         onClick={handleClick}
         onTap={handleClick}
         onContextMenu={handleContextMenu}
-        x={viewport.x}
-        y={viewport.y}
-        scaleX={viewport.scale}
-        scaleY={viewport.scale}
+        x={viewportRef.current.x}
+        y={viewportRef.current.y}
+        scaleX={viewportRef.current.scale}
+        scaleY={viewportRef.current.scale}
       >
         <Layer name="background">
           <BackgroundLayer background={background ?? null} grid={grid} />
