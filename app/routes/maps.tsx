@@ -450,7 +450,7 @@ export default function Maps() {
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-3">
           <span>{map.gridWidth}x{map.gridHeight}</span>
           <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span>Updated {new Date(map.updatedAt).toLocaleDateString()}</span>
+          <span suppressHydrationWarning>Updated {new Date(map.updatedAt).toLocaleDateString()}</span>
         </div>
         <div className="flex gap-2">
           <Link

@@ -151,7 +151,7 @@ export function MigrationPrompt({
               </summary>
               <ul className="mt-2 space-y-1 text-blue-800 dark:text-blue-200">
                 {localMaps.map((map) => (
-                  <li key={map.id}>
+                  <li key={map.id} suppressHydrationWarning>
                     {map.name} - Updated{" "}
                     {new Date(map.updatedAt).toLocaleDateString()}
                   </li>
