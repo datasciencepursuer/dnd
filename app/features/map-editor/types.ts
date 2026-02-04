@@ -231,6 +231,8 @@ export interface CharacterSheet {
   shield: boolean;
   heroicInspiration: boolean;
   condition: Condition;
+  auraEnabled: boolean;
+  auraRange: number; // in feet
 
   // Death Saves
   deathSaves: {

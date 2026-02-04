@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
+import { AuraLayer } from "./AuraLayer";
 import { TokenLayer, SelectedTokenOverlay } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { FogLayer } from "./FogLayer";
@@ -529,6 +530,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           </Group>
           <Group>
             <GridLayer grid={grid} />
+          </Group>
+          <Group>
+            <AuraLayer tokens={tokens} cellSize={cellSize} />
           </Group>
         </Layer>
         <Layer name="content">

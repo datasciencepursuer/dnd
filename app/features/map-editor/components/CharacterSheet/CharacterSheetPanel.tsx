@@ -615,6 +615,32 @@ export function CharacterSheetPanel({
               )}
             </div>
 
+            {/* Aura */}
+            <div className="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Aura</span>
+              {readOnly ? (
+                <span className={(sheet.auraEnabled ?? false) ? "text-cyan-500 text-xs" : "text-gray-400 text-xs"}>
+                  {(sheet.auraEnabled ?? false) ? `${sheet.auraRange ?? 0}ft` : "Off"}
+                </span>
+              ) : (
+                <>
+                  <button onClick={() => handleUpdate({ auraEnabled: !(sheet.auraEnabled ?? false) })} className={`w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors ${(sheet.auraEnabled ?? false) ? "bg-cyan-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-400"}`} title="Aura">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <circle cx="10" cy="10" r="3" />
+                      <circle cx="10" cy="10" r="6" />
+                      <circle cx="10" cy="10" r="9" />
+                    </svg>
+                  </button>
+                  {(sheet.auraEnabled ?? false) && (
+                    <div className="flex items-center gap-0.5">
+                      <NumericInput value={sheet.auraRange ?? 0} onChange={(val) => handleUpdate({ auraRange: val })} min={0} max={120} defaultValue={0} className="w-9 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <span className="text-xs text-gray-400">ft</span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
             {/* Page Toggle Button */}
             <button
               onClick={() => setCurrentPage(currentPage === 1 ? 2 : 1)}

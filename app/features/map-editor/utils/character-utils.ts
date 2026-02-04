@@ -174,6 +174,8 @@ export function createDefaultCharacterSheet(): CharacterSheet {
     shield: false,
     heroicInspiration: false,
     condition: "Healthy",
+    auraEnabled: false,
+    auraRange: 0,
 
     // Death Saves
     deathSaves: {
