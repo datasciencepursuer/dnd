@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { MapEditor, useMapStore } from "~/features/map-editor";
+import { useHydrated } from "~/lib/use-hydrated";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
 
@@ -77,17 +78,21 @@ export default function PlaygroundWithMap() {
     }
   }, [data, loadMapStore]);
 
+  const hydrated = useHydrated();
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <MapEditor
-        mapId={mapId}
-        permission={data.permission}
-        customPermissions={data.customPermissions}
-        userId={data.userId}
-        userName={data.userName}
-        groupMembers={data.groupMembers}
-        groupId={data.groupId}
-      />
+      {hydrated ? (
+        <MapEditor
+          mapId={mapId}
+          permission={data.permission}
+          customPermissions={data.customPermissions}
+          userId={data.userId}
+          userName={data.userName}
+          groupMembers={data.groupMembers}
+          groupId={data.groupId}
+        />
+      ) : null}
     </div>
   );
 }
