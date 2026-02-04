@@ -1,4 +1,4 @@
-import { Stage, Layer, Rect } from "react-konva";
+import { Stage, Layer, Rect, Group } from "react-konva";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
@@ -517,48 +517,52 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         scaleX={viewportRef.current.scale}
         scaleY={viewportRef.current.scale}
       >
-        <Layer name="background">
-          <BackgroundLayer background={background ?? null} grid={grid} />
+        <Layer name="base" listening={false}>
+          <Group>
+            <BackgroundLayer background={background ?? null} grid={grid} />
+          </Group>
+          <Group>
+            <GridLayer grid={grid} />
+          </Group>
         </Layer>
-        <Layer name="grid">
-          <GridLayer grid={grid} />
+        <Layer name="content">
+          <Group>
+            <DrawingLayer
+              paths={freehand}
+              currentPath={currentPath}
+              currentColor={drawingColor}
+              currentWidth={drawingWidth}
+              isEraseMode={selectedTool === "erase"}
+              onErasePath={removeFreehandPath}
+            />
+          </Group>
+          <Group>
+            <TokenLayer
+              tokens={tokens}
+              cellSize={cellSize}
+              stageRef={stageRef}
+              onTokenMoved={onTokenMoved}
+              onTokenFlip={onTokenFlip}
+            />
+          </Group>
         </Layer>
-        <Layer name="drawings">
-          <DrawingLayer
-            paths={freehand}
-            currentPath={currentPath}
-            currentColor={drawingColor}
-            currentWidth={drawingWidth}
-            isEraseMode={selectedTool === "erase"}
-            onErasePath={removeFreehandPath}
-          />
-        </Layer>
-        <Layer name="tokens">
-          <TokenLayer
-            tokens={tokens}
-            cellSize={cellSize}
-            stageRef={stageRef}
-            onTokenMoved={onTokenMoved}
-            onTokenFlip={onTokenFlip}
-          />
-        </Layer>
-        <Layer name="fog">
-          <FogLayer
-            paintedCells={fogPaintedCells || []}
-            grid={grid}
-            currentUserId={userId}
-            isPlayingLocally={isPlayingLocally}
-          />
-        </Layer>
-        <Layer name="token-selection">
-          <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
-        </Layer>
-        <Layer name="pings">
-          <PingLayer pings={activePings} />
-        </Layer>
-        {/* Drag rectangle overlay */}
-        {isDraggingRect && dragStart && dragEnd && (
-          <Layer name="drag-rect">
+        <Layer name="overlay" listening={false}>
+          <Group>
+            <FogLayer
+              paintedCells={fogPaintedCells || []}
+              grid={grid}
+              currentUserId={userId}
+              isPlayingLocally={isPlayingLocally}
+            />
+          </Group>
+          <Group>
+            <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
+          </Group>
+          <Group>
+            <PingLayer pings={activePings} />
+          </Group>
+          {/* Drag rectangle overlay */}
+          {isDraggingRect && dragStart && dragEnd && (
             <Rect
               x={Math.min(dragStart.x, dragEnd.x)}
               y={Math.min(dragStart.y, dragEnd.y)}
@@ -570,8 +574,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               strokeWidth={2}
               dash={[5, 5]}
             />
-          </Layer>
-        )}
+          )}
+        </Layer>
       </Stage>
     </div>
   );
