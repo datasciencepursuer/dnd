@@ -632,10 +632,27 @@ export function CharacterSheetPanel({
                     </svg>
                   </button>
                   {(sheet.auraEnabled ?? false) && (
-                    <div className="flex items-center gap-0.5">
-                      <NumericInput value={sheet.auraRange ?? 0} onChange={(val) => handleUpdate({ auraRange: val })} min={0} max={120} defaultValue={0} className="w-9 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                      <span className="text-xs text-gray-400">ft</span>
-                    </div>
+                    <>
+                      <button
+                        onClick={() => handleUpdate({ auraShape: (sheet.auraShape ?? "circle") === "circle" ? "square" : "circle" })}
+                        className="w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-colors bg-gray-200 dark:bg-gray-700 text-cyan-500"
+                        title={`Shape: ${(sheet.auraShape ?? "circle") === "circle" ? "Circle" : "Square"}`}
+                      >
+                        {(sheet.auraShape ?? "circle") === "circle" ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="10" cy="10" r="7" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="3" y="3" width="14" height="14" />
+                          </svg>
+                        )}
+                      </button>
+                      <div className="flex items-center gap-0.5">
+                        <NumericInput value={sheet.auraRange ?? 0} onChange={(val) => handleUpdate({ auraRange: val })} min={0} max={120} defaultValue={0} className="w-9 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        <span className="text-xs text-gray-400">ft</span>
+                      </div>
+                    </>
                   )}
                 </>
               )}

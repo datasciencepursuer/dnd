@@ -176,6 +176,7 @@ export function createDefaultCharacterSheet(): CharacterSheet {
     condition: "Healthy",
     auraEnabled: false,
     auraRange: 0,
+    auraShape: "circle",
 
     // Death Saves
     deathSaves: {
