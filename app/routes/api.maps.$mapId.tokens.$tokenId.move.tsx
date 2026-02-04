@@ -18,22 +18,15 @@ export async function action({ request, params }: Route.ActionArgs) {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Check at least view permission
-  const access = await requireMapPermission(mapId, session.user.id, "view");
+  // Check permission and fetch map data in a single query
+  const access = await requireMapPermission(mapId, session.user.id, "view", { includeData: true });
   const permissions = getEffectivePermissions(access);
 
-  // Get the map data
-  const mapData = await db
-    .select()
-    .from(maps)
-    .where(eq(maps.id, mapId))
-    .limit(1);
-
-  if (mapData.length === 0) {
+  if (!access.mapData) {
     return new Response("Map not found", { status: 404 });
   }
 
-  const map = mapData[0].data as DnDMap;
+  const map = access.mapData.data as DnDMap;
   const token = map.tokens.find((t) => t.id === tokenId);
 
   if (!token) {

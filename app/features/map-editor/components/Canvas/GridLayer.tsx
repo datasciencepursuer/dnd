@@ -1,5 +1,5 @@
-import { memo, type ReactNode } from "react";
-import { Line } from "react-konva";
+import { memo } from "react";
+import { Shape } from "react-konva";
 import type { GridSettings } from "../../types";
 
 interface GridLayerProps {
@@ -13,37 +13,31 @@ export const GridLayer = memo(function GridLayer({ grid }: GridLayerProps) {
   const totalWidth = width * cellSize;
   const totalHeight = height * cellSize;
 
-  const lines: ReactNode[] = [];
+  return (
+    <Shape
+      sceneFunc={(ctx, shape) => {
+        ctx.beginPath();
 
-  // Vertical lines
-  for (let i = 0; i <= width; i++) {
-    const x = i * cellSize;
-    lines.push(
-      <Line
-        key={`v-${i}`}
-        points={[x, 0, x, totalHeight]}
-        stroke={gridColor}
-        strokeWidth={1}
-        opacity={gridOpacity}
-        listening={false}
-      />
-    );
-  }
+        // Vertical lines
+        for (let i = 0; i <= width; i++) {
+          const x = i * cellSize;
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, totalHeight);
+        }
 
-  // Horizontal lines
-  for (let i = 0; i <= height; i++) {
-    const y = i * cellSize;
-    lines.push(
-      <Line
-        key={`h-${i}`}
-        points={[0, y, totalWidth, y]}
-        stroke={gridColor}
-        strokeWidth={1}
-        opacity={gridOpacity}
-        listening={false}
-      />
-    );
-  }
+        // Horizontal lines
+        for (let i = 0; i <= height; i++) {
+          const y = i * cellSize;
+          ctx.moveTo(0, y);
+          ctx.lineTo(totalWidth, y);
+        }
 
-  return <>{lines}</>;
+        ctx.strokeShape(shape);
+      }}
+      stroke={gridColor}
+      strokeWidth={1}
+      opacity={gridOpacity}
+      listening={false}
+    />
+  );
 });

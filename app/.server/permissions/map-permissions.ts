@@ -17,6 +17,11 @@ export interface MapAccess {
   customPermissions: PlayerPermissions | null;
   isDungeonMaster: boolean;
   isGroupMember: boolean;
+  mapData?: typeof maps.$inferSelect;
+}
+
+export interface GetMapAccessOptions {
+  includeData?: boolean;
 }
 
 /**
@@ -26,20 +31,22 @@ export interface MapAccess {
  */
 export async function getMapAccess(
   mapId: string,
-  userId: string
+  userId: string,
+  options?: GetMapAccessOptions
 ): Promise<MapAccess> {
   // Check if user is the owner and get groupId
-  const map = await db
-    .select({ userId: maps.userId, groupId: maps.groupId })
-    .from(maps)
-    .where(eq(maps.id, mapId))
-    .limit(1);
+  // When includeData is true, select all columns to avoid a second query
+  const map = options?.includeData
+    ? await db.select().from(maps).where(eq(maps.id, mapId)).limit(1)
+    : await db.select({ userId: maps.userId, groupId: maps.groupId }).from(maps).where(eq(maps.id, mapId)).limit(1);
 
   if (map.length === 0) {
     return { mapId, userId, permission: null, customPermissions: null, isDungeonMaster: false, isGroupMember: false };
   }
 
-  const isDungeonMaster = map[0].userId === userId;
+  const mapRow = map[0];
+  const isDungeonMaster = mapRow.userId === userId;
+  const fullMapData = options?.includeData ? (mapRow as typeof maps.$inferSelect) : undefined;
 
   // Map owner is automatically the Dungeon Master
   if (isDungeonMaster) {
@@ -50,17 +57,18 @@ export async function getMapAccess(
       customPermissions: DEFAULT_PERMISSIONS.dm,
       isDungeonMaster: true,
       isGroupMember: true,
+      mapData: fullMapData,
     };
   }
 
   // Check if user is a member of the map's group
-  if (map[0].groupId) {
+  if (mapRow.groupId) {
     const groupMembership = await db
       .select({ role: groupMembers.role })
       .from(groupMembers)
       .where(
         and(
-          eq(groupMembers.groupId, map[0].groupId),
+          eq(groupMembers.groupId, mapRow.groupId),
           eq(groupMembers.userId, userId)
         )
       )
@@ -76,6 +84,7 @@ export async function getMapAccess(
         customPermissions: DEFAULT_PERMISSIONS.player,
         isDungeonMaster: false,
         isGroupMember: true,
+        mapData: fullMapData,
       };
     }
   }
@@ -118,9 +127,10 @@ export function canPerformAction(
 export async function requireMapPermission(
   mapId: string,
   userId: string,
-  action: MapAction
+  action: MapAction,
+  options?: GetMapAccessOptions
 ): Promise<MapAccess> {
-  const access = await getMapAccess(mapId, userId);
+  const access = await getMapAccess(mapId, userId, options);
 
   if (!canPerformAction(access, action)) {
     throw new Response("Forbidden", { status: 403 });

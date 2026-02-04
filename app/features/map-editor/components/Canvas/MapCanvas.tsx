@@ -1,5 +1,6 @@
 import { Stage, Layer, Rect, Group } from "react-konva";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { TokenLayer, SelectedTokenOverlay } from "./TokenLayer";
@@ -41,13 +42,18 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
 
-  // Granular store selectors — each layer only re-renders when its specific data changes
-  const tokens = useMapStore((s) => s.map?.tokens);
-  const grid = useMapStore((s) => s.map?.grid);
-  const fogPaintedCells = useMapStore((s) => s.map?.fogOfWar?.paintedCells);
-  const background = useMapStore((s) => s.map?.background);
-  const freehand = useMapStore((s) => s.map?.freehand);
-  const mapId = useMapStore((s) => s.map?.id);
+  // Shallow-compared selector prevents re-renders when unrelated map fields change
+  // (e.g. viewport saves won't trigger re-render if tokens/grid/fog haven't changed)
+  const { tokens, grid, fogPaintedCells, background, freehand, mapId } = useMapStore(
+    useShallow((s) => ({
+      tokens: s.map?.tokens,
+      grid: s.map?.grid,
+      fogPaintedCells: s.map?.fogOfWar?.paintedCells,
+      background: s.map?.background,
+      freehand: s.map?.freehand,
+      mapId: s.map?.id,
+    }))
+  );
   // Viewport managed as ref — no selector subscription.
   // The Konva Stage is updated imperatively; subscribing to viewport
   // changes in the store would trigger a full React re-render on every

@@ -109,6 +109,7 @@ export const groupMembers = pgTable(
   },
   (table) => ({
     uniqueUserGroup: unique().on(table.groupId, table.userId),
+    groupUserIdx: index("group_members_group_user_idx").on(table.groupId, table.userId),
   })
 );
 
@@ -134,17 +135,24 @@ export const groupInvitations = pgTable(
 );
 
 // Maps table for DnD maps
-export const maps = pgTable("maps", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
-  groupId: text("group_id").references(() => groups.id, { onDelete: "cascade" }),
-  data: jsonb("data").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+export const maps = pgTable(
+  "maps",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    groupId: text("group_id").references(() => groups.id, { onDelete: "cascade" }),
+    data: jsonb("data").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index("maps_user_id_idx").on(table.userId),
+    groupIdIdx: index("maps_group_id_idx").on(table.groupId),
+  })
+);
 
 // Map role enum - dm (dungeon master) or player
 export type MapRole = "dm" | "player";
