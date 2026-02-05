@@ -5,6 +5,7 @@ import type { CharacterSheet } from "~/features/map-editor/types";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "~/features/map-editor/components/ImageLibraryPicker";
 import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterSheet/CharacterSheetPanel";
+import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 
 interface CharacterData {
   id: string;
@@ -79,7 +80,7 @@ export default function Characters() {
       setUploadError(null);
     },
     onUploadError: (error) => {
-      setUploadError(error.message);
+      setUploadError(parseUploadError(error.message, UPLOAD_LIMITS.TOKEN_MAX_SIZE));
       setIsUploading(false);
     },
   });
@@ -376,6 +377,9 @@ export default function Characters() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Image
+                    <span className="text-xs text-gray-400 dark:text-gray-500 ml-1 font-normal">
+                      (max {UPLOAD_LIMITS.TOKEN_MAX_SIZE})
+                    </span>
                   </label>
 
                   {/* Current image preview */}

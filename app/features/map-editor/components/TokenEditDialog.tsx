@@ -3,6 +3,7 @@ import { useMapStore, useEditorStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
 import { useUploadThing } from "~/utils/uploadthing";
+import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import type { Token, TokenLayer, CharacterSheet, MonsterGroup } from "../types";
 
 interface GroupMemberInfo {
@@ -128,7 +129,7 @@ export function TokenEditDialog({
       setUploadError(null);
     },
     onUploadError: (error) => {
-      setUploadError(error.message);
+      setUploadError(parseUploadError(error.message, UPLOAD_LIMITS.TOKEN_MAX_SIZE));
       setIsUploading(false);
     },
   });
@@ -499,7 +500,12 @@ export function TokenEditDialog({
             {/* Upload */}
             <div className="space-y-2">
               <label className="block">
-                <span className="text-xs text-gray-600 dark:text-gray-400">Upload new image</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  Upload new image
+                  <span className="text-gray-400 dark:text-gray-500 ml-1">
+                    (max {UPLOAD_LIMITS.TOKEN_MAX_SIZE})
+                  </span>
+                </span>
                 <input
                   type="file"
                   accept="image/*"

@@ -7,39 +7,16 @@ import { uploads } from "~/.server/db/schema";
 
 const f = createUploadthing();
 
+// File size limits - displayed in UI upload components
+export const UPLOAD_LIMITS = {
+  TOKEN_MAX_SIZE: "16MB", // Character art can be detailed
+  MAP_MAX_SIZE: "32MB",   // Battle maps need high resolution
+} as const;
+
 export const uploadRouter = {
-  imageUploader: f({
-    image: {
-      maxFileSize: "4MB",
-      maxFileCount: 1,
-    },
-  })
-    .middleware(async ({ event }) => {
-      const session = await getSession(event.request);
-      if (!session) throw new UploadThingError("Unauthorized");
-      return { userId: session.user.id };
-    })
-    .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Upload complete for userId:", metadata.userId);
-      console.log("file url", file.ufsUrl);
-
-      // Save to uploads table
-      await db.insert(uploads).values({
-        id: crypto.randomUUID(),
-        userId: metadata.userId,
-        url: file.ufsUrl,
-        type: "token",
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-      });
-
-      return { uploadedBy: metadata.userId, url: file.ufsUrl };
-    }),
-
   tokenImageUploader: f({
     image: {
-      maxFileSize: "4MB",
+      maxFileSize: "16MB",
       maxFileCount: 10,
     },
   })
@@ -67,7 +44,7 @@ export const uploadRouter = {
 
   mapBackgroundUploader: f({
     image: {
-      maxFileSize: "8MB", // Larger for map backgrounds
+      maxFileSize: "32MB", // High-resolution battle maps
       maxFileCount: 1,
     },
   })

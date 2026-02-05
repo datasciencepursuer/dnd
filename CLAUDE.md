@@ -122,7 +122,8 @@ WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 Uses UploadThing for image uploads (token images, map backgrounds).
 - Server config: `app/.server/uploadthing.ts`
 - Client utilities: `app/utils/uploadthing.ts`
-- Two uploaders: `imageUploader` (single, 4MB) and `tokenImageUploader` (up to 10 images, 4MB each)
+- Upload limits constants: `app/lib/upload-limits.ts`
+- Two uploaders: `tokenImageUploader` (16MB, up to 10 images) and `mapBackgroundUploader` (32MB, single image)
 
 ### Styling
 - Tailwind CSS v4 with Vite plugin

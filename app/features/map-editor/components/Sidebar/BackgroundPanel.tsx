@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMapStore, useEditorStore } from "../../store";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
+import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 
 interface BackgroundPanelProps {
   mapId?: string;
@@ -27,7 +28,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       setUploadError(null);
     },
     onUploadError: (error) => {
-      setUploadError(error.message);
+      setUploadError(parseUploadError(error.message, UPLOAD_LIMITS.MAP_MAX_SIZE));
       setIsUploading(false);
     },
   });
@@ -88,7 +89,12 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       {showUpload && (
         <div className="space-y-2">
           <label className="block">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Upload background image</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Upload background image
+              <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+                (max {UPLOAD_LIMITS.MAP_MAX_SIZE})
+              </span>
+            </span>
             <input
               type="file"
               accept="image/*"

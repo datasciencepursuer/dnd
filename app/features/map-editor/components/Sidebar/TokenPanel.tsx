@@ -3,6 +3,7 @@ import { useMapStore, useEditorStore } from "../../store";
 import { TOKEN_COLORS } from "../../constants";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
+import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import type { Token, TokenLayer, MonsterGroup } from "../../types";
 
 interface InitiativeEntry {
@@ -84,7 +85,7 @@ export function TokenPanel({
       setUploadError(null);
     },
     onUploadError: (error) => {
-      setUploadError(error.message);
+      setUploadError(parseUploadError(error.message, UPLOAD_LIMITS.TOKEN_MAX_SIZE));
       setIsUploading(false);
     },
   });
@@ -550,6 +551,9 @@ export function TokenPanel({
             <div>
               <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                 Image
+                <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
+                  (max {UPLOAD_LIMITS.TOKEN_MAX_SIZE})
+                </span>
               </label>
 
               {/* Current image preview */}
