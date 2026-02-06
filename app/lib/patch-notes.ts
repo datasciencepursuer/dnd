@@ -17,7 +17,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "Combat state (initiative order, current turn) now persists across page reloads",
       "DM advancing turns auto-saves and syncs to all connected clients",
       "Drawing and erasing now syncs to all players in real-time",
-      "Monster AC and HP are now hidden from players (DM only) — conditions remain visible",
+      "Monster AC and HP are now hidden from players (visible for DM only) — health conditions remain visible",
       "Token AC and HP now only display on hover, no longer on selection",
       "Character metadata on hover now shows over other assets like tokens and drawings",
       "Your own tokens now render above locked tokens, making stacked tokens easier to select",
