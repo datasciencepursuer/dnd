@@ -10,16 +10,17 @@ export function PatchNotesPanel() {
 
   const notes = PATCH_NOTES.slice(0, 2);
   const latest = notes[0];
-  if (!latest) return null;
-  const current = notes[versionIndex] ?? latest;
+  const current = latest ? (notes[versionIndex] ?? latest) : undefined;
 
   useEffect(() => {
+    if (!latest) return;
     const dismissedVersion = localStorage.getItem(STORAGE_KEY);
     if (dismissedVersion !== latest.version) {
       setDismissed(false);
     }
-  }, [latest.version]);
+  }, [latest?.version]);
 
+  if (!latest || !current) return null;
   if (dismissed) return null;
 
   const handleDismiss = (e: React.MouseEvent) => {
