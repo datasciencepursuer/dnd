@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useRevalidator } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
-import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, ZOOM_REFERENCE } from "../../constants";
 import type { EditorTool } from "../../types";
 
 interface GroupMember {
@@ -58,6 +58,8 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
   const [height, setHeight] = useState<number | string>(map?.grid.height ?? 20);
   const [showDmDropdown, setShowDmDropdown] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
+  const [zoomInputFocused, setZoomInputFocused] = useState(false);
+  const [zoomInputValue, setZoomInputValue] = useState("");
   const dmDropdownRef = useRef<HTMLDivElement>(null);
   const revalidator = useRevalidator();
 
@@ -416,7 +418,7 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                   value={map.viewport.scale}
                   onChange={(e) => handleZoom(parseFloat(e.target.value))}
                   className="w-24 h-1.5 accent-blue-600 cursor-pointer"
-                  title={`Zoom: ${Math.round(map.viewport.scale * 100)}%`}
+                  title={`Zoom: ${Math.round(map.viewport.scale / ZOOM_REFERENCE * 100)}%`}
                 />
                 <button
                   onMouseDown={() => startZoomHold(1)}
@@ -431,9 +433,34 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                 >
                   +
                 </button>
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-10 text-right tabular-nums">
-                  {Math.round(map.viewport.scale * 100)}%
-                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={zoomInputFocused ? zoomInputValue : `${Math.round(map.viewport.scale / ZOOM_REFERENCE * 100)}%`}
+                  onFocus={(e) => {
+                    setZoomInputFocused(true);
+                    setZoomInputValue(`${Math.round(map.viewport.scale / ZOOM_REFERENCE * 100)}`);
+                    requestAnimationFrame(() => e.target.select());
+                  }}
+                  onChange={(e) => setZoomInputValue(e.target.value.replace(/[^0-9]/g, ""))}
+                  onBlur={() => {
+                    setZoomInputFocused(false);
+                    const pct = parseInt(zoomInputValue, 10);
+                    if (!isNaN(pct) && pct > 0) {
+                      const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (pct / 100) * ZOOM_REFERENCE));
+                      handleZoom(newScale);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      (e.target as HTMLInputElement).blur();
+                    } else if (e.key === "Escape") {
+                      setZoomInputFocused(false);
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  className="w-12 text-xs font-medium text-gray-600 dark:text-gray-400 text-center tabular-nums bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none rounded py-0.5"
+                />
               </div>
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
             </>

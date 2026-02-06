@@ -104,7 +104,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const stageRef = useRef<any>(null);
   const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Viewport ref — source of truth for Stage position/scale, updated imperatively
-  const viewportRef = useRef({ x: 0, y: 0, scale: 1 });
+  const viewportRef = useRef({ x: 0, y: 0, scale: 2.2185 });
 
   // Get selected token for drawing color
   const selectedToken = tokens?.find((t) => selectedElementIds.includes(t.id));

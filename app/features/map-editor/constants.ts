@@ -19,7 +19,7 @@ export const DEFAULT_FOG: FogOfWar = {
 export const DEFAULT_VIEWPORT = {
   x: 0,
   y: 0,
-  scale: 1,
+  scale: 2.2185,
 };
 
 export const TOKEN_COLORS = [
@@ -44,9 +44,10 @@ export const GRID_COLORS = [
   "#22c55e",
 ];
 
-export const MIN_ZOOM = 0.25;
-export const MAX_ZOOM = 3;
-export const ZOOM_STEP = 0.1;
+export const ZOOM_REFERENCE = 2.2185;
+export const MIN_ZOOM = 0.55;
+export const MAX_ZOOM = 6.66;
+export const ZOOM_STEP = 0.22;
 
 export interface CreateMapOptions {
   name: string;
