@@ -5,6 +5,9 @@ import { AbilityScoreCard } from "./AbilityScoreCard";
 import { Combobox } from "./Combobox";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
 import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/dnd-srd";
+import { useUploadThing } from "~/utils/uploadthing";
+import { ImageLibraryPicker } from "../ImageLibraryPicker";
+import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 
 const FEATURE_CATEGORIES: { value: FeatureCategory; label: string; color: string }[] = [
   { value: "action", label: "Action", color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" },
@@ -216,6 +219,7 @@ interface CharacterSheetPanelProps {
   onUpdate?: (updates: Partial<CharacterSheet>) => void;
   onInitialize?: () => void;
   onLinkCharacter?: (character: LibraryCharacter) => void;
+  onTokenImageChange?: (imageUrl: string | null) => void;
   // Option 2: Standalone character (/characters route)
   character?: StandaloneCharacter;
   // Common props
@@ -230,6 +234,7 @@ export function CharacterSheetPanel({
   onClose,
   onInitialize,
   onLinkCharacter,
+  onTokenImageChange,
   character,
   readOnly = false,
   onSaved,
@@ -265,6 +270,20 @@ export function CharacterSheetPanel({
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSheetRef = useRef<CharacterSheet | null>(null);
   const draftRecoveredRef = useRef(false);
+
+  // Avatar image upload state
+  const [showImagePicker, setShowImagePicker] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(charImageUrl);
+  const [showImageLibrary, setShowImageLibrary] = useState(false);
+  const imagePickerRef = useRef<HTMLDivElement>(null);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Keep currentImageUrl in sync with prop changes
+  useEffect(() => {
+    setCurrentImageUrl(charImageUrl);
+  }, [charImageUrl]);
 
   // Fetch linked character's sheet on mount (for token-based linked characters)
   // Linked tokens have characterSheet = null, so we always fetch from library
@@ -400,6 +419,75 @@ export function CharacterSheetPanel({
 
   // Use linked/standalone character sheet if available, otherwise use token's inline sheet
   const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
+
+  // Avatar image upload hook and handlers
+  const handleImageSelectedRef = useRef<(url: string | null) => void>(() => {});
+
+  const { startUpload: startImageUpload } = useUploadThing("tokenImageUploader", {
+    onClientUploadComplete: (res) => {
+      if (res?.[0]?.url) {
+        handleImageSelectedRef.current(res[0].url);
+      }
+      setIsUploadingImage(false);
+      setImageUploadError(null);
+    },
+    onUploadError: (error) => {
+      setImageUploadError(parseUploadError(error.message, UPLOAD_LIMITS.TOKEN_MAX_SIZE));
+      setIsUploadingImage(false);
+    },
+  });
+
+  const handleImageSelected = useCallback(async (url: string | null) => {
+    setCurrentImageUrl(url);
+    setShowImagePicker(false);
+    setShowImageLibrary(false);
+
+    // For standalone or linked characters: update library via API
+    if ((isStandalone || effectivelyLinked) && characterId) {
+      try {
+        await fetch(`/api/characters/${characterId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageUrl: url }),
+        });
+        onSaved?.();
+      } catch (e) {
+        console.error("Failed to update character image:", e);
+      }
+    }
+
+    // For token mode: update token image on map
+    if (onTokenImageChange) {
+      onTokenImageChange(url);
+    }
+  }, [isStandalone, effectivelyLinked, characterId, onTokenImageChange, onSaved]);
+
+  // Keep ref in sync for upload callback
+  useEffect(() => {
+    handleImageSelectedRef.current = handleImageSelected;
+  }, [handleImageSelected]);
+
+  const handleImageFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingImage(true);
+    setImageUploadError(null);
+    await startImageUpload([file]);
+    e.target.value = "";
+  };
+
+  // Close image picker on click outside
+  useEffect(() => {
+    if (!showImagePicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (imagePickerRef.current && !imagePickerRef.current.contains(e.target as Node)) {
+        setShowImagePicker(false);
+        setShowImageLibrary(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showImagePicker]);
 
   // Handler that routes to either local update or API update
   const handleUpdate = useCallback(
@@ -644,21 +732,122 @@ export function CharacterSheetPanel({
           {/* Upper Row: Name, Condition, Heroic Inspiration */}
           <div className="flex items-center gap-3 mb-2">
             {/* Character Avatar with HP Bar underneath */}
-            <div className="flex flex-col items-center flex-shrink-0">
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
-                style={{ backgroundColor: charColor }}
-              >
-                {charImageUrl ? (
-                  <img src={charImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
-                ) : (
-                  charName.charAt(0).toUpperCase()
-                )}
-              </div>
+            <div className="flex flex-col items-center flex-shrink-0 relative" ref={imagePickerRef}>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  onClick={() => setShowImagePicker(!showImagePicker)}
+                  className="relative w-11 h-11 rounded-full flex items-center justify-center text-white font-bold cursor-pointer group"
+                  style={{ backgroundColor: charColor }}
+                  title="Change avatar image"
+                >
+                  {currentImageUrl ? (
+                    <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    charName.charAt(0).toUpperCase()
+                  )}
+                  {/* Hover overlay with camera icon */}
+                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </button>
+              ) : (
+                <div
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
+                  style={{ backgroundColor: charColor }}
+                >
+                  {currentImageUrl ? (
+                    <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
+                  ) : (
+                    charName.charAt(0).toUpperCase()
+                  )}
+                </div>
+              )}
               {/* HP Bar under avatar */}
               <div className="w-11 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden mt-1">
                 <div className="h-full transition-all" style={{ width: `${hpPercent}%`, backgroundColor: hpColor }} />
               </div>
+
+              {/* Image picker popover */}
+              {showImagePicker && !readOnly && (
+                <div className="absolute top-14 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 w-64">
+                  <input
+                    ref={imageFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageFileSelect}
+                    className="hidden"
+                  />
+
+                  {/* Upload button */}
+                  <button
+                    type="button"
+                    onClick={() => imageFileInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploadingImage ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                        Upload Image
+                        <span className="text-xs text-gray-400 ml-auto">(max {UPLOAD_LIMITS.TOKEN_MAX_SIZE})</span>
+                      </>
+                    )}
+                  </button>
+
+                  {imageUploadError && (
+                    <p className="text-xs text-red-500 mt-1 px-1">{imageUploadError}</p>
+                  )}
+
+                  {/* Browse uploads toggle */}
+                  <button
+                    type="button"
+                    onClick={() => setShowImageLibrary(!showImageLibrary)}
+                    className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                    Choose from uploads
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ml-auto transition-transform ${showImageLibrary ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+
+                  {showImageLibrary && (
+                    <div className="mt-2 max-h-48 overflow-y-auto">
+                      <ImageLibraryPicker
+                        type="token"
+                        onSelect={(url) => handleImageSelected(url || null)}
+                        selectedUrl={currentImageUrl}
+                      />
+                    </div>
+                  )}
+
+                  {/* Remove image button */}
+                  {currentImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => handleImageSelected(null)}
+                      className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm text-red-600 dark:text-red-400 bg-gray-50 dark:bg-gray-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      Remove image
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Name */}

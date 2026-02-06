@@ -487,6 +487,16 @@ export function MapEditor({
     [openCharacterSheetTokenId, updateToken, syncDebounced]
   );
 
+  // Handler for changing a token's image from the character sheet avatar
+  const handleTokenImageChange = useCallback(
+    (imageUrl: string | null) => {
+      if (!openCharacterSheetTokenId) return;
+      updateToken(openCharacterSheetTokenId, { imageUrl });
+      syncDebounced(500);
+    },
+    [openCharacterSheetTokenId, updateToken, syncDebounced]
+  );
+
   // Set editor context on mount/update
   useEffect(() => {
     setEditorContext(userId, permission, customPermissions);
@@ -722,6 +732,7 @@ export function MapEditor({
           onClose={closeCharacterSheet}
           onInitialize={handleInitializeCharacterSheet}
           onLinkCharacter={isTokenOwner(characterSheetToken.ownerId) ? handleLinkCharacter : undefined}
+          onTokenImageChange={handleTokenImageChange}
         />
       )}
 
