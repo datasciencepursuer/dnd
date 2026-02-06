@@ -187,6 +187,60 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
     setViewport(newX, newY, newScale);
   };
 
+  // Hold-to-zoom with ramping speed
+  const zoomHoldRef = useRef<{ interval: ReturnType<typeof setInterval> | null; ticks: number }>({
+    interval: null,
+    ticks: 0,
+  });
+
+  const stopZoomHold = useCallback(() => {
+    if (zoomHoldRef.current.interval) {
+      clearInterval(zoomHoldRef.current.interval);
+      zoomHoldRef.current.interval = null;
+    }
+    zoomHoldRef.current.ticks = 0;
+  }, []);
+
+  useEffect(() => stopZoomHold, [stopZoomHold]);
+
+  const startZoomHold = useCallback((direction: 1 | -1) => {
+    stopZoomHold();
+
+    const doStep = () => {
+      const s = useMapStore.getState().map;
+      if (!s) { stopZoomHold(); return; }
+
+      const ticks = zoomHoldRef.current.ticks++;
+      const oldScale = s.viewport.scale;
+      const dims = getCanvasDimensions();
+      const cx = dims.width / 2;
+      const cy = dims.height / 2;
+      const px = (cx - s.viewport.x) / oldScale;
+      const py = (cy - s.viewport.y) / oldScale;
+
+      // After long hold, jump straight to the limit
+      if (ticks > 25) {
+        const target = direction > 0 ? MAX_ZOOM : MIN_ZOOM;
+        setViewport(cx - px * target, cy - py * target, target);
+        stopZoomHold();
+        return;
+      }
+
+      let multiplier = 1;
+      if (ticks > 15) multiplier = 4;
+      else if (ticks > 8) multiplier = 2;
+
+      const newScale = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM,
+        Math.round((oldScale + direction * ZOOM_STEP * multiplier) * 100) / 100
+      ));
+      if (newScale === oldScale) { stopZoomHold(); return; }
+      setViewport(cx - px * newScale, cy - py * newScale, newScale);
+    };
+
+    doStep();
+    zoomHoldRef.current.interval = setInterval(doStep, 80);
+  }, [stopZoomHold, getCanvasDimensions, setViewport]);
+
   // Check if values differ from map (handle both string and number)
   const currentWidth = typeof width === "string" ? parseInt(width) : width;
   const currentHeight = typeof height === "string" ? parseInt(height) : height;
@@ -340,8 +394,20 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
           {/* Zoom slider */}
           {map && (
             <>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onMouseDown={() => startZoomHold(-1)}
+                  onMouseUp={stopZoomHold}
+                  onMouseLeave={stopZoomHold}
+                  onTouchStart={() => startZoomHold(-1)}
+                  onTouchEnd={stopZoomHold}
+                  onContextMenu={(e) => e.preventDefault()}
+                  disabled={map.viewport.scale <= MIN_ZOOM}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-lg font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300 dark:active:bg-gray-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors select-none"
+                  title="Zoom out (hold to ramp)"
+                >
+                  −
+                </button>
                 <input
                   type="range"
                   min={MIN_ZOOM}
@@ -352,7 +418,19 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                   className="w-24 h-1.5 accent-blue-600 cursor-pointer"
                   title={`Zoom: ${Math.round(map.viewport.scale * 100)}%`}
                 />
-                <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
+                <button
+                  onMouseDown={() => startZoomHold(1)}
+                  onMouseUp={stopZoomHold}
+                  onMouseLeave={stopZoomHold}
+                  onTouchStart={() => startZoomHold(1)}
+                  onTouchEnd={stopZoomHold}
+                  onContextMenu={(e) => e.preventDefault()}
+                  disabled={map.viewport.scale >= MAX_ZOOM}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg text-lg font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 active:bg-gray-300 dark:active:bg-gray-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors select-none"
+                  title="Zoom in (hold to ramp)"
+                >
+                  +
+                </button>
                 <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-10 text-right tabular-nums">
                   {Math.round(map.viewport.scale * 100)}%
                 </span>

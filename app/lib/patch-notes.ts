@@ -11,6 +11,9 @@ export const PATCH_NOTES: PatchNote[] = [
     date: "2026-02-06",
     title: "Character Sheet Autocomplete & Rendering Fixes",
     changes: [
+      "Zoom bar now has tap-friendly + and − buttons for tablet and mobile users",
+      "Hold zoom buttons to ramp speed — short holds zoom slowly, long holds accelerate to min/max",
+      "Autocomplete dropdowns no longer open on focus — suggestions only appear once you start typing",
       "Character sheet fields now suggest D&D 5e options as you type — races, classes, subclasses, backgrounds, spells, weapons, equipment, feats, languages, species traits, magic items, and more",
       "Subclass suggestions update dynamically based on the selected class",
       "Spell name suggestions filter by the spell's level",

@@ -92,7 +92,7 @@ export function Combobox({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!isOpen || filtered.length === 0) {
-      if (e.key === "ArrowDown" && suggestions.length > 0) {
+      if (e.key === "ArrowDown" && suggestions.length > 0 && currentSegment.length > 0) {
         setIsOpen(true);
         e.preventDefault();
       }
@@ -151,10 +151,19 @@ export function Combobox({
         type="text"
         value={value}
         onChange={(e) => {
-          onChange(e.target.value);
-          if (!isOpen) setIsOpen(true);
+          const newValue = e.target.value;
+          onChange(newValue);
+          if (newValue.length > 0) {
+            if (!isOpen) setIsOpen(true);
+          } else {
+            if (isOpen) close();
+          }
         }}
-        onFocus={() => setIsOpen(true)}
+        onFocus={() => {
+          if (delimiter ? currentSegment.length > 0 : value.length > 0) {
+            setIsOpen(true);
+          }
+        }}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
