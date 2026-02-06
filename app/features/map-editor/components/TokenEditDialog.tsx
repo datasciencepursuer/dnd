@@ -63,7 +63,7 @@ export function TokenEditDialog({
 
   // Check if current user can link/save this specific token
   const canLinkOrSave = canLinkOrSaveToken(token.ownerId);
-  const canAssignOwner = canChangeTokenOwner();
+  const canAssignOwner = canChangeTokenOwner(token.ownerId);
 
   const [name, setName] = useState(token.name);
   const [color, setColor] = useState(token.color);

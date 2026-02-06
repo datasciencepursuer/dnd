@@ -128,6 +128,28 @@ interface CombatEndMessage {
   userId: string;
 }
 
+interface DiceRollMessage {
+  type: "dice-roll";
+  roll: Record<string, unknown>;
+  userId: string;
+}
+
+interface TokenStatsMessage {
+  type: "token-stats";
+  tokenId: string;
+  stats: {
+    ac?: number;
+    hpCurrent?: number;
+    hpMax?: number;
+    condition?: string;
+    auraCircleEnabled?: boolean;
+    auraCircleRange?: number;
+    auraSquareEnabled?: boolean;
+    auraSquareRange?: number;
+  };
+  userId: string;
+}
+
 // Server-generated messages
 interface PresenceMessage {
   type: "presence";
@@ -155,7 +177,9 @@ type ClientMessage =
   | DmTransferMessage
   | CombatRequestMessage
   | CombatResponseMessage
-  | CombatEndMessage;
+  | CombatEndMessage
+  | DiceRollMessage
+  | TokenStatsMessage;
 
 // Track connected users
 interface ConnectedUser {

@@ -8,7 +8,8 @@ import { InitiativeSetupModal } from "./InitiativeSetupModal";
 import { useMapStore, useEditorStore } from "../store";
 import { useMapSync } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
-import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet } from "../types";
+import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, RollResult } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -55,7 +56,12 @@ export function MapEditor({
   const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const getCanvasDimensions = useEditorStore((s) => s.getCanvasDimensions);
-  const setCombatTurnTokenIds = useEditorStore((s) => s.setCombatTurnTokenIds);
+  // Combat state from map store
+  const combat = useMapStore((s) => s.map?.combat ?? null);
+  const setCombatTurnIndex = useMapStore((s) => s.setCombatTurnIndex);
+  const isInCombat = combat?.isInCombat ?? false;
+  const initiativeOrder = combat?.initiativeOrder ?? null;
+  const currentTurnIndex = combat?.currentTurnIndex ?? 0;
 
   // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
@@ -72,6 +78,8 @@ export function MapEditor({
     broadcastFogPaintRange,
     broadcastFogEraseRange,
     broadcastPing,
+    broadcastDiceRoll,
+    broadcastTokenStats,
     broadcastDrawingAdd,
     broadcastDrawingRemove,
     broadcastDmTransfer,
@@ -81,8 +89,6 @@ export function MapEditor({
     clearCombatRequest,
     activePings,
     combatRequest,
-    initiativeOrder,
-    isInCombat,
   } = usePartySync({
     mapId,
     userId,
@@ -138,6 +144,15 @@ export function MapEditor({
       syncDebounced(500);
     },
     [map?.tokens, broadcastTokenUpdate, syncDebounced]
+  );
+
+  // Combined handler for dice roll: broadcast via WebSocket + persist to DB
+  const handleDiceRoll = useCallback(
+    (roll: RollResult) => {
+      broadcastDiceRoll(roll);
+      syncNow();
+    },
+    [broadcastDiceRoll, syncNow]
   );
 
   // Combined handler for fog painting: broadcast + debounced sync
@@ -202,22 +217,7 @@ export function MapEditor({
     [map, setSelectedElements, getCanvasDimensions, setViewport]
   );
 
-  // Helper to check if a token is under fog
-  const isTokenUnderFog = useCallback(
-    (token: Token): boolean => {
-      if (!map?.fogOfWar?.paintedCells?.length) return false;
-      for (let dx = 0; dx < token.size; dx++) {
-        for (let dy = 0; dy < token.size; dy++) {
-          const cellKey = `${token.position.col + dx},${token.position.row + dy}`;
-          if (map.fogOfWar.paintedCells.some(cell => cell.key === cellKey)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    },
-    [map?.fogOfWar?.paintedCells]
-  );
+  const fogSet = useMemo(() => buildFogSet(map?.fogOfWar?.paintedCells || []), [map?.fogOfWar?.paintedCells]);
 
   // State for initiative setup modal
   type DraftInitiativeEntry = {
@@ -242,7 +242,7 @@ export function MapEditor({
     // Get visible tokens that are not under fog and not objects
     const eligibleTokens = map.tokens.filter((token) => {
       if (!token.visible) return false;
-      if (isTokenUnderFog(token)) return false;
+      if (isTokenUnderFog(token, fogSet)) return false;
       if (token.layer === "object") return false;
       return true;
     });
@@ -313,7 +313,7 @@ export function MapEditor({
     });
 
     return initiativeRolls;
-  }, [map, isTokenUnderFog]);
+  }, [map, fogSet]);
 
   // Handler for starting combat - opens initiative setup modal
   const handleStartCombat = useCallback(() => {
@@ -326,15 +326,22 @@ export function MapEditor({
   const handleConfirmCombat = useCallback(
     (entries: DraftInitiativeEntry[]) => {
       // Convert to the format expected by broadcastCombatResponse (without initMod and roll)
-      const initiativeOrder = entries.map(({ initMod, roll, ...rest }) => rest);
-      broadcastCombatResponse(true, initiativeOrder);
+      const order = entries.map(({ initMod, roll, ...rest }) => rest);
+      broadcastCombatResponse(true, order);
+      syncDebounced(500);
       setShowInitiativeSetup(false);
       setDraftInitiativeEntries([]);
       // Clear the combat request if one exists
       clearCombatRequest();
     },
-    [broadcastCombatResponse, clearCombatRequest]
+    [broadcastCombatResponse, clearCombatRequest, syncDebounced]
   );
+
+  // Handler for ending combat - broadcast + persist
+  const handleEndCombat = useCallback(() => {
+    broadcastCombatEnd();
+    syncDebounced(500);
+  }, [broadcastCombatEnd, syncDebounced]);
 
   // Handler for canceling initiative setup
   const handleCancelInitiativeSetup = useCallback(() => {
@@ -356,46 +363,25 @@ export function MapEditor({
     broadcastCombatResponse(false, null);
   }, [broadcastCombatResponse]);
 
-  // Turn tracking state
-  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
-
-  // Reset turn index when combat ends
-  useEffect(() => {
-    if (!isInCombat) {
-      setCurrentTurnIndex(0);
-      setCombatTurnTokenIds(null);
-    }
-  }, [isInCombat, setCombatTurnTokenIds]);
-
-  // Sync combat turn token IDs to editor store for movement permission gating
-  useEffect(() => {
-    if (!isInCombat || !initiativeOrder || initiativeOrder.length === 0) {
-      setCombatTurnTokenIds(null);
-      return;
-    }
-
-    const currentEntry = initiativeOrder[currentTurnIndex];
-    if (!currentEntry) {
-      setCombatTurnTokenIds(null);
-      return;
-    }
-
-    // Allow movement for all tokens in the current turn (handles monster groups)
-    const turnTokenIds = currentEntry.groupTokenIds ?? [currentEntry.tokenId];
-    setCombatTurnTokenIds(turnTokenIds);
-  }, [isInCombat, initiativeOrder, currentTurnIndex, setCombatTurnTokenIds]);
-
   // Turn navigation handlers
   const handleNextTurn = useCallback(() => {
     if (!initiativeOrder) return;
-    setCurrentTurnIndex((prev) =>
-      prev < initiativeOrder.length - 1 ? prev + 1 : prev
-    );
-  }, [initiativeOrder]);
+    if (currentTurnIndex < initiativeOrder.length - 1) {
+      setCombatTurnIndex(currentTurnIndex + 1);
+      syncDebounced(500);
+      const currentMap = useMapStore.getState().map;
+      if (currentMap) broadcastMapSync(currentMap);
+    }
+  }, [initiativeOrder, currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync]);
 
   const handlePrevTurn = useCallback(() => {
-    setCurrentTurnIndex((prev) => (prev > 0 ? prev - 1 : prev));
-  }, []);
+    if (currentTurnIndex > 0) {
+      setCombatTurnIndex(currentTurnIndex - 1);
+      syncDebounced(500);
+      const currentMap = useMapStore.getState().map;
+      if (currentMap) broadcastMapSync(currentMap);
+    }
+  }, [currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync]);
 
   const [editingToken, setEditingToken] = useState<Token | null>(null);
 
@@ -408,7 +394,7 @@ export function MapEditor({
       if (isDungeonMaster()) return true;
       if (isTokenOwner(token.ownerId)) return true;
       if (!token.visible) return false;
-      if (isTokenUnderFog(token)) return false;
+      if (isTokenUnderFog(token, fogSet)) return false;
       return true;
     });
 
@@ -430,7 +416,7 @@ export function MapEditor({
 
     // Only include tokens the user can edit
     return visible.filter((t) => canEditToken(t.ownerId));
-  }, [map, isDungeonMaster, isTokenOwner, isTokenUnderFog, canEditToken, isInCombat, initiativeOrder]);
+  }, [map, isDungeonMaster, isTokenOwner, fogSet, canEditToken, isInCombat, initiativeOrder]);
 
   // Current index of editing token in the navigable list
   const editingTokenIndex = editingToken
@@ -452,15 +438,30 @@ export function MapEditor({
     ? map?.tokens.find((t) => t.id === openCharacterSheetTokenId) ?? null
     : null;
 
-  // Handler for character sheet updates - sync via HTTP
+  // Handler for character sheet updates - sync via HTTP + broadcast stats
   const handleCharacterSheetUpdate = useCallback(
     (updates: Partial<CharacterSheet>) => {
       if (!openCharacterSheetTokenId) return;
       updateCharacterSheet(openCharacterSheetTokenId, updates);
+
+      // Broadcast AC, HP, condition, and aura changes instantly via WebSocket
+      const stats: Record<string, number | string | boolean> = {};
+      if (updates.ac !== undefined) stats.ac = updates.ac;
+      if (updates.hpCurrent !== undefined) stats.hpCurrent = updates.hpCurrent;
+      if (updates.hpMax !== undefined) stats.hpMax = updates.hpMax;
+      if (updates.condition !== undefined) stats.condition = updates.condition;
+      if (updates.auraCircleEnabled !== undefined) stats.auraCircleEnabled = updates.auraCircleEnabled;
+      if (updates.auraCircleRange !== undefined) stats.auraCircleRange = updates.auraCircleRange;
+      if (updates.auraSquareEnabled !== undefined) stats.auraSquareEnabled = updates.auraSquareEnabled;
+      if (updates.auraSquareRange !== undefined) stats.auraSquareRange = updates.auraSquareRange;
+      if (Object.keys(stats).length > 0) {
+        broadcastTokenStats(openCharacterSheetTokenId, stats);
+      }
+
       // Debounced sync since character sheet changes don't need instant sync
       syncDebounced(1000);
     },
-    [openCharacterSheetTokenId, updateCharacterSheet, syncDebounced]
+    [openCharacterSheetTokenId, updateCharacterSheet, broadcastTokenStats, syncDebounced]
   );
 
   // Handler for initializing a character sheet
@@ -469,6 +470,23 @@ export function MapEditor({
     initializeCharacterSheet(openCharacterSheetTokenId);
     syncDebounced(500);
   }, [openCharacterSheetTokenId, initializeCharacterSheet, syncDebounced]);
+
+  // Handler for linking a library character to a token (from CharacterSheetPanel)
+  const handleLinkCharacter = useCallback(
+    (character: { id: string; name: string; imageUrl: string | null; color: string; size: number; layer: string; characterSheet: CharacterSheet | null }) => {
+      if (!openCharacterSheetTokenId) return;
+      updateToken(openCharacterSheetTokenId, {
+        characterId: character.id,
+        characterSheet: character.characterSheet,
+        name: character.name,
+        imageUrl: character.imageUrl,
+        color: character.color,
+        size: character.size,
+      });
+      syncDebounced(500);
+    },
+    [openCharacterSheetTokenId, updateToken, syncDebounced]
+  );
 
   // Set editor context on mount/update
   useEffect(() => {
@@ -638,7 +656,7 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar userName={userName} userId={userId} mapId={mapId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} />
+      <Toolbar userName={userName} userId={userId} mapId={mapId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
           mapId={mapId}
@@ -649,7 +667,7 @@ export function MapEditor({
           onSelectAndCenter={handleSelectAndCenter}
           onCombatRequest={broadcastCombatRequest}
           onStartCombat={handleStartCombat}
-          onEndCombat={broadcastCombatEnd}
+          onEndCombat={handleEndCombat}
           isInCombat={isInCombat}
           initiativeOrder={initiativeOrder}
           pendingCombatRequest={combatRequest}
@@ -678,7 +696,7 @@ export function MapEditor({
             activePings={activePings}
           />
         </Suspense>
-        <DiceHistoryBar onRoll={syncNow} userName={userName} userId={userId} />
+        <DiceHistoryBar onRoll={handleDiceRoll} userName={userName} userId={userId} />
       </div>
 
       {editingToken && (
@@ -704,6 +722,7 @@ export function MapEditor({
           onUpdate={handleCharacterSheetUpdate}
           onClose={closeCharacterSheet}
           onInitialize={handleInitializeCharacterSheet}
+          onLinkCharacter={isTokenOwner(characterSheetToken.ownerId) ? handleLinkCharacter : undefined}
         />
       )}
 

@@ -4,20 +4,9 @@ import { TokenPanel } from "./TokenPanel";
 import { PresenceList } from "./PresenceList";
 import { CombatPanel } from "./CombatPanel";
 import { useEditorStore } from "../../store";
-import type { Token } from "../../types";
+import type { Token, InitiativeEntry } from "../../types";
 
 type ActivePanel = "none" | "editMap" | "createUnit";
-
-interface InitiativeEntry {
-  tokenId: string;
-  tokenName: string;
-  tokenColor: string;
-  initiative: number;
-  layer?: string;
-  groupId?: string | null;
-  groupCount?: number;
-  groupTokenIds?: string[];
-}
 
 interface SidebarProps {
   mapId?: string;
@@ -67,8 +56,36 @@ export function Sidebar({
     setActivePanel(activePanel === panel ? "none" : panel);
   };
 
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  if (isCollapsed) {
+    return (
+      <div className="relative w-0">
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="absolute top-3 left-0 z-10 flex items-center justify-center w-6 h-12 bg-white dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+          title="Expand sidebar"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+    <div className="relative w-56 lg:w-64 xl:w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col h-full">
+      {/* Collapse tab on right edge */}
+      <button
+        onClick={() => setIsCollapsed(true)}
+        className="absolute top-3 -right-6 z-10 flex items-center justify-center w-6 h-12 bg-white dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-600 rounded-r-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+        title="Collapse sidebar"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+        </svg>
+      </button>
       {/* Action Buttons */}
       <div className="p-3 space-y-2 border-b border-gray-200 dark:border-gray-700">
         {/* Edit Map - DM only */}

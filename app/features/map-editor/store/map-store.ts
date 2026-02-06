@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup } from "../types";
+import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup, InitiativeEntry } from "../types";
 import { createNewMap } from "../constants";
 import { createDefaultCharacterSheet } from "../utils/character-utils";
 import { normalizeGridRange } from "../utils/grid-utils";
@@ -74,6 +74,11 @@ interface MapState {
   removeFromMonsterGroup: (tokenId: string) => void;
   deleteMonsterGroup: (groupId: string) => void;
 
+  // Combat actions
+  startCombat: (initiativeOrder: InitiativeEntry[]) => void;
+  endCombat: () => void;
+  setCombatTurnIndex: (index: number) => void;
+
   // Token duplication
   duplicateToken: (tokenId: string, options?: { sameGroup?: boolean }) => Token | null;
 }
@@ -90,6 +95,7 @@ export const useMapStore = create<MapState>()(
           ...map,
           // Ensure new fields have defaults for older maps
           monsterGroups: map.monsterGroups || [],
+          combat: map.combat ?? null,
           tokens: map.tokens.map((t) => ({
             ...t,
             monsterGroupId: t.monsterGroupId ?? null,
@@ -102,10 +108,11 @@ export const useMapStore = create<MapState>()(
       // Sync map data from server while preserving local dirty tokens and viewport
       syncMap: (serverMap) =>
         set((state) => {
-          // Ensure monsterGroups exists for backward compatibility
+          // Ensure monsterGroups and combat exist for backward compatibility
           const normalizedServerMap = {
             ...serverMap,
             monsterGroups: serverMap.monsterGroups || [],
+            combat: serverMap.combat ?? null,
             tokens: serverMap.tokens.map((t) => ({
               ...t,
               monsterGroupId: t.monsterGroupId ?? null,
@@ -814,6 +821,50 @@ export const useMapStore = create<MapState>()(
             },
             dirtyTokens: newDirtyTokens,
             dirtyTimestamps: newDirtyTimestamps,
+          };
+        }),
+
+      // Combat actions
+      startCombat: (initiativeOrder) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              combat: {
+                isInCombat: true,
+                initiativeOrder,
+                currentTurnIndex: 0,
+              },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      endCombat: () =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              combat: null,
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      setCombatTurnIndex: (index) =>
+        set((state) => {
+          if (!state.map || !state.map.combat) return state;
+          return {
+            map: {
+              ...state.map,
+              combat: {
+                ...state.map.combat,
+                currentTurnIndex: index,
+              },
+              updatedAt: new Date().toISOString(),
+            },
           };
         }),
 

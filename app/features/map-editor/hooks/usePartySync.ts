@@ -2,7 +2,7 @@ import usePartySocket from "partysocket/react";
 import { useCallback, useEffect, useState } from "react";
 import { useMapStore } from "../store/map-store";
 import { usePresenceStore } from "../store/presence-store";
-import type { DnDMap, GridPosition, Token, Ping } from "../types";
+import type { DnDMap, GridPosition, Token, Ping, InitiativeEntry, RollResult, Condition } from "../types";
 
 // Message types matching the server
 interface TokenMoveMessage {
@@ -119,17 +119,6 @@ interface CombatRequestMessage {
   requesterName: string;
 }
 
-interface InitiativeEntry {
-  tokenId: string;
-  tokenName: string;
-  tokenColor: string;
-  initiative: number;
-  layer?: string;
-  groupId?: string | null;
-  groupCount?: number;
-  groupTokenIds?: string[];
-}
-
 interface CombatResponseMessage {
   type: "combat-response";
   accepted: boolean;
@@ -138,6 +127,28 @@ interface CombatResponseMessage {
 
 interface CombatEndMessage {
   type: "combat-end";
+  userId: string;
+}
+
+interface DiceRollMessage {
+  type: "dice-roll";
+  roll: RollResult;
+  userId: string;
+}
+
+interface TokenStatsMessage {
+  type: "token-stats";
+  tokenId: string;
+  stats: {
+    ac?: number;
+    hpCurrent?: number;
+    hpMax?: number;
+    condition?: Condition;
+    auraCircleEnabled?: boolean;
+    auraCircleRange?: number;
+    auraSquareEnabled?: boolean;
+    auraSquareRange?: number;
+  };
   userId: string;
 }
 
@@ -159,7 +170,9 @@ type ServerMessage =
   | DmTransferMessage
   | CombatRequestMessage
   | CombatResponseMessage
-  | CombatEndMessage;
+  | CombatEndMessage
+  | DiceRollMessage
+  | TokenStatsMessage;
 
 // PartyKit host from environment variable
 // In development: defaults to localhost
@@ -197,10 +210,8 @@ export function usePartySync({
   // Active pings state - pings expire after 3 seconds
   const [activePings, setActivePings] = useState<Ping[]>([]);
 
-  // Combat state
+  // Combat request state (transient DM notification, not part of map data)
   const [combatRequest, setCombatRequest] = useState<{ requesterId: string; requesterName: string } | null>(null);
-  const [initiativeOrder, setInitiativeOrder] = useState<InitiativeEntry[] | null>(null);
-  const [isInCombat, setIsInCombat] = useState(false);
 
   // Only create query params if we have valid user data
   const queryParams = userId
@@ -338,16 +349,26 @@ export function usePartySync({
           case "combat-response":
             // All clients receive combat response
             if (message.accepted && message.initiativeOrder) {
-              setInitiativeOrder(message.initiativeOrder);
-              setIsInCombat(true);
+              useMapStore.getState().startCombat(message.initiativeOrder);
             }
             setCombatRequest(null);
             break;
 
           case "combat-end":
             // All clients receive combat end
-            setInitiativeOrder(null);
-            setIsInCombat(false);
+            useMapStore.getState().endCombat();
+            break;
+
+          case "dice-roll":
+            if (message.userId !== userId) {
+              useMapStore.getState().addRollResult(message.roll);
+            }
+            break;
+
+          case "token-stats":
+            if (message.userId !== userId) {
+              useMapStore.getState().updateCharacterSheet(message.tokenId, message.stats);
+            }
             break;
         }
       } catch (error) {
@@ -521,6 +542,33 @@ export function usePartySync({
     [isSocketReady, socket, userId]
   );
 
+  // Broadcast dice roll to other clients
+  const broadcastDiceRoll = useCallback(
+    (roll: RollResult) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "dice-roll",
+        roll,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast token stats (AC, HP, condition) to other clients
+  const broadcastTokenStats = useCallback(
+    (tokenId: string, stats: TokenStatsMessage["stats"]) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "token-stats",
+        tokenId,
+        stats,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
   // Broadcast drawing add to other clients
   const broadcastDrawingAdd = useCallback(
     (path: { id: string; points: number[]; color: string; width: number }) => {
@@ -585,8 +633,7 @@ export function usePartySync({
       socket!.send(JSON.stringify(message));
       // Also update local state
       if (accepted && order) {
-        setInitiativeOrder(order);
-        setIsInCombat(true);
+        useMapStore.getState().startCombat(order);
       }
       setCombatRequest(null);
     },
@@ -602,8 +649,7 @@ export function usePartySync({
         userId,
       }));
       // Also update local state
-      setInitiativeOrder(null);
-      setIsInCombat(false);
+      useMapStore.getState().endCombat();
     },
     [isSocketReady, socket, userId]
   );
@@ -624,6 +670,8 @@ export function usePartySync({
     broadcastFogPaintRange,
     broadcastFogEraseRange,
     broadcastPing,
+    broadcastDiceRoll,
+    broadcastTokenStats,
     broadcastDrawingAdd,
     broadcastDrawingRemove,
     broadcastDmTransfer,
@@ -633,8 +681,6 @@ export function usePartySync({
     clearCombatRequest,
     activePings,
     combatRequest,
-    initiativeOrder,
-    isInCombat,
     isConnected: socket?.readyState === WebSocket.OPEN,
   };
 }

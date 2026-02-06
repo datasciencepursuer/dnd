@@ -1,21 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useMapStore, useEditorStore } from "../../store";
 import { TOKEN_COLORS } from "../../constants";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
-import type { Token, TokenLayer, MonsterGroup } from "../../types";
-
-interface InitiativeEntry {
-  tokenId: string;
-  tokenName: string;
-  tokenColor: string;
-  initiative: number;
-  layer?: string;
-  groupId?: string | null;
-  groupCount?: number;
-  groupTokenIds?: string[];
-}
+import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
+import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
 
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
@@ -265,22 +255,7 @@ export function TokenPanel({
     }
   }, [draggedIndex, dragOverIndex, map, reorderTokens]);
 
-  // Helper to check if a token is under fog
-  const isTokenUnderFog = (token: Token): boolean => {
-    if (!map?.fogOfWar?.paintedCells?.length) return false;
-
-    // Check all cells the token occupies (based on size)
-    for (let dx = 0; dx < token.size; dx++) {
-      for (let dy = 0; dy < token.size; dy++) {
-        const cellKey = `${token.position.col + dx},${token.position.row + dy}`;
-        // If any cell the token occupies has fog, consider it under fog
-        if (map.fogOfWar.paintedCells.some(cell => cell.key === cellKey)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
+  const fogSet = useMemo(() => buildFogSet(map?.fogOfWar?.paintedCells || []), [map?.fogOfWar?.paintedCells]);
 
   // Filter tokens - hidden tokens and tokens under fog only visible to DM or owner
   const visibleTokens = map?.tokens.filter((token) => {
@@ -294,7 +269,7 @@ export function TokenPanel({
     if (!token.visible) return false;
 
     // Tokens under fog are not shown to non-owners
-    if (isTokenUnderFog(token)) return false;
+    if (isTokenUnderFog(token, fogSet)) return false;
 
     return true;
   }) ?? [];
@@ -502,7 +477,7 @@ export function TokenPanel({
                       (hidden)
                     </span>
                   )}
-                  {!isInCombat && isDungeonMaster() && token.visible && isTokenUnderFog(token) && (
+                  {!isInCombat && isDungeonMaster() && token.visible && isTokenUnderFog(token, fogSet) && (
                     <span className="text-xs text-purple-500 dark:text-purple-400" title="Token is under fog of war - hidden from players">
                       (fogged)
                     </span>

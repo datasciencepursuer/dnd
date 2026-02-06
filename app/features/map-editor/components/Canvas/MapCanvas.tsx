@@ -1,15 +1,16 @@
 import { Stage, Layer, Rect, Group } from "react-konva";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { AuraLayer } from "./AuraLayer";
-import { TokenLayer, SelectedTokenOverlay } from "./TokenLayer";
+import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { FogLayer } from "./FogLayer";
 import { PingLayer } from "./PingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
+import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
 import type { FreehandPath, GridPosition, Ping } from "../../types";
 
 interface MapCanvasProps {
@@ -76,6 +77,30 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const setCanvasDimensions = useEditorStore((s) => s.setCanvasDimensions);
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
 
+  // Hovered token state (lifted from TokenLayer)
+  const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
+
+  const handleTokenHoverStart = useCallback((tokenId: string) => {
+    setHoveredTokenId(tokenId);
+  }, []);
+
+  const handleTokenHoverEnd = useCallback(() => {
+    setHoveredTokenId(null);
+  }, []);
+
+  // Fog lookup set for O(1) per-cell checks
+  const fogSet = useMemo(() => buildFogSet(fogPaintedCells || []), [fogPaintedCells]);
+
+  // All visible, non-fogged tokens — rendered in overlay above fog
+  const nonFoggedTokens = useMemo(() => {
+    if (!tokens) return [];
+    return tokens.filter((t) => t.visible && !isTokenUnderFog(t, fogSet));
+  }, [tokens, fogSet]);
+
+  const nonFoggedTokenIds = useMemo(() => {
+    return new Set(nonFoggedTokens.map((t) => t.id));
+  }, [nonFoggedTokens]);
+
   const stageRef = useRef<any>(null);
   const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Viewport ref — source of truth for Stage position/scale, updated imperatively
@@ -89,6 +114,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   // Stable ref for freehand to use in mouseUp without causing re-renders
   const freehandRef = useRef(freehand);
   freehandRef.current = freehand;
+
+  // Wrapper that removes a freehand path locally and broadcasts the removal
+  const handleErasePath = useCallback((pathId: string) => {
+    removeFreehandPath(pathId);
+    onDrawingRemove?.(pathId);
+  }, [removeFreehandPath, onDrawingRemove]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -121,6 +152,29 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       }
     }
   }, [mapId]);
+
+  // Subscribe to external viewport changes (e.g. zoom slider in Toolbar)
+  // Only apply if the store viewport differs from our local ref (i.e. not self-caused)
+  useEffect(() => {
+    const unsub = useMapStore.subscribe((state, prevState) => {
+      const vp = state.map?.viewport;
+      const prevVp = prevState.map?.viewport;
+      if (!vp || !prevVp) return;
+      if (vp === prevVp) return;
+      const ref = viewportRef.current;
+      // Skip if the ref already matches — this was a self-caused update
+      if (Math.abs(ref.x - vp.x) < 0.5 && Math.abs(ref.y - vp.y) < 0.5 && Math.abs(ref.scale - vp.scale) < 0.001) return;
+      viewportRef.current = { x: vp.x, y: vp.y, scale: vp.scale };
+      if (stageRef.current) {
+        stageRef.current.x(vp.x);
+        stageRef.current.y(vp.y);
+        stageRef.current.scaleX(vp.scale);
+        stageRef.current.scaleY(vp.scale);
+        stageRef.current.batchDraw();
+      }
+    });
+    return unsub;
+  }, []);
 
   // Center the grid on initial load - always center for each client session
   useEffect(() => {
@@ -364,6 +418,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
             const py = path.points[i + 1];
             if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
               removeFreehandPath(path.id);
+              onDrawingRemove?.(path.id);
               break;
             }
           }
@@ -543,7 +598,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               currentColor={drawingColor}
               currentWidth={drawingWidth}
               isEraseMode={selectedTool === "erase"}
-              onErasePath={removeFreehandPath}
+              onErasePath={handleErasePath}
             />
           </Group>
           <Group>
@@ -551,6 +606,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               tokens={tokens}
               cellSize={cellSize}
               stageRef={stageRef}
+              hoveredTokenId={hoveredTokenId}
+              nonFoggedTokenIds={nonFoggedTokenIds}
+              onHoverStart={handleTokenHoverStart}
+              onHoverEnd={handleTokenHoverEnd}
               onTokenMoved={onTokenMoved}
               onTokenFlip={onTokenFlip}
             />
@@ -568,6 +627,16 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           <Group>
             <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
           </Group>
+          {nonFoggedTokens.length > 0 && (
+            <Group>
+              <NonFoggedTokensOverlay
+                tokens={nonFoggedTokens}
+                cellSize={cellSize}
+                isDM={isDungeonMaster()}
+                hoveredTokenId={hoveredTokenId}
+              />
+            </Group>
+          )}
           <Group>
             <PingLayer pings={activePings} />
           </Group>

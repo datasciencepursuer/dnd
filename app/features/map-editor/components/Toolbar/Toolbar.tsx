@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useRevalidator } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
+import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
 import type { EditorTool } from "../../types";
 
 interface GroupMember {
@@ -34,9 +35,10 @@ interface ToolbarProps {
   mapId?: string;
   groupMembers?: GroupMember[];
   onDmTransfer?: (newDmId: string) => void;
+  onGridChange?: () => void;
 }
 
-export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransfer }: ToolbarProps) {
+export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransfer, onGridChange }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -44,9 +46,12 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const togglePlayingLocally = useEditorStore((s) => s.togglePlayingLocally);
 
+  const getCanvasDimensions = useEditorStore((s) => s.getCanvasDimensions);
+
   const map = useMapStore((s) => s.map);
   const updateGrid = useMapStore((s) => s.updateGrid);
   const updateMapName = useMapStore((s) => s.updateMapName);
+  const setViewport = useMapStore((s) => s.setViewport);
 
   const [mapName, setMapName] = useState(map?.name ?? "");
   const [width, setWidth] = useState<number | string>(map?.grid.width ?? 30);
@@ -165,6 +170,21 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
     setWidth(newWidth);
     setHeight(newHeight);
     updateGrid({ width: newWidth, height: newHeight });
+    onGridChange?.();
+  };
+
+  const handleZoom = (newScale: number) => {
+    if (!map) return;
+    const oldScale = map.viewport.scale;
+    const { width: cw, height: ch } = getCanvasDimensions();
+    // Zoom centered on the canvas
+    const centerX = cw / 2;
+    const centerY = ch / 2;
+    const pointX = (centerX - map.viewport.x) / oldScale;
+    const pointY = (centerY - map.viewport.y) / oldScale;
+    const newX = centerX - pointX * newScale;
+    const newY = centerY - pointY * newScale;
+    setViewport(newX, newY, newScale);
   };
 
   // Check if values differ from map (handle both string and number)
@@ -317,34 +337,63 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Grid settings - DM only */}
-          {map && canEditMap() && (
+          {/* Zoom slider */}
+          {map && (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                <input
+                  type="range"
+                  min={MIN_ZOOM}
+                  max={MAX_ZOOM}
+                  step={ZOOM_STEP}
+                  value={map.viewport.scale}
+                  onChange={(e) => handleZoom(parseFloat(e.target.value))}
+                  className="w-24 h-1.5 accent-blue-600 cursor-pointer"
+                  title={`Zoom: ${Math.round(map.viewport.scale * 100)}%`}
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">+</span>
+                <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-10 text-right tabular-nums">
+                  {Math.round(map.viewport.scale * 100)}%
+                </span>
+              </div>
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+            </>
+          )}
+          {/* Grid settings - visible to all, editable for DM only */}
+          {map && (
             <>
               <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-gray-500 dark:text-gray-400">W</span>
-                <input
-                  type="number"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value === "" ? "" : parseInt(e.target.value))}
-                  min={5}
-                  max={100}
-                  className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  title="Grid width (cells)"
-                />
-                <span className="text-gray-400 dark:text-gray-500">×</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">H</span>
-                <input
-                  type="number"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value === "" ? "" : parseInt(e.target.value))}
-                  min={5}
-                  max={100}
-                  className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  title="Grid height (cells)"
-                />
-              </div>
-              {hasChanges && (
+              {canEditMap() ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">W</span>
+                  <input
+                    type="number"
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    min={5}
+                    max={100}
+                    className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    title="Grid width (cells)"
+                  />
+                  <span className="text-gray-400 dark:text-gray-500">&times;</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">H</span>
+                  <input
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(e.target.value === "" ? "" : parseInt(e.target.value))}
+                    min={5}
+                    max={100}
+                    className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    title="Grid height (cells)"
+                  />
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {map.grid.width} &times; {map.grid.height}
+                </span>
+              )}
+              {canEditMap() && hasChanges && (
                 <button
                   onClick={handleApply}
                   className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"

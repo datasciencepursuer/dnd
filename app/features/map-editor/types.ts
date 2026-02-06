@@ -49,31 +49,34 @@ export interface AbilityScores {
 
 export type CreatureSize = "S" | "M" | "L"; // Small, Medium, Large
 
+// Skill proficiency level: none → proficient → expertise
+export type SkillLevel = "none" | "proficient" | "expertise";
+
 // D&D 5e skill proficiencies
 export interface SkillProficiencies {
   // Strength
-  athletics: boolean;
+  athletics: SkillLevel;
   // Dexterity
-  acrobatics: boolean;
-  sleightOfHand: boolean;
-  stealth: boolean;
+  acrobatics: SkillLevel;
+  sleightOfHand: SkillLevel;
+  stealth: SkillLevel;
   // Intelligence
-  arcana: boolean;
-  history: boolean;
-  investigation: boolean;
-  nature: boolean;
-  religion: boolean;
+  arcana: SkillLevel;
+  history: SkillLevel;
+  investigation: SkillLevel;
+  nature: SkillLevel;
+  religion: SkillLevel;
   // Wisdom
-  animalHandling: boolean;
-  insight: boolean;
-  medicine: boolean;
-  perception: boolean;
-  survival: boolean;
+  animalHandling: SkillLevel;
+  insight: SkillLevel;
+  medicine: SkillLevel;
+  perception: SkillLevel;
+  survival: SkillLevel;
   // Charisma
-  deception: boolean;
-  intimidation: boolean;
-  performance: boolean;
-  persuasion: boolean;
+  deception: SkillLevel;
+  intimidation: SkillLevel;
+  performance: SkillLevel;
+  persuasion: SkillLevel;
 }
 
 // Armor proficiency options
@@ -416,6 +419,25 @@ export interface RollResult {
   tokenColor: string;
 }
 
+// Initiative Entry for combat tracking
+export interface InitiativeEntry {
+  tokenId: string;
+  tokenName: string;
+  tokenColor: string;
+  initiative: number;
+  layer?: string;
+  groupId?: string | null;
+  groupCount?: number;
+  groupTokenIds?: string[];
+}
+
+// Combat State
+export interface CombatState {
+  isInCombat: boolean;
+  initiativeOrder: InitiativeEntry[];
+  currentTurnIndex: number;
+}
+
 // Complete Map
 export interface DnDMap {
   id: string;
@@ -432,6 +454,7 @@ export interface DnDMap {
   fogOfWar: FogOfWar;
   rollHistory: RollResult[];
   monsterGroups: MonsterGroup[];
+  combat: CombatState | null;
   viewport: {
     x: number;
     y: number;

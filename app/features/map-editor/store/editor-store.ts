@@ -25,9 +25,6 @@ interface EditorState {
   // Canvas dimensions for centering calculations
   canvasDimensions: { width: number; height: number };
 
-  // Combat turn context - token IDs allowed to move this turn (null = no combat restriction)
-  combatTurnTokenIds: string[] | null;
-
   // Local play mode - DM sees fog as opaque (player perspective)
   isPlayingLocally: boolean;
 
@@ -60,9 +57,6 @@ interface EditorState {
   setCanvasDimensions: (width: number, height: number) => void;
   getCanvasDimensions: () => { width: number; height: number };
 
-  // Combat turn context
-  setCombatTurnTokenIds: (tokenIds: string[] | null) => void;
-
   // Local play mode
   togglePlayingLocally: () => void;
 
@@ -70,11 +64,11 @@ interface EditorState {
   isDungeonMaster: () => boolean;
   isTokenOwner: (tokenOwnerId: string | null) => boolean;
   canEditToken: (tokenOwnerId: string | null) => boolean;
-  canMoveToken: (tokenOwnerId: string | null, tokenId?: string) => boolean;
+  canMoveToken: (tokenOwnerId: string | null) => boolean;
   canDeleteToken: (tokenOwnerId: string | null) => boolean;
   canEditMap: () => boolean;
   canCreateToken: () => boolean;
-  canChangeTokenOwner: () => boolean;
+  canChangeTokenOwner: (tokenOwnerId: string | null) => boolean;
   canLinkOrSaveToken: (tokenOwnerId: string | null) => boolean;
   getPermissions: () => PlayerPermissions;
 }
@@ -96,7 +90,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   pingTimestamps: [],
   openCharacterSheetTokenId: null,
   canvasDimensions: { width: 800, height: 600 },
-  combatTurnTokenIds: null,
   isPlayingLocally: false,
 
   setTool: (tool) =>
@@ -169,9 +162,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setCanvasDimensions: (width, height) => set({ canvasDimensions: { width, height } }),
   getCanvasDimensions: () => get().canvasDimensions,
 
-  // Combat turn context
-  setCombatTurnTokenIds: (tokenIds) => set({ combatTurnTokenIds: tokenIds }),
-
   // Local play mode
   togglePlayingLocally: () => set((state) => ({ isPlayingLocally: !state.isPlayingLocally })),
 
@@ -207,7 +197,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   // DM can move any token, players can only move their own
-  canMoveToken: (tokenOwnerId: string | null, _tokenId?: string) => {
+  canMoveToken: (tokenOwnerId: string | null) => {
     const state = get();
     const perms = state.permissions;
 
@@ -250,8 +240,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // All roles can create tokens
   canCreateToken: () => get().permissions.canCreateTokens,
 
-  // Only DM can change token ownership
-  canChangeTokenOwner: () => get().permissions.canChangeTokenOwner,
+  // Token owner or DM can change token ownership
+  canChangeTokenOwner: (tokenOwnerId: string | null) => {
+    const state = get();
+    // DM can always reassign any token
+    if (state.permission === "dm") return true;
+    // Player owns their own tokens
+    return tokenOwnerId === state.userId && state.userId !== null;
+  },
 
   // Can only link/save tokens you own
   canLinkOrSaveToken: (tokenOwnerId: string | null) => {

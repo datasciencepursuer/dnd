@@ -80,6 +80,7 @@ export function createNewMap(options: CreateMapOptions | string): DnDMap {
     fogOfWar: { ...DEFAULT_FOG },
     rollHistory: [],
     monsterGroups: [],
+    combat: null,
     viewport: { ...DEFAULT_VIEWPORT },
   };
 }

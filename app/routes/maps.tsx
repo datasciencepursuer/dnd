@@ -9,6 +9,7 @@ import {
 } from "~/features/map-editor";
 import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
+import { PatchNotesPanel } from "~/components/PatchNotesPanel";
 import type { PermissionLevel } from "~/.server/db/schema";
 
 interface MapListItem {
@@ -545,6 +546,9 @@ Play
             </button>
           ))}
         </div>
+
+        {/* Patch Notes */}
+        <PatchNotesPanel />
 
         {/* Migration Prompt */}
         {localMaps.length > 0 && !migrationDismissed && (

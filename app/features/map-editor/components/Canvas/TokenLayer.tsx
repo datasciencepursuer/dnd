@@ -35,9 +35,11 @@ interface TokenItemProps {
   isHovered: boolean;
   isEditable: boolean;
   isMovable: boolean;
+  isDM: boolean;
   selectedTool: string;
   isDragging: boolean;
   isLockedMouseDown: boolean;
+  forceHidden: boolean;
   onMouseDown: (tokenId: string, e: any) => void;
   onFlip: (tokenId: string) => void;
   onSelect: (tokenId: string) => void;
@@ -53,9 +55,11 @@ const TokenItem = memo(function TokenItem({
   isHovered,
   isEditable,
   isMovable,
+  isDM,
   selectedTool,
   isDragging,
   isLockedMouseDown,
+  forceHidden,
   onMouseDown,
   onFlip,
   onSelect,
@@ -140,7 +144,9 @@ const TokenItem = memo(function TokenItem({
 
   // Character sheet display calculations
   const sheet = token.characterSheet;
-  const showStats = (isSelected || isHovered) && !isDragging && sheet;
+  // Show HP/AC only on hover (not selection). Hide for monster tokens unless DM.
+  const isMonster = token.layer === "monster";
+  const showStats = isHovered && !isDragging && sheet && !(isMonster && !isDM);
   const hpPercent = sheet ? getHpPercentage(sheet.hpCurrent, sheet.hpMax) : 0;
   const hpBarColor = sheet ? getHpBarColor(hpPercent) : "#22c55e";
 
@@ -167,7 +173,7 @@ const TokenItem = memo(function TokenItem({
       x={x}
       y={y}
       rotation={token.rotation}
-      opacity={isDragging ? 0.5 : 1}
+      opacity={forceHidden ? 0 : isDragging ? 0.5 : 1}
       onMouseDown={handleMouseDown}
       onTouchStart={handleMouseDown}
       onClick={handleClick}
@@ -544,11 +550,15 @@ interface TokenLayerProps {
   tokens: Token[];
   cellSize: number;
   stageRef: React.RefObject<any>;
+  hoveredTokenId: string | null;
+  nonFoggedTokenIds: Set<string>;
+  onHoverStart: (tokenId: string) => void;
+  onHoverEnd: () => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
 }
 
-export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, onTokenMoved, onTokenFlip }: TokenLayerProps) {
+export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onTokenFlip }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const flipToken = useMapStore((s) => s.flipToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
@@ -556,11 +566,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const canEditToken = useEditorStore((s) => s.canEditToken);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
+  const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
   const isPanning = useEditorStore((s) => s.isPanning);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
-  const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
   const [lockedMouseDownId, setLockedMouseDownId] = useState<string | null>(null);
   const draggingTokenRef = useRef<Token | null>(null);
   const isDraggingRef = useRef(false);
@@ -590,9 +600,9 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const openCharacterSheetRef = useRef(openCharacterSheet);
   openCharacterSheetRef.current = openCharacterSheet;
 
-  // Handle mouse move during drag - use refs to avoid effect re-running on every mouse move
+  // Handle mouse/touch move during drag - use refs to avoid effect re-running on every move
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const updateDragPosition = (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !stageRef.current) return;
 
       const stage = stageRef.current;
@@ -603,17 +613,25 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       const stageX = stage.x();
       const stageY = stage.y();
 
-      // Convert mouse position to stage coordinates
-      const mouseX = (e.clientX - rect.left - stageX) / scale;
-      const mouseY = (e.clientY - rect.top - stageY) / scale;
+      const mouseX = (clientX - rect.left - stageX) / scale;
+      const mouseY = (clientY - rect.top - stageY) / scale;
 
-      // Store in ref for the mouseUp handler
       dragPositionRef.current = { x: mouseX, y: mouseY };
 
-      // Update state for rendering (throttled by React's batching)
       setDragState((prev) =>
         prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null
       );
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      updateDragPosition(e.clientX, e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isDraggingRef.current) return;
+      e.preventDefault(); // Prevent page scroll while dragging token
+      const touch = e.touches[0];
+      if (touch) updateDragPosition(touch.clientX, touch.clientY);
     };
 
     const handleMouseUp = () => {
@@ -631,7 +649,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
         const row = Math.round((position.y - offset) / cs);
 
         // Only move if user can move this token
-        if (canMoveTokenRef.current(token.ownerId, token.id)) {
+        if (canMoveTokenRef.current(token.ownerId)) {
           moveTokenRef.current(token.id, { col, row });
           // Trigger immediate sync for real-time updates
           onTokenMovedRef.current?.(token.id, { col, row });
@@ -648,13 +666,13 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     // Set up listeners once on mount
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", handleMouseUp);
-    window.addEventListener("touchmove", handleMouseMove as any);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("touchend", handleMouseUp);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
-      window.removeEventListener("touchmove", handleMouseMove as any);
+      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleMouseUp);
     };
   }, [stageRef]); // Only stageRef — everything else via refs
@@ -668,7 +686,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       if (!token) return;
 
       // Check if user can move this token
-      if (!canMoveTokenRef.current(token.ownerId, token.id)) {
+      if (!canMoveTokenRef.current(token.ownerId)) {
         // Show locked indicator while mouse is down
         setLockedMouseDownId(token.id);
         e.cancelBubble = true;
@@ -723,7 +741,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const handleDoubleClick = useCallback(
     (tokenId: string) => {
       const token = tokensRef.current.find((t) => t.id === tokenId);
-      if (token && canMoveTokenRef.current(token.ownerId, token.id)) {
+      if (token && canMoveTokenRef.current(token.ownerId)) {
         openCharacterSheetRef.current(tokenId);
       }
     },
@@ -745,9 +763,18 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     };
   }, []);
 
+  const onHoverStartPropRef = useRef(onHoverStartProp);
+  onHoverStartPropRef.current = onHoverStartProp;
+  const onHoverEndPropRef = useRef(onHoverEndProp);
+  onHoverEndPropRef.current = onHoverEndProp;
+  const nonFoggedTokenIdsRef = useRef(nonFoggedTokenIds);
+  nonFoggedTokenIdsRef.current = nonFoggedTokenIds;
+
   const handleHoverStart = useCallback(
     (tokenId: string) => {
-      setHoveredTokenId(tokenId);
+      // Skip hover entirely for fogged tokens
+      if (!nonFoggedTokenIdsRef.current.has(tokenId)) return;
+      onHoverStartPropRef.current(tokenId);
       // Change cursor to pointer (only if not panning)
       if (stageRef.current && !isPanningRef.current) {
         stageRef.current.container().style.cursor = "pointer";
@@ -757,7 +784,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   );
 
   const handleHoverEnd = useCallback(() => {
-    setHoveredTokenId(null);
+    onHoverEndPropRef.current();
     // Reset cursor (only if not panning)
     if (stageRef.current && !isPanningRef.current) {
       stageRef.current.container().style.cursor = "default";
@@ -775,11 +802,20 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
         />
       )}
 
-      {tokens.map((token) => {
+      {/* Sort tokens: movable (non-locked) above locked, then selected/hovered on top */}
+      {[...tokens].sort((a, b) => {
+        const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
+        const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
+        const aSelected = selectedIds.includes(a.id) ? 2 : 0;
+        const bSelected = selectedIds.includes(b.id) ? 2 : 0;
+        const aHovered = hoveredTokenId === a.id ? 4 : 0;
+        const bHovered = hoveredTokenId === b.id ? 4 : 0;
+        return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
+      }).map((token) => {
         if (!token.visible) return null;
 
         const isEditable = canEditToken(token.ownerId);
-        const isMovable = canMoveToken(token.ownerId, token.id);
+        const isMovable = canMoveToken(token.ownerId);
 
         return (
           <TokenItem
@@ -790,9 +826,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
             isHovered={hoveredTokenId === token.id}
             isEditable={isEditable}
             isMovable={isMovable}
+            isDM={isDungeonMaster()}
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
             isLockedMouseDown={lockedMouseDownId === token.id}
+            forceHidden={nonFoggedTokenIds.has(token.id)}
             onMouseDown={handleMouseDown}
             onFlip={handleFlip}
             onSelect={handleSelect}
@@ -858,6 +896,264 @@ export const SelectedTokenOverlay = memo(function SelectedTokenOverlay({ tokens,
             />
           );
         })}
+    </>
+  );
+});
+
+// Visual-only token rendered in the overlay layer (above fog)
+interface OverlayTokenItemProps {
+  token: Token;
+  cellSize: number;
+  isDM: boolean;
+  isHovered: boolean;
+}
+
+const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM, isHovered }: OverlayTokenItemProps) {
+  const image = useImage(token.imageUrl);
+
+  const offset = (token.size * cellSize) / 2;
+  const x = token.position.col * cellSize + offset;
+  const y = token.position.row * cellSize + offset;
+  const radius = offset - 4;
+  const maxSize = token.size * cellSize - 2;
+
+  const hasImageUrl = !!token.imageUrl;
+
+  // Calculate dimensions preserving aspect ratio
+  let imgWidth = maxSize;
+  let imgHeight = maxSize;
+  if (image) {
+    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    if (aspectRatio > 1) {
+      imgHeight = maxSize / aspectRatio;
+    } else {
+      imgWidth = maxSize * aspectRatio;
+    }
+  }
+
+  // Hover highlight color
+  const hoverStroke = token.color;
+  const hoverStrokeWidth = 2;
+
+  // Character sheet display calculations (only on hover)
+  const sheet = token.characterSheet;
+  const isMonster = token.layer === "monster";
+  const showStats = isHovered && sheet && !(isMonster && !isDM);
+  const hpPercent = sheet ? getHpPercentage(sheet.hpCurrent, sheet.hpMax) : 0;
+  const hpBarColor = sheet ? getHpBarColor(hpPercent) : "#22c55e";
+
+  // HP bar dimensions
+  const hpBarWidth = hasImageUrl ? imgWidth : radius * 2;
+  const hpBarHeight = 10;
+  const hpBarY = hasImageUrl ? -imgHeight / 2 - hpBarHeight / 2 : -radius - hpBarHeight / 2;
+
+  // AC shield dimensions
+  const acShieldWidth = 14;
+  const acShieldHeight = 16;
+  const acShieldY = hpBarY - hpBarHeight / 2 - acShieldHeight / 2 - 1;
+
+  // Token name position
+  const nameY = hasImageUrl ? imgHeight / 2 + 10 : radius + 10;
+
+  // Color contrast
+  const isLight = isLightColor(token.color);
+  const acTextColor = isLight ? "#000000" : "#ffffff";
+  const acStrokeColor = isLight ? "#374151" : "#ffffff";
+
+  return (
+    <Group
+      x={x}
+      y={y}
+      rotation={token.rotation}
+      listening={false}
+    >
+      {hasImageUrl ? (
+        <>
+          {/* Hover highlight */}
+          {isHovered && (
+            <Rect
+              width={imgWidth + 6}
+              height={imgHeight + 6}
+              offsetX={imgWidth / 2 + 3}
+              offsetY={imgHeight / 2 + 3}
+              stroke={hoverStroke}
+              strokeWidth={hoverStrokeWidth}
+              cornerRadius={4}
+            />
+          )}
+          {image && (
+            <Image
+              image={image}
+              width={imgWidth}
+              height={imgHeight}
+              offsetX={imgWidth / 2}
+              offsetY={imgHeight / 2}
+              scaleX={token.flipped ? -1 : 1}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          {/* Hover highlight for circle tokens */}
+          {isHovered && (
+            <Circle
+              radius={radius + 3}
+              stroke={hoverStroke}
+              strokeWidth={hoverStrokeWidth}
+            />
+          )}
+          <Circle radius={radius} fill={token.color} />
+          <Text
+            text={token.name.charAt(0).toUpperCase()}
+            fontSize={radius}
+            fill="#ffffff"
+            align="center"
+            verticalAlign="middle"
+            offsetX={radius / 3}
+            offsetY={radius / 2.5}
+          />
+        </>
+      )}
+
+      {/* Token name and condition - only on hover */}
+      {isHovered && (
+        <Group y={nameY}>
+          <Rect
+            width={token.name.length * 5.5 + 4}
+            height={13}
+            offsetX={(token.name.length * 5.5 + 4) / 2}
+            offsetY={6.5}
+            fill="rgba(0, 0, 0, 0.75)"
+            cornerRadius={2}
+          />
+          <Text
+            text={token.name}
+            fontSize={10}
+            fill="#ffffff"
+            align="center"
+            verticalAlign="middle"
+            width={token.name.length * 5.5 + 4}
+            height={13}
+            offsetX={(token.name.length * 5.5 + 4) / 2}
+            offsetY={6.5}
+          />
+          {/* Condition indicator */}
+          {sheet?.condition && sheet.condition !== "Healthy" && (
+            <Group y={14}>
+              <Rect
+                width={sheet.condition.length * 5 + 6}
+                height={12}
+                offsetX={(sheet.condition.length * 5 + 6) / 2}
+                offsetY={6}
+                fill="rgba(220, 38, 38, 0.9)"
+                cornerRadius={2}
+              />
+              <Text
+                text={sheet.condition}
+                fontSize={9}
+                fill="#ffffff"
+                align="center"
+                verticalAlign="middle"
+                width={sheet.condition.length * 5 + 6}
+                height={12}
+                offsetX={(sheet.condition.length * 5 + 6) / 2}
+                offsetY={6}
+              />
+            </Group>
+          )}
+        </Group>
+      )}
+
+      {/* HP Bar */}
+      {showStats && (
+        <Group y={hpBarY}>
+          <Rect
+            width={hpBarWidth}
+            height={hpBarHeight}
+            offsetX={hpBarWidth / 2}
+            offsetY={hpBarHeight / 2}
+            fill="rgba(0, 0, 0, 0.6)"
+            cornerRadius={4}
+          />
+          <Rect
+            x={-hpBarWidth / 2 + 1}
+            y={-hpBarHeight / 2 + 1}
+            width={(hpBarWidth - 2) * (hpPercent / 100)}
+            height={hpBarHeight - 2}
+            fill={hpBarColor}
+            cornerRadius={3}
+          />
+          <Text
+            text={`${sheet!.hpCurrent}/${sheet!.hpMax}`}
+            fontSize={8}
+            fill="#ffffff"
+            align="center"
+            verticalAlign="middle"
+            width={hpBarWidth}
+            height={hpBarHeight}
+            offsetX={hpBarWidth / 2}
+            offsetY={hpBarHeight / 2}
+          />
+        </Group>
+      )}
+
+      {/* AC Shield */}
+      {showStats && (
+        <Group x={0} y={acShieldY}>
+          <Line
+            points={[
+              -acShieldWidth / 2, -acShieldHeight / 2 + 2,
+              -acShieldWidth / 2 + 2, -acShieldHeight / 2,
+              acShieldWidth / 2 - 2, -acShieldHeight / 2,
+              acShieldWidth / 2, -acShieldHeight / 2 + 2,
+              acShieldWidth / 2, acShieldHeight / 4,
+              0, acShieldHeight / 2,
+              -acShieldWidth / 2, acShieldHeight / 4,
+            ]}
+            closed
+            fill={token.color}
+            stroke={acStrokeColor}
+            strokeWidth={1}
+            tension={0.3}
+          />
+          <Text
+            text={String(sheet!.ac)}
+            fontSize={8}
+            fontStyle="bold"
+            fill={acTextColor}
+            align="center"
+            verticalAlign="middle"
+            width={acShieldWidth}
+            height={acShieldHeight}
+            offsetX={acShieldWidth / 2}
+            offsetY={acShieldHeight / 2 + 1}
+          />
+        </Group>
+      )}
+    </Group>
+  );
+});
+
+// Non-fogged tokens overlay - renders all non-fogged tokens above fog layer
+interface NonFoggedTokensOverlayProps {
+  tokens: Token[];
+  cellSize: number;
+  isDM: boolean;
+  hoveredTokenId: string | null;
+}
+
+export const NonFoggedTokensOverlay = memo(function NonFoggedTokensOverlay({ tokens, cellSize, isDM, hoveredTokenId }: NonFoggedTokensOverlayProps) {
+  return (
+    <>
+      {tokens.map((token) => (
+        <OverlayTokenItem
+          key={`overlay-${token.id}`}
+          token={token}
+          cellSize={cellSize}
+          isDM={isDM}
+          isHovered={hoveredTokenId === token.id}
+        />
+      ))}
     </>
   );
 });

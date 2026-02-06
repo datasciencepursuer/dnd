@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
-import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
+import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
 import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
@@ -214,11 +214,22 @@ interface StandaloneCharacter {
   sheet: CharacterSheet | null;
 }
 
+interface LibraryCharacter {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  color: string;
+  size: number;
+  layer: string;
+  characterSheet: CharacterSheet | null;
+}
+
 interface CharacterSheetPanelProps {
   // Option 1: Token-based (map editor)
   token?: Token;
   onUpdate?: (updates: Partial<CharacterSheet>) => void;
   onInitialize?: () => void;
+  onLinkCharacter?: (character: LibraryCharacter) => void;
   // Option 2: Standalone character (/characters route)
   character?: StandaloneCharacter;
   // Common props
@@ -232,6 +243,7 @@ export function CharacterSheetPanel({
   onUpdate,
   onClose,
   onInitialize,
+  onLinkCharacter,
   character,
   readOnly = false,
   onSaved,
@@ -252,10 +264,14 @@ export function CharacterSheetPanel({
   );
   // Start loading if we have a token-linked character that needs to be fetched
   const [isLoadingLinked, setIsLoadingLinked] = useState(!isStandalone && !!token?.characterId);
+  const [linkedFetchFailed, setLinkedFetchFailed] = useState(false);
+  const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<1 | 2>(1);
+  const [availableCharacters, setAvailableCharacters] = useState<LibraryCharacter[]>([]);
+  const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSheetRef = useRef<CharacterSheet | null>(null);
   const draftRecoveredRef = useRef(false);
@@ -287,12 +303,38 @@ export function CharacterSheetPanel({
       })
       .catch((err) => {
         console.error("Failed to fetch linked character:", err);
-        setLinkedCharacterSheet(null);
+        // Fall back to token's cached sheet if available (e.g. token assigned to new owner
+        // who doesn't have access to the original owner's library)
+        if (token?.characterSheet) {
+          setLinkedCharacterSheet(token.characterSheet);
+        } else {
+          setLinkedCharacterSheet(null);
+        }
+        setLinkedFetchFailed(true);
       })
       .finally(() => {
         setIsLoadingLinked(false);
       });
   }, [isStandalone, token?.characterId, onUpdate]);
+
+  // Fetch available characters from library (for "Link from Library" picker)
+  useEffect(() => {
+    if (isStandalone || isLinked || !onLinkCharacter) return;
+
+    const fetchCharacters = async () => {
+      try {
+        const response = await fetch("/api/characters");
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableCharacters(data.characters || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch characters:", error);
+      }
+    };
+
+    fetchCharacters();
+  }, [isStandalone, isLinked, onLinkCharacter]);
 
   // Sync to server function (for API-saved characters)
   const syncToServer = useCallback(async (sheetToSync: CharacterSheet) => {
@@ -340,7 +382,7 @@ export function CharacterSheetPanel({
 
   // beforeunload handler - attempt best-effort sync (no warning needed since localStorage has backup)
   useEffect(() => {
-    if (!characterId) return;
+    if (!characterId || linkedFetchFailed) return;
 
     const handleBeforeUnload = () => {
       if (hasPendingChanges && currentSheetRef.current) {
@@ -352,7 +394,7 @@ export function CharacterSheetPanel({
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [characterId, hasPendingChanges]);
+  }, [characterId, hasPendingChanges, linkedFetchFailed]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -362,6 +404,9 @@ export function CharacterSheetPanel({
       }
     };
   }, []);
+
+  // If linked fetch failed, treat as unlinked for editing (edits go through onUpdate instead of syncToServer)
+  const effectivelyLinked = isLinked && !linkedFetchFailed;
 
   // Use linked/standalone character sheet if available, otherwise use token's inline sheet
   const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
@@ -377,7 +422,7 @@ export function CharacterSheetPanel({
         newSheet.abilities = { ...sheet.abilities, ...updates.abilities };
       }
 
-      if (isLinked && characterId) {
+      if (effectivelyLinked && characterId) {
         // API-saved characters: localStorage + debounced sync to library
         setLinkedCharacterSheet(newSheet);
         saveDraftToStorage(characterId, newSheet);
@@ -397,23 +442,57 @@ export function CharacterSheetPanel({
           syncToServer(newSheet);
         }, 5000); // 5 second debounce
       } else if (onUpdate) {
-        // Token inline sheet: use callback (include lastModified for version tracking)
+        // Token inline sheet or linked-but-fetch-failed: use callback
+        if (linkedFetchFailed) {
+          // Also keep local state in sync so the panel reflects edits
+          setLinkedCharacterSheet(newSheet);
+        }
         onUpdate({ ...updates, lastModified: Date.now() });
       }
     },
-    [sheet, isLinked, characterId, syncToServer, onUpdate]
+    [sheet, effectivelyLinked, linkedFetchFailed, characterId, syncToServer, onUpdate]
   );
 
   // Fire-and-forget sync on close
   const handleClose = useCallback(() => {
-    if (hasPendingChanges && currentSheetRef.current && characterId) {
+    if (hasPendingChanges && currentSheetRef.current && effectivelyLinked && characterId) {
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
       syncToServer(currentSheetRef.current);
     }
     onClose();
-  }, [hasPendingChanges, characterId, syncToServer, onClose]);
+  }, [hasPendingChanges, effectivelyLinked, characterId, syncToServer, onClose]);
+
+  // Save token (with sheet) to the current user's library
+  const handleSaveToLibrary = useCallback(async () => {
+    if (!token || !sheet || !onLinkCharacter) return;
+    setIsSavingToLibrary(true);
+    try {
+      const response = await fetch("/api/characters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: token.name || "Unnamed Character",
+          imageUrl: token.imageUrl,
+          color: token.color,
+          size: token.size,
+          layer: token.layer,
+          characterSheet: sheet,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Link the token to the newly created library character
+        onLinkCharacter(data.character);
+        setLinkedFetchFailed(false);
+      }
+    } catch (err) {
+      console.error("Failed to save to library:", err);
+    } finally {
+      setIsSavingToLibrary(false);
+    }
+  }, [token, sheet, onLinkCharacter]);
 
   const handleAbilityChange = useCallback(
     (abilityName: keyof AbilityScores, ability: AbilityScore) => {
@@ -429,12 +508,12 @@ export function CharacterSheetPanel({
   );
 
   const handleSkillChange = useCallback(
-    (skill: keyof SkillProficiencies, proficient: boolean) => {
+    (skill: keyof SkillProficiencies, level: SkillLevel) => {
       if (!sheet) return;
       handleUpdate({
         skills: {
           ...ensureSkills(sheet.skills),
-          [skill]: proficient,
+          [skill]: level,
         },
       });
     },
@@ -477,25 +556,78 @@ export function CharacterSheetPanel({
                 : "This token doesn't have a character sheet yet."}
           </p>
           {!readOnly && (
-            <button
-              onClick={() => {
-                if (isLinked && characterId) {
-                  // Initialize character sheet via API for linked/standalone characters
-                  const newSheet = createDefaultCharacterSheet();
-                  setLinkedCharacterSheet(newSheet);
-                  fetch(`/api/characters/${characterId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ characterSheet: newSheet }),
-                  }).catch(console.error);
-                } else if (onInitialize) {
-                  onInitialize();
-                }
-              }}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-            >
-              Create Character Sheet
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  if (isLinked && characterId) {
+                    // Initialize character sheet via API for linked/standalone characters
+                    const newSheet = createDefaultCharacterSheet();
+                    setLinkedCharacterSheet(newSheet);
+                    fetch(`/api/characters/${characterId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ characterSheet: newSheet }),
+                    }).catch(console.error);
+                  } else if (onInitialize) {
+                    onInitialize();
+                  }
+                }}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              >
+                Create Character Sheet
+              </button>
+              {onLinkCharacter && !isLinked && !isStandalone && (
+                <>
+                  <button
+                    onClick={() => setShowCharacterPicker((v) => !v)}
+                    className="w-full mt-2 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer"
+                  >
+                    {showCharacterPicker ? "Hide Library" : "Import Character"}
+                  </button>
+                  {showCharacterPicker && (
+                    <div className="mt-2 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                      {availableCharacters.length === 0 ? (
+                        <p className="p-3 text-sm text-gray-500 dark:text-gray-400 text-center">
+                          No characters in library yet
+                        </p>
+                      ) : (
+                        availableCharacters.map((char) => (
+                          <button
+                            key={char.id}
+                            type="button"
+                            onClick={() => onLinkCharacter(char)}
+                            className="w-full flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-left"
+                          >
+                            {char.imageUrl ? (
+                              <img
+                                src={char.imageUrl}
+                                alt={char.name}
+                                className="w-8 h-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold"
+                                style={{ backgroundColor: char.color }}
+                              >
+                                {char.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
+                              {char.name}
+                            </span>
+                            {char.characterSheet && (
+                              <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                Sheet
+                              </span>
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
           <button
             onClick={onClose}
@@ -518,7 +650,7 @@ export function CharacterSheetPanel({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Character Info, Combat Stats & Coins */}
-        <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
+        <div className="sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
           {/* Upper Row: Name, Condition, Heroic Inspiration */}
           <div className="flex items-center gap-3 mb-2">
             {/* Character Avatar with HP Bar underneath */}
@@ -542,10 +674,20 @@ export function CharacterSheetPanel({
             {/* Name */}
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">{charName}</h2>
-              {isLinked && (
+              {effectivelyLinked && (
                 <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
                   Linked
                 </span>
+              )}
+              {/* Save to Library button for tokens with sheets not linked to user's library */}
+              {!readOnly && !effectivelyLinked && !isStandalone && onLinkCharacter && (
+                <button
+                  onClick={handleSaveToLibrary}
+                  disabled={isSavingToLibrary}
+                  className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded hover:bg-green-200 dark:hover:bg-green-800 cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingToLibrary ? "Saving..." : "Save to My Library"}
+                </button>
               )}
               {/* Sync status indicator */}
               {isSyncing ? (
@@ -554,7 +696,7 @@ export function CharacterSheetPanel({
                 <div className="w-2 h-2 bg-yellow-500 rounded-full" title="Pending sync" />
               ) : syncError ? (
                 <div className="w-2 h-2 bg-red-500 rounded-full" title={syncError} />
-              ) : isLinked ? (
+              ) : effectivelyLinked ? (
                 <div className="w-2 h-2 bg-green-500 rounded-full" title="Saved" />
               ) : null}
             </div>
@@ -696,10 +838,10 @@ export function CharacterSheetPanel({
                   </span>
                 ) : (
                   <>
-                    <input type="text" value={sheet.race || ""} onChange={(e) => handleUpdate({ race: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ race: v || null }); }} placeholder="Race" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.characterClass || ""} onChange={(e) => handleUpdate({ characterClass: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ characterClass: v || null }); }} placeholder="Class" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ subclass: v || null }); }} placeholder="Subclass" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
-                    <input type="text" value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ background: v || null }); }} placeholder="Background" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <textarea value={sheet.race || ""} onChange={(e) => handleUpdate({ race: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ race: v || null }); }} placeholder="Race" rows={1} className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
+                    <textarea value={sheet.characterClass || ""} onChange={(e) => handleUpdate({ characterClass: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ characterClass: v || null }); }} placeholder="Class" rows={1} className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
+                    <textarea value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ subclass: v || null }); }} placeholder="Subclass" rows={1} className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
+                    <textarea value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ background: v || null }); }} placeholder="Background" rows={1} className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
                     <select value={sheet.creatureSize} onChange={(e) => handleUpdate({ creatureSize: e.target.value as "S" | "M" | "L" })} className="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
                       <option value="S">Small</option>
                       <option value="M">Medium</option>
@@ -737,7 +879,7 @@ export function CharacterSheetPanel({
                 {readOnly ? (
                   <div className="text-sm text-gray-900 dark:text-white">{sheet.hitDice}</div>
                 ) : (
-                  <input type="text" value={sheet.hitDice} onChange={(e) => handleUpdate({ hitDice: e.target.value })} onBlur={(e) => { const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ hitDice: v }); }} placeholder="1d8" className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  <textarea value={sheet.hitDice} onChange={(e) => handleUpdate({ hitDice: e.target.value })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ hitDice: v }); }} placeholder="1d8" rows={1} className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden" />
                 )}
               </div>
             </div>
@@ -1459,11 +1601,49 @@ export function CharacterSheetPanel({
                             {readOnly ? (
                               <>
                                 <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.level === 0 ? "C" : spell.level}</td>
-                                <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">{spell.name || "Unnamed"}</td>
+                                <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">
+                                  <span
+                                    className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                    title={spell.name || "Unnamed"}
+                                    onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                                  >
+                                    {spell.name || "Unnamed"}
+                                  </span>
+                                </td>
                                 <td className="py-1 px-1 text-center">{spell.concentration ? <span className="text-orange-500">●</span> : <span className="text-gray-300 dark:text-gray-600">○</span>}</td>
-                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.range}</td>
-                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{spell.material}</td>
-                                <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">{spell.notes}</td>
+                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">
+                                  {spell.range && (
+                                    <span
+                                      className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                      title={spell.range}
+                                      onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                                    >
+                                      {spell.range}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-1 px-1 text-gray-600 dark:text-gray-400">
+                                  {spell.material && (
+                                    <span
+                                      className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                      title={spell.material}
+                                      onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                                    >
+                                      {spell.material}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">
+                                  {spell.notes && (
+                                    <span
+                                      className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                      title={spell.notes}
+                                      onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                                    >
+                                      {spell.notes}
+                                    </span>
+                                  )}
+                                </td>
                               </>
                             ) : (
                               <>
@@ -1482,16 +1662,18 @@ export function CharacterSheetPanel({
                                   </select>
                                 </td>
                                 <td className="py-1 px-1">
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={spell.name}
                                     onChange={(e) => {
                                       const updated = [...(sheet.spells || [])];
                                       updated[originalIndex] = { ...spell, name: e.target.value };
                                       handleUpdate({ spells: updated });
                                     }}
+                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                    onBlur={(e) => { e.target.style.height = ""; }}
                                     placeholder="Spell name"
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    rows={1}
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                                   />
                                 </td>
                                 <td className="py-1 px-1 text-center">
@@ -1507,42 +1689,48 @@ export function CharacterSheetPanel({
                                   />
                                 </td>
                                 <td className="py-1 px-1">
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={spell.range}
                                     onChange={(e) => {
                                       const updated = [...(sheet.spells || [])];
                                       updated[originalIndex] = { ...spell, range: e.target.value };
                                       handleUpdate({ spells: updated });
                                     }}
+                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                    onBlur={(e) => { e.target.style.height = ""; }}
                                     placeholder="Range"
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    rows={1}
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                                   />
                                 </td>
                                 <td className="py-1 px-1">
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={spell.material}
                                     onChange={(e) => {
                                       const updated = [...(sheet.spells || [])];
                                       updated[originalIndex] = { ...spell, material: e.target.value };
                                       handleUpdate({ spells: updated });
                                     }}
+                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                    onBlur={(e) => { e.target.style.height = ""; }}
                                     placeholder="Material"
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    rows={1}
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                                   />
                                 </td>
                                 <td className="py-1 px-1">
-                                  <input
-                                    type="text"
+                                  <textarea
                                     value={spell.notes}
                                     onChange={(e) => {
                                       const updated = [...(sheet.spells || [])];
                                       updated[originalIndex] = { ...spell, notes: e.target.value };
                                       handleUpdate({ spells: updated });
                                     }}
+                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                    onBlur={(e) => { e.target.style.height = ""; }}
                                     placeholder="Notes"
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                    rows={1}
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                                   />
                                 </td>
                                 <td className="py-1 px-1">
@@ -1602,10 +1790,9 @@ export function CharacterSheetPanel({
                   <thead>
                     <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                       <th className="text-left py-1 px-1">Name</th>
-                      <th className="text-center py-1 px-1 w-12">Qty</th>
-                      <th className="text-center py-1 px-1 w-16">Equipped</th>
-                      <th className="text-center py-1 px-1 w-20">Charges</th>
+                      <th className="text-center py-1 px-1 w-20">Qty</th>
                       <th className="text-left py-1 px-1 w-24">Recharge</th>
+                      <th className="text-center py-1 px-1 w-16">Equipped</th>
                       <th className="text-left py-1 px-1">Notes</th>
                       {!readOnly && <th className="w-6"></th>}
                     </tr>
@@ -1615,41 +1802,96 @@ export function CharacterSheetPanel({
                       <tr key={item.id} className="border-b border-gray-100 dark:border-gray-800">
                         {readOnly ? (
                           <>
-                            <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">{item.name || "Unnamed"}</td>
-                            <td className="py-1 px-1 text-center text-gray-600 dark:text-gray-400">{item.quantity}</td>
-                            <td className="py-1 px-1 text-center">{item.equipped ? <span className="text-green-500">✓</span> : <span className="text-gray-300 dark:text-gray-600">○</span>}</td>
-                            <td className="py-1 px-1 text-center text-gray-600 dark:text-gray-400">{item.charges ? `${item.charges.current}/${item.charges.max}` : "—"}</td>
+                            <td className="py-1 px-1 font-medium text-gray-900 dark:text-white">
+                              <span
+                                className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                title={item.name || "Unnamed"}
+                                onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                              >
+                                {item.name || "Unnamed"}
+                              </span>
+                            </td>
+                            <td className="py-1 px-1 text-center text-gray-600 dark:text-gray-400">{item.charges ? `${item.charges.current}/${item.charges.max}` : item.quantity}</td>
                             <td className="py-1 px-1 text-gray-600 dark:text-gray-400">{item.recharge === "none" ? "—" : { shortRest: "Short Rest", longRest: "Long Rest", dawn: "Dawn", dusk: "Dusk", daily: "Daily", weekly: "Weekly" }[item.recharge]}</td>
-                            <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">{item.notes}</td>
+                            <td className="py-1 px-1 text-center">{item.equipped ? <span className="text-green-500">✓</span> : <span className="text-gray-300 dark:text-gray-600">○</span>}</td>
+                            <td className="py-1 px-1 text-gray-500 dark:text-gray-400 italic">
+                              {item.notes && (
+                                <span
+                                  className="block truncate cursor-pointer hover:whitespace-normal hover:overflow-visible"
+                                  title={item.notes}
+                                  onClick={(e) => { const el = e.currentTarget; el.classList.toggle("truncate"); el.classList.toggle("whitespace-normal"); }}
+                                >
+                                  {item.notes}
+                                </span>
+                              )}
+                            </td>
                           </>
                         ) : (
                           <>
                             <td className="py-1 px-1">
-                              <input
-                                type="text"
+                              <textarea
                                 value={item.name}
                                 onChange={(e) => {
                                   const updated = [...(sheet.equipment || [])];
                                   updated[index] = { ...item, name: e.target.value };
                                   handleUpdate({ equipment: updated });
                                 }}
+                                onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                onBlur={(e) => { e.target.style.height = ""; }}
                                 placeholder="Item name"
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                rows={1}
+                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                               />
                             </td>
                             <td className="py-1 px-1">
-                              <NumericInput
-                                value={item.quantity}
-                                onChange={(val) => {
+                              <div className="flex items-center justify-center gap-0.5">
+                                <NumericInput
+                                  value={item.charges?.current ?? item.quantity}
+                                  onChange={(val) => {
+                                    const updated = [...(sheet.equipment || [])];
+                                    const max = item.charges?.max ?? item.quantity;
+                                    updated[index] = { ...item, charges: { current: val, max }, quantity: val };
+                                    handleUpdate({ equipment: updated });
+                                  }}
+                                  min={0}
+                                  max={item.charges?.max ?? 999}
+                                  defaultValue={1}
+                                  className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                                />
+                                <span className="text-xs text-gray-400">/</span>
+                                <NumericInput
+                                  value={item.charges?.max ?? item.quantity}
+                                  onChange={(val) => {
+                                    const updated = [...(sheet.equipment || [])];
+                                    const current = Math.min(item.charges?.current ?? item.quantity, val);
+                                    updated[index] = { ...item, charges: { current, max: val }, quantity: val };
+                                    handleUpdate({ equipment: updated });
+                                  }}
+                                  min={1}
+                                  max={999}
+                                  defaultValue={1}
+                                  className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-1 px-1">
+                              <select
+                                value={item.recharge}
+                                onChange={(e) => {
                                   const updated = [...(sheet.equipment || [])];
-                                  updated[index] = { ...item, quantity: val };
+                                  updated[index] = { ...item, recharge: e.target.value as RechargeCondition };
                                   handleUpdate({ equipment: updated });
                                 }}
-                                min={1}
-                                max={999}
-                                defaultValue={1}
-                                className="w-10 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                              />
+                                className="w-full px-0.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer"
+                              >
+                                <option value="none">None</option>
+                                <option value="shortRest">Short Rest</option>
+                                <option value="longRest">Long Rest</option>
+                                <option value="dawn">Dawn</option>
+                                <option value="dusk">Dusk</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                              </select>
                             </td>
                             <td className="py-1 px-1 text-center">
                               <input
@@ -1664,91 +1906,18 @@ export function CharacterSheetPanel({
                               />
                             </td>
                             <td className="py-1 px-1">
-                              <div className="flex items-center justify-center gap-0.5">
-                                {item.charges ? (
-                                  <>
-                                    <NumericInput
-                                      value={item.charges.current}
-                                      onChange={(val) => {
-                                        const updated = [...(sheet.equipment || [])];
-                                        updated[index] = { ...item, charges: { ...item.charges!, current: val } };
-                                        handleUpdate({ equipment: updated });
-                                      }}
-                                      min={0}
-                                      max={item.charges.max}
-                                      defaultValue={0}
-                                      className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
-                                    />
-                                    <span className="text-xs text-gray-400">/</span>
-                                    <NumericInput
-                                      value={item.charges.max}
-                                      onChange={(val) => {
-                                        const updated = [...(sheet.equipment || [])];
-                                        updated[index] = { ...item, charges: { current: Math.min(item.charges!.current, val), max: val } };
-                                        handleUpdate({ equipment: updated });
-                                      }}
-                                      min={1}
-                                      max={99}
-                                      defaultValue={1}
-                                      className="w-8 text-xs text-center border-0 bg-transparent text-gray-900 dark:text-white"
-                                    />
-                                    <button
-                                      onClick={() => {
-                                        const updated = [...(sheet.equipment || [])];
-                                        updated[index] = { ...item, charges: null, recharge: "none" };
-                                        handleUpdate({ equipment: updated });
-                                      }}
-                                      className="ml-0.5 text-gray-400 hover:text-red-500 cursor-pointer"
-                                      title="Remove charges"
-                                    >
-                                      ×
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    onClick={() => {
-                                      const updated = [...(sheet.equipment || [])];
-                                      updated[index] = { ...item, charges: { current: 1, max: 1 } };
-                                      handleUpdate({ equipment: updated });
-                                    }}
-                                    className="text-xs text-blue-500 hover:text-blue-600 cursor-pointer"
-                                  >
-                                    + Add
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-1 px-1">
-                              <select
-                                value={item.recharge}
-                                onChange={(e) => {
-                                  const updated = [...(sheet.equipment || [])];
-                                  updated[index] = { ...item, recharge: e.target.value as RechargeCondition };
-                                  handleUpdate({ equipment: updated });
-                                }}
-                                disabled={!item.charges}
-                                className={`w-full px-0.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer ${!item.charges ? "opacity-50" : ""}`}
-                              >
-                                <option value="none">None</option>
-                                <option value="shortRest">Short Rest</option>
-                                <option value="longRest">Long Rest</option>
-                                <option value="dawn">Dawn</option>
-                                <option value="dusk">Dusk</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                              </select>
-                            </td>
-                            <td className="py-1 px-1">
-                              <input
-                                type="text"
+                              <textarea
                                 value={item.notes}
                                 onChange={(e) => {
                                   const updated = [...(sheet.equipment || [])];
                                   updated[index] = { ...item, notes: e.target.value };
                                   handleUpdate({ equipment: updated });
                                 }}
+                                onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                                onBlur={(e) => { e.target.style.height = ""; }}
                                 placeholder="Notes"
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                rows={1}
+                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
                               />
                             </td>
                             <td className="py-1 px-1">
@@ -1917,16 +2086,18 @@ export function CharacterSheetPanel({
                       {readOnly ? (
                         <p className="text-sm text-gray-700 dark:text-gray-300">{attunement || "Empty"}</p>
                       ) : (
-                        <input
-                          type="text"
+                        <textarea
                           value={attunement}
                           onChange={(e) => {
                             const newAttunements: [string, string, string] = [...(sheet.magicItemAttunements ?? ["", "", ""])] as [string, string, string];
                             newAttunements[i] = e.target.value;
                             handleUpdate({ magicItemAttunements: newAttunements });
                           }}
+                          onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+                          onBlur={(e) => { e.target.style.height = ""; }}
                           placeholder="Magic item name..."
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                          rows={1}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden"
                         />
                       )}
                     </div>

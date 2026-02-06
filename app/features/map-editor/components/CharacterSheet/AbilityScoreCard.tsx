@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import type { AbilityScore, AbilityScores, SkillProficiencies } from "../../types";
-import { formatModifier, updateAbilityScore, getSkillsForAbility, formatSkillName } from "../../utils/character-utils";
+import type { AbilityScore, AbilityScores, SkillProficiencies, SkillLevel } from "../../types";
+import { formatModifier, updateAbilityScore, getSkillsForAbility, formatSkillName, cycleSkillLevel } from "../../utils/character-utils";
 
 interface AbilityScoreCardProps {
   name: string;
@@ -9,7 +9,7 @@ interface AbilityScoreCardProps {
   proficiencyBonus: number;
   skills: SkillProficiencies;
   onChange: (ability: AbilityScore) => void;
-  onSkillChange: (skill: keyof SkillProficiencies, proficient: boolean) => void;
+  onSkillChange: (skill: keyof SkillProficiencies, level: SkillLevel) => void;
   readOnly?: boolean;
 }
 
@@ -104,32 +104,42 @@ export function AbilityScoreCard({
       {abilitySkills.length > 0 && (
         <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600 space-y-1.5">
           {abilitySkills.map((skill) => {
-            const skillMod = ability.modifier + (skills[skill] ? proficiencyBonus : 0);
+            const level = skills[skill];
+            const skillMod = ability.modifier + (level === "expertise" ? proficiencyBonus * 2 : level === "proficient" ? proficiencyBonus : 0);
+            const colorClass = level === "expertise"
+              ? "text-amber-500 dark:text-amber-400"
+              : level === "proficient"
+                ? "text-green-600 dark:text-green-400"
+                : "text-gray-500 dark:text-gray-400";
+            const indicator = level === "expertise" ? "\u25C9" : level === "proficient" ? "\u25CF" : "\u25CB";
             return (
               <div key={skill} className="flex items-center justify-between gap-2 text-sm">
                 {readOnly ? (
                   <>
-                    <span className={skills[skill] ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}>
+                    <span className={`flex items-center gap-1.5 ${colorClass}`}>
+                      <span className="text-xs">{indicator}</span>
                       {formatSkillName(skill)}
                     </span>
-                    <span className={skills[skill] ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}>
+                    <span className={colorClass}>
                       {formatModifier(skillMod)}
                     </span>
                   </>
                 ) : (
                   <>
                     <div className="flex items-center gap-1.5">
-                      <input
-                        type="checkbox"
-                        checked={skills[skill]}
-                        onChange={() => onSkillChange(skill, !skills[skill])}
-                        className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                      />
+                      <button
+                        type="button"
+                        onClick={() => onSkillChange(skill, cycleSkillLevel(level))}
+                        className={`text-sm leading-none cursor-pointer select-none ${colorClass} hover:opacity-80`}
+                        title={level === "none" ? "Not proficient" : level === "proficient" ? "Proficient (click for expertise)" : "Expertise (click to remove)"}
+                      >
+                        {indicator}
+                      </button>
                       <span className="text-gray-600 dark:text-gray-300 text-left">
                         {formatSkillName(skill)}
                       </span>
                     </div>
-                    <span className={skills[skill] ? "text-green-600 dark:text-green-400 font-medium" : "text-gray-500 dark:text-gray-400"}>
+                    <span className={`${colorClass} ${level !== "none" ? "font-medium" : ""}`}>
                       {formatModifier(skillMod)}
                     </span>
                   </>

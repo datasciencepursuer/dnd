@@ -1,4 +1,4 @@
-import type { AbilityScore, AbilityScores, CharacterSheet, SkillProficiencies, ArmorProficiencies } from "../types";
+import type { AbilityScore, AbilityScores, CharacterSheet, SkillProficiencies, SkillLevel, ArmorProficiencies } from "../types";
 
 export function calculateModifier(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -39,29 +39,36 @@ export function createDefaultAbilityScores(): AbilityScores {
 export function createDefaultSkills(): SkillProficiencies {
   return {
     // Strength
-    athletics: false,
+    athletics: "none",
     // Dexterity
-    acrobatics: false,
-    sleightOfHand: false,
-    stealth: false,
+    acrobatics: "none",
+    sleightOfHand: "none",
+    stealth: "none",
     // Intelligence
-    arcana: false,
-    history: false,
-    investigation: false,
-    nature: false,
-    religion: false,
+    arcana: "none",
+    history: "none",
+    investigation: "none",
+    nature: "none",
+    religion: "none",
     // Wisdom
-    animalHandling: false,
-    insight: false,
-    medicine: false,
-    perception: false,
-    survival: false,
+    animalHandling: "none",
+    insight: "none",
+    medicine: "none",
+    perception: "none",
+    survival: "none",
     // Charisma
-    deception: false,
-    intimidation: false,
-    performance: false,
-    persuasion: false,
+    deception: "none",
+    intimidation: "none",
+    performance: "none",
+    persuasion: "none",
   };
+}
+
+// Cycle skill level: none → proficient → expertise → none
+export function cycleSkillLevel(current: SkillLevel): SkillLevel {
+  if (current === "none") return "proficient";
+  if (current === "proficient") return "expertise";
+  return "none";
 }
 
 export function createDefaultArmorProficiencies(): ArmorProficiencies {
@@ -216,15 +223,18 @@ export function createDefaultCharacterSheet(): CharacterSheet {
   };
 }
 
-// Calculate skill modifier: ability modifier + proficiency bonus (if proficient)
+// Calculate skill modifier: ability modifier + proficiency bonus (if proficient) or double (if expertise)
 export function calculateSkillModifier(
   sheet: CharacterSheet,
   skill: keyof SkillProficiencies
 ): number {
   const ability = SKILL_ABILITIES[skill];
   const abilityMod = sheet.abilities[ability].modifier;
-  const profBonus = sheet.skills?.[skill] ? calculateProficiencyBonus(sheet.level) : 0;
-  return abilityMod + profBonus;
+  const skillLevel = sheet.skills?.[skill];
+  const profBonus = calculateProficiencyBonus(sheet.level);
+  if (skillLevel === "expertise") return abilityMod + profBonus * 2;
+  if (skillLevel === "proficient") return abilityMod + profBonus;
+  return abilityMod;
 }
 
 // Calculate Passive Perception: 10 + Wisdom modifier + proficiency bonus (if proficient)
@@ -232,9 +242,23 @@ export function calculatePassivePerception(sheet: CharacterSheet): number {
   return 10 + calculateSkillModifier(sheet, "perception");
 }
 
+// Coerce a single skill value from legacy boolean or unknown to SkillLevel
+function coerceSkillLevel(value: unknown): SkillLevel {
+  if (value === "proficient" || value === "expertise" || value === "none") return value;
+  if (value === true) return "proficient";
+  return "none";
+}
+
 // Ensure skills object exists with defaults for legacy data
+// Also migrates legacy boolean values (true → "proficient", false → "none")
 export function ensureSkills(skills: SkillProficiencies | undefined): SkillProficiencies {
-  return skills ?? createDefaultSkills();
+  if (!skills) return createDefaultSkills();
+  const defaults = createDefaultSkills();
+  const result = { ...defaults };
+  for (const key of Object.keys(defaults) as (keyof SkillProficiencies)[]) {
+    result[key] = coerceSkillLevel((skills as unknown as Record<string, unknown>)[key]);
+  }
+  return result;
 }
 
 export function getHpPercentage(current: number, max: number): number {
