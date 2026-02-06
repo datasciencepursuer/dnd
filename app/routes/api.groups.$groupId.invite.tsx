@@ -124,6 +124,41 @@ export async function action({ request, params }: Route.ActionArgs) {
       createdAt: new Date(),
     });
 
+    // Send invitation email (best-effort — don't fail the invite if email fails)
+    try {
+      const { Resend } = await import("resend");
+      const { render } = await import("@react-email/render");
+      const { GroupInvitationEmail } = await import("~/.server/emails/group-invitation-email");
+      const { env } = await import("~/.server/env");
+      const { groups } = await import("~/.server/db/schema");
+
+      const groupData = await db
+        .select({ name: groups.name })
+        .from(groups)
+        .where(eq(groups.id, groupId))
+        .limit(1);
+
+      const groupName = groupData[0]?.name ?? "a group";
+      const inviterName = session.user.name || "Someone";
+      const inviteUrl = `${env.BETTER_AUTH_URL}/invite/group/${token}`;
+
+      const html = await render(GroupInvitationEmail({ url: inviteUrl, inviterName, groupName }));
+
+      const resend = new Resend(env.RESEND_API_KEY);
+      const fromEmail = process.env.NODE_ENV === "production"
+        ? "bubufulplanet <noreply@bubufulplanet.com>"
+        : "bubufulplanet <onboarding@resend.dev>";
+
+      await resend.emails.send({
+        from: fromEmail,
+        to: normalizedEmail,
+        subject: `${inviterName} invited you to join ${groupName} - bubufulplanet`,
+        html,
+      });
+    } catch (emailError) {
+      console.error("Failed to send invitation email (non-fatal):", emailError);
+    }
+
     return Response.json({
       id: invitationId,
       email: normalizedEmail,

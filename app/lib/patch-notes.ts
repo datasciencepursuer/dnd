@@ -24,6 +24,8 @@ export const PATCH_NOTES: PatchNote[] = [
       "Equipment databank expanded to 200+ items covering the full PHB equipment tables",
       "Patch notes panel now lets you toggle between the latest two versions from the header",
       "Character sheet remembers which page you were on per token — reopening a sheet returns to the last viewed page",
+      "Group invitations now send an email to the invited person with the join link",
+      "Accepting a group invitation now requires the logged-in email to match the invited email",
       "Fixed owned tokens rendering visually behind other tokens despite being interactive on top",
       "Fixed spell row edits being applied to the wrong row when multiple spells exist",
     ],

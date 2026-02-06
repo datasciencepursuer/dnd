@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useLoaderData, useNavigate, Link, useLocation } from "react-router";
 
 interface LoaderData {
-  status: "valid" | "expired" | "not_found" | "already_member" | "limit_reached" | "requires_login";
+  status: "valid" | "expired" | "not_found" | "already_member" | "limit_reached" | "requires_login" | "email_mismatch";
   group?: {
     id: string;
     name: string;
@@ -11,6 +11,7 @@ interface LoaderData {
   };
   invitedBy?: string;
   userEmail?: string;
+  invitedEmail?: string;
   maxGroups: number;
 }
 
@@ -128,6 +129,25 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     } satisfies LoaderData);
   }
 
+  // Check email match
+  const sessionEmail = session.user.email?.toLowerCase().trim();
+  const invitedEmail = inv.email?.toLowerCase().trim();
+  if (sessionEmail && invitedEmail && sessionEmail !== invitedEmail) {
+    // Mask the invited email: show first 2 chars + "***" + domain
+    const [localPart, domain] = invitedEmail.split("@");
+    const masked = localPart.length > 2
+      ? `${localPart.slice(0, 2)}***@${domain}`
+      : `${localPart}***@${domain}`;
+
+    return Response.json({
+      status: "email_mismatch",
+      group,
+      invitedBy: inviter[0]?.name,
+      invitedEmail: masked,
+      maxGroups: MAX_GROUPS_PER_USER,
+    } satisfies LoaderData);
+  }
+
   return Response.json({
     status: "valid",
     group,
@@ -187,6 +207,16 @@ export async function action({ request, params }: Route.ActionArgs) {
   // Check if expired
   if (new Date(inv.expiresAt) < new Date()) {
     return Response.json({ error: "Invitation has expired" }, { status: 400 });
+  }
+
+  // Check email match
+  const sessionEmail = session.user.email?.toLowerCase().trim();
+  const invitedEmail = inv.email?.toLowerCase().trim();
+  if (sessionEmail && invitedEmail && sessionEmail !== invitedEmail) {
+    return Response.json(
+      { error: "This invitation was sent to a different email address" },
+      { status: 403 }
+    );
   }
 
   // Check if already a member
@@ -436,6 +466,31 @@ export default function InviteGroupToken() {
               className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
             >
               Manage Groups
+            </Link>
+          </>
+        )}
+
+        {data.status === "email_mismatch" && data.group && (
+          <>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center">
+                <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Email Mismatch</h1>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-4">
+              This invitation to <strong>{data.group.name}</strong> was sent to <strong>{data.invitedEmail}</strong>.
+            </p>
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
+              Please log in with that email address to accept the invitation.
+            </p>
+            <Link
+              to="/maps"
+              className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
+            >
+              Go to Maps
             </Link>
           </>
         )}
