@@ -19,6 +19,8 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 
 **Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it.
 
+**No test suite**: There are no tests configured. No test runner, no test files.
+
 ## Architecture
 
 ### Routing
@@ -43,6 +45,7 @@ Uses better-auth for email/password authentication.
 - API routes: `/api/auth/*` handled by `app/routes/api.auth.$.tsx`
 - Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders
 - Schema: Auth tables (user, session, account, verification) in `app/.server/db/schema.ts`
+- Rate limiting: 3 signups per IP per 12 hours
 
 ### Required Environment Variables
 - `BETTER_AUTH_SECRET` - Generate with: `openssl rand -base64 32`
@@ -50,21 +53,27 @@ Uses better-auth for email/password authentication.
 - `DATABASE_URL` - Neon PostgreSQL connection string
 - `UPLOADTHING_TOKEN` - UploadThing API token for image uploads
 - `RESEND_API_KEY` - Resend API key for sending emails (verification, password reset)
+- `VITE_PARTYKIT_HOST` - PartyKit host (defaults to `127.0.0.1:1999` in dev)
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
 
+**Vite SSR note**: Konva requires special Vite config — `ssr.noExternal: ["konva", "react-konva"]` in `vite.config.ts`.
+
 **State Management** - Four Zustand stores:
-- `map-store.ts` - Persisted map data (tokens, grid, fog). Uses `zundo` temporal middleware for undo/redo (50 history limit)
-- `editor-store.ts` - Ephemeral UI state (selected tool, selection, permissions). No persistence.
+- `map-store.ts` - Persisted map data (tokens, grid, fog, combat, drawings, character sheets). Uses `zundo` temporal middleware for undo/redo (50 history limit). Implements dirty token tracking with 10-second staleness window for optimistic updates.
+- `editor-store.ts` - Ephemeral UI state (selected tool, selection, permissions, ping rate limiting). No persistence.
 - `dice-store.ts` - Dice rolling state and history (keeps last 8 rolls)
 - `presence-store.ts` - Real-time user presence tracking for collaborative editing
 
 **Key Types** (`types.ts`):
-- `DnDMap` - Complete map document (grid, tokens, walls, areas, fog, viewport)
-- `Token` - Map token with position (`GridPosition`), layer, size, image/color
+- `DnDMap` - Complete map document (grid, tokens, walls, areas, fog, viewport, combat, drawings)
+- `Token` - Map token with position (`GridPosition`), layer, size, image/color, character sheet
 - `GridSettings` - Grid config (type: square/hex, cellSize, dimensions)
-- `EditorTool` - Tool enum (select, pan, draw, erase, token, wall, area, text, fog-reveal, fog-hide)
+- `EditorTool` - Tool enum (select, pan, draw, erase, token, wall, area, text, fog-reveal, fog-hide, ping)
+- `CharacterSheet` - Full D&D 5e character sheet (abilities, skills, weapons, spells, equipment, death saves)
+- `CombatState` - Initiative order and turn tracking
+- `MonsterGroup` - Groups monsters for shared initiative
 - `PlayerPermissions` - Granular permissions for token/map operations
 - `EditorContext` - Current user's permission context
 
@@ -84,10 +93,11 @@ Canvas-based map editor using Konva.js (`react-konva`).
 **Map API Routes**:
 - `/api/maps` - Map CRUD (GET list, POST create)
 - `/api/maps/:mapId` - Single map operations (GET, PUT, DELETE)
-- `/api/maps/:mapId/presence` - Get/update user presence
-- `/api/maps/:mapId/presence/leave` - Remove user presence on disconnect
+- `/api/maps/:mapId/tokens/:tokenId` - Token CRUD
 - `/api/maps/:mapId/tokens/:tokenId/move` - Token movement
 - `/api/uploadthing` - Image upload endpoint
+- `/api/uploadthing/files` - File operations
+- `/api/uploads` - Upload management
 
 **Group API Routes**:
 - `/api/groups` - Group CRUD (GET list, POST create)
@@ -96,9 +106,11 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/groups/:groupId/members/:userId` - Individual member operations
 - `/api/groups/:groupId/invite` - Send group invitations
 - `/api/groups/:groupId/leave` - Leave a group
+- `/api/groups/:groupId/tokens` - Group token library
 
 **Character API Routes**:
 - `/api/characters` - Character library CRUD (GET list, POST create)
+- `/api/characters/:characterId` - Single character operations
 
 ### Groups & Team Collaboration
 - `groups` - Team organizations with name and owner
@@ -114,9 +126,10 @@ Canvas-based map editor using Konva.js (`react-konva`).
 WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 - Config: `partykit.json`
 - Client hooks: `useMapSync.ts` (HTTP sync), `usePartySync.ts` (WebSocket)
-- Syncs: token operations, fog painting, pings, drawings, combat, and presence
-- Auto-save: 2-second debounce after changes
-- Dirty token tracking: Prevents server updates from overwriting local optimistic updates
+- Syncs: token operations, fog painting, pings, drawings, combat, dice rolls, token stats, DM transfer, and presence
+- Auto-save: 1-2 second debounce after changes
+- Dirty token tracking: Prevents server updates from overwriting local optimistic updates during 10-second staleness window
+- Broadcasts exclude sender (they already have the update)
 
 ### File Uploads
 Uses UploadThing for image uploads (token images, map backgrounds).
@@ -124,6 +137,12 @@ Uses UploadThing for image uploads (token images, map backgrounds).
 - Client utilities: `app/utils/uploadthing.ts`
 - Upload limits constants: `app/lib/upload-limits.ts`
 - Two uploaders: `tokenImageUploader` (16MB, up to 10 images) and `mapBackgroundUploader` (32MB, single image)
+
+### Email Templates
+- React Email templates in `app/.server/emails/`
+- Verification email and password reset email
+- Preview with `pnpm run email:dev`
+- Uses Resend API; dev mode sends from `onboarding@resend.dev`
 
 ### Styling
 - Tailwind CSS v4 with Vite plugin
@@ -134,3 +153,7 @@ Uses UploadThing for image uploads (token images, map backgrounds).
 - Group members viewing a map = Player with limited permissions
 - `PlayerPermissions` interface defines granular permissions (create/edit/delete/move tokens)
 - Permission checks via `editor-store.ts`: `isDungeonMaster()`, `canEditToken()`, `canMoveToken()`
+- Server-side permission checks: `app/.server/permissions/map-permissions.ts` and `group-permissions.ts`
+
+### Patch Notes
+- Version tracking and changelog in `app/lib/patch-notes.ts`

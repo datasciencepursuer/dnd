@@ -366,12 +366,11 @@ export function MapEditor({
   // Turn navigation handlers
   const handleNextTurn = useCallback(() => {
     if (!initiativeOrder) return;
-    if (currentTurnIndex < initiativeOrder.length - 1) {
-      setCombatTurnIndex(currentTurnIndex + 1);
-      syncDebounced(500);
-      const currentMap = useMapStore.getState().map;
-      if (currentMap) broadcastMapSync(currentMap);
-    }
+    const nextIndex = currentTurnIndex < initiativeOrder.length - 1 ? currentTurnIndex + 1 : 0;
+    setCombatTurnIndex(nextIndex);
+    syncDebounced(500);
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) broadcastMapSync(currentMap);
   }, [initiativeOrder, currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync]);
 
   const handlePrevTurn = useCallback(() => {

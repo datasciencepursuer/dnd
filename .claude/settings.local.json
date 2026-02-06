@@ -29,7 +29,8 @@
       "Bash(grep:*)",
       "WebSearch",
       "Bash(git -C /mnt/d/product/DnD log --oneline -20)",
-      "Bash(pnpm list:*)"
+      "Bash(pnpm list:*)",
+      "Bash(wc:*)"
     ]
   }
 }
