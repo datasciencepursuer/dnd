@@ -19,8 +19,10 @@ export const PATCH_NOTES: PatchNote[] = [
       "All free-text fields now auto-expand to fit their content on focus and collapse on blur",
       "D&D reference data updated to the 2024 Player's Handbook with 2014 PHB entries retained",
       "Equipment databank expanded to 200+ items covering the full PHB equipment tables",
+      "Patch notes panel now lets you toggle between the latest two versions from the header",
+      "Character sheet remembers which page you were on per token — reopening a sheet returns to the last viewed page",
       "Fixed owned tokens rendering visually behind other tokens despite being interactive on top",
-      "Fixed spell rows jumping to the end of the table while typing a name",
+      "Fixed spell row edits being applied to the wrong row when multiple spells exist",
     ],
   },
   {

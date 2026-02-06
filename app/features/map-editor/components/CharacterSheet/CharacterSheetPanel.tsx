@@ -255,7 +255,11 @@ export function CharacterSheetPanel({
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<1 | 2>(1);
+  const sheetPageKey = `characterSheetPage-${token?.id ?? character?.id ?? ""}`;
+  const [currentPage, setCurrentPage] = useState<1 | 2>(() => {
+    const saved = sessionStorage.getItem(sheetPageKey);
+    return saved === "2" ? 2 : 1;
+  });
   const [availableCharacters, setAvailableCharacters] = useState<LibraryCharacter[]>([]);
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -745,7 +749,7 @@ export function CharacterSheetPanel({
 
             {/* Page Toggle Button */}
             <button
-              onClick={() => setCurrentPage(currentPage === 1 ? 2 : 1)}
+              onClick={() => { const next = currentPage === 1 ? 2 : 1; setCurrentPage(next); sessionStorage.setItem(sheetPageKey, String(next)); }}
               className="ml-auto px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded cursor-pointer transition-colors"
             >
               {currentPage === 1 ? "What else can I do..." : "← Back to Stats"}
@@ -1578,10 +1582,9 @@ export function CharacterSheetPanel({
                   </thead>
                   <tbody>
                     {(sheet.spells || [])
-                      .slice()
-                      .sort((a, b) => a.level - b.level)
-                      .map((spell, index) => {
-                        const originalIndex = (sheet.spells || []).findIndex(s => s.id === spell.id);
+                      .map((spell, originalIndex) => ({ spell, originalIndex }))
+                      .sort((a, b) => a.spell.level - b.spell.level)
+                      .map(({ spell, originalIndex }) => {
                         return (
                           <tr key={spell.id} className="border-b border-gray-100 dark:border-gray-800">
                             {readOnly ? (
