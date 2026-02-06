@@ -1,10 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { PATCH_NOTES } from "~/lib/patch-notes";
 
-const STORAGE_KEY = "patchNotesDismissed";
-
 export function PatchNotesPanel() {
-  const [dismissed, setDismissed] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [versionIndex, setVersionIndex] = useState(0);
 
@@ -12,22 +9,7 @@ export function PatchNotesPanel() {
   const latest = notes[0];
   const current = latest ? (notes[versionIndex] ?? latest) : undefined;
 
-  useEffect(() => {
-    if (!latest) return;
-    const dismissedVersion = localStorage.getItem(STORAGE_KEY);
-    if (dismissedVersion !== latest.version) {
-      setDismissed(false);
-    }
-  }, [latest?.version]);
-
   if (!latest || !current) return null;
-  if (dismissed) return null;
-
-  const handleDismiss = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    localStorage.setItem(STORAGE_KEY, latest.version);
-    setDismissed(true);
-  };
 
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg mb-6">
@@ -84,24 +66,6 @@ export function PatchNotesPanel() {
             clipRule="evenodd"
           />
         </svg>
-        <button
-          onClick={handleDismiss}
-          className="text-purple-400 dark:text-purple-500 hover:text-purple-600 dark:hover:text-purple-300 cursor-pointer"
-          aria-label="Dismiss"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fillRule="evenodd"
-              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </button>
       </button>
 
       {/* Expanded content */}
