@@ -30,7 +30,11 @@
       "WebSearch",
       "Bash(git -C /mnt/d/product/DnD log --oneline -20)",
       "Bash(pnpm list:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "WebFetch(domain:screenrant.com)",
+      "WebFetch(domain:dnd2024.wikidot.com)",
+      "WebFetch(domain:www.aidedd.org)",
+      "WebFetch(domain:dungeonsanddragonsfan.com)"
     ]
   }
 }

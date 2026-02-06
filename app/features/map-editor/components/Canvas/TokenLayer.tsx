@@ -1143,9 +1143,20 @@ interface NonFoggedTokensOverlayProps {
 }
 
 export const NonFoggedTokensOverlay = memo(function NonFoggedTokensOverlay({ tokens, cellSize, isDM, hoveredTokenId }: NonFoggedTokensOverlayProps) {
+  const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
+
   return (
     <>
-      {tokens.map((token) => (
+      {[...tokens].sort((a, b) => {
+        const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
+        const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
+        const aSelected = selectedIds.includes(a.id) ? 2 : 0;
+        const bSelected = selectedIds.includes(b.id) ? 2 : 0;
+        const aHovered = hoveredTokenId === a.id ? 4 : 0;
+        const bHovered = hoveredTokenId === b.id ? 4 : 0;
+        return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
+      }).map((token) => (
         <OverlayTokenItem
           key={`overlay-${token.id}`}
           token={token}

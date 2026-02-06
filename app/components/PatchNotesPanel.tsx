@@ -6,9 +6,12 @@ const STORAGE_KEY = "patchNotesDismissed";
 export function PatchNotesPanel() {
   const [dismissed, setDismissed] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [versionIndex, setVersionIndex] = useState(0);
 
-  const latest = PATCH_NOTES[0];
+  const notes = PATCH_NOTES.slice(0, 2);
+  const latest = notes[0];
   if (!latest) return null;
+  const current = notes[versionIndex] ?? latest;
 
   useEffect(() => {
     const dismissedVersion = localStorage.getItem(STORAGE_KEY);
@@ -47,9 +50,27 @@ export function PatchNotesPanel() {
         <span className="font-medium text-purple-900 dark:text-purple-100 flex-1">
           What's New
         </span>
-        <span className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
-          v{latest.version}
-        </span>
+        {notes.length > 1 ? (
+          <span className="flex flex-row-reverse gap-1" onClick={(e) => e.stopPropagation()}>
+            {notes.map((note, i) => (
+              <button
+                key={note.version}
+                onClick={() => setVersionIndex(i)}
+                className={`px-2 py-0.5 text-xs rounded cursor-pointer transition-colors ${
+                  i === versionIndex
+                    ? "bg-purple-600 text-white"
+                    : "bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
+              >
+                v{note.version}
+              </button>
+            ))}
+          </span>
+        ) : (
+          <span className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
+            v{latest.version}
+          </span>
+        )}
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className={`h-4 w-4 text-purple-500 dark:text-purple-400 transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -88,14 +109,14 @@ export function PatchNotesPanel() {
           <div className="border-t border-purple-200 dark:border-purple-800 pt-4">
             <div className="flex items-baseline gap-2 mb-3">
               <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100">
-                {latest.title}
+                {current.title}
               </h3>
               <span className="text-sm text-purple-600 dark:text-purple-400">
-                {latest.date}
+                {current.date}
               </span>
             </div>
             <ul className="space-y-1.5">
-              {latest.changes.map((change, i) => (
+              {current.changes.map((change, i) => (
                 <li
                   key={i}
                   className="flex items-start gap-2 text-sm text-purple-800 dark:text-purple-200"

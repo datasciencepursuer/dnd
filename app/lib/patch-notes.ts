@@ -7,6 +7,23 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.1",
+    date: "2026-02-06",
+    title: "Character Sheet Autocomplete & Rendering Fixes",
+    changes: [
+      "Character sheet fields now suggest D&D 5e options as you type — races, classes, subclasses, backgrounds, spells, weapons, equipment, feats, languages, species traits, magic items, and more",
+      "Subclass suggestions update dynamically based on the selected class",
+      "Spell name suggestions filter by the spell's level",
+      "Comma-separated fields (languages, feats, species traits, proficiencies) now autocomplete each entry individually — already-chosen values are excluded from suggestions",
+      "All autocomplete fields still accept free-text for homebrew content",
+      "All free-text fields now auto-expand to fit their content on focus and collapse on blur",
+      "D&D reference data updated to the 2024 Player's Handbook with 2014 PHB entries retained",
+      "Equipment databank expanded to 200+ items covering the full PHB equipment tables",
+      "Fixed owned tokens rendering visually behind other tokens despite being interactive on top",
+      "Fixed spell rows jumping to the end of the table while typing a name",
+    ],
+  },
+  {
     version: "0.2.0",
     date: "2026-02-06",
     title: "Real-Time Sync, Combat & Character Sheets",

@@ -2,7 +2,9 @@ import { useCallback, useState, useEffect, useRef } from "react";
 import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
 import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
+import { Combobox } from "./Combobox";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
+import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/dnd-srd";
 
 const FEATURE_CATEGORIES: { value: FeatureCategory; label: string; color: string }[] = [
   { value: "action", label: "Action", color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" },
@@ -84,8 +86,6 @@ interface ExpandingTextInputProps {
   onChange: (value: string) => void;
   placeholder?: string;
   baseClassName?: string;
-  collapsedRows?: number;
-  expandedRows?: number;
 }
 
 function ExpandingTextInput({
@@ -93,18 +93,9 @@ function ExpandingTextInput({
   onChange,
   placeholder = "",
   baseClassName = "",
-  collapsedRows = 1,
-  expandedRows = 3,
 }: ExpandingTextInputProps) {
-  const [isFocused, setIsFocused] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // When focused, calculate rows based on content length
-  const contentRows = Math.ceil((value.length || 1) / 30);
-  const rows = isFocused ? Math.max(expandedRows, contentRows) : collapsedRows;
-
-  const handleBlur = () => {
-    setIsFocused(false);
+  const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    e.target.style.height = "";
     const trimmed = value.trim();
     if (trimmed !== value) {
       onChange(trimmed);
@@ -113,13 +104,12 @@ function ExpandingTextInput({
 
   return (
     <textarea
-      ref={textareaRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onFocus={() => setIsFocused(true)}
+      onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
       onBlur={handleBlur}
       placeholder={placeholder}
-      rows={rows}
+      rows={1}
       className={`${baseClassName} transition-all duration-150 resize-none overflow-hidden`}
       style={{ lineHeight: '1.4' }}
     />
@@ -133,7 +123,6 @@ interface ExpandingTextareaProps {
   placeholder?: string;
   baseClassName?: string;
   collapsedRows?: number;
-  expandedRows?: number;
 }
 
 function ExpandingTextarea({
@@ -142,12 +131,9 @@ function ExpandingTextarea({
   placeholder = "",
   baseClassName = "",
   collapsedRows = 2,
-  expandedRows = 5,
 }: ExpandingTextareaProps) {
-  const [isFocused, setIsFocused] = useState(false);
-
-  const handleBlur = () => {
-    setIsFocused(false);
+  const handleBlur = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    e.target.style.height = "";
     const trimmed = value.trim();
     if (trimmed !== value) {
       onChange(trimmed);
@@ -158,11 +144,11 @@ function ExpandingTextarea({
     <textarea
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      onFocus={() => setIsFocused(true)}
+      onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
       onBlur={handleBlur}
       placeholder={placeholder}
-      rows={isFocused ? expandedRows : collapsedRows}
-      className={`${baseClassName} transition-all duration-150 resize-none`}
+      rows={collapsedRows}
+      className={`${baseClassName} transition-all duration-150 resize-none overflow-hidden`}
     />
   );
 }
@@ -838,10 +824,10 @@ export function CharacterSheetPanel({
                   </span>
                 ) : (
                   <>
-                    <textarea value={sheet.race || ""} onChange={(e) => handleUpdate({ race: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ race: v || null }); }} placeholder="Race" rows={1} className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
-                    <textarea value={sheet.characterClass || ""} onChange={(e) => handleUpdate({ characterClass: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ characterClass: v || null }); }} placeholder="Class" rows={1} className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
-                    <textarea value={sheet.subclass || ""} onChange={(e) => handleUpdate({ subclass: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ subclass: v || null }); }} placeholder="Subclass" rows={1} className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
-                    <textarea value={sheet.background || ""} onChange={(e) => handleUpdate({ background: e.target.value || null })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ background: v || null }); }} placeholder="Background" rows={1} className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden" />
+                    <Combobox value={sheet.race || ""} onChange={(v) => handleUpdate({ race: v || null })} suggestions={DND_RACES} placeholder="Race" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <Combobox value={sheet.characterClass || ""} onChange={(v) => handleUpdate({ characterClass: v || null })} suggestions={DND_CLASSES} placeholder="Class" className="w-16 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <Combobox value={sheet.subclass || ""} onChange={(v) => handleUpdate({ subclass: v || null })} suggestions={getSubclasses(sheet.characterClass)} placeholder="Subclass" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+                    <Combobox value={sheet.background || ""} onChange={(v) => handleUpdate({ background: v || null })} suggestions={DND_BACKGROUNDS} placeholder="Background" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
                     <select value={sheet.creatureSize} onChange={(e) => handleUpdate({ creatureSize: e.target.value as "S" | "M" | "L" })} className="px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
                       <option value="S">Small</option>
                       <option value="M">Medium</option>
@@ -879,7 +865,7 @@ export function CharacterSheetPanel({
                 {readOnly ? (
                   <div className="text-sm text-gray-900 dark:text-white">{sheet.hitDice}</div>
                 ) : (
-                  <textarea value={sheet.hitDice} onChange={(e) => handleUpdate({ hitDice: e.target.value })} onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }} onBlur={(e) => { e.target.style.height = ""; const v = e.target.value.trim(); if (v !== e.target.value) handleUpdate({ hitDice: v }); }} placeholder="1d8" rows={1} className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden" />
+                  <Combobox value={sheet.hitDice} onChange={(v) => handleUpdate({ hitDice: v })} suggestions={DND_DICE} placeholder="1d8" className="w-12 px-0.5 py-0.5 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                 )}
               </div>
             </div>
@@ -1017,10 +1003,10 @@ export function CharacterSheetPanel({
                         </>
                       ) : (
                         <>
-                          <ExpandingTextInput value={weapon.name} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, name: v }; handleUpdate({ weapons: u }); }} placeholder="Name" baseClassName="w-20 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <Combobox value={weapon.name} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, name: v }; handleUpdate({ weapons: u }); }} suggestions={DND_WEAPONS} placeholder="Name" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <span className="text-gray-400">+</span>
                           <NumericInput value={weapon.bonus} onChange={(val) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, bonus: val }; handleUpdate({ weapons: u }); }} min={-10} max={30} defaultValue={0} className="w-8 px-0.5 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <ExpandingTextInput value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} placeholder="1d6" baseClassName="w-12 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <Combobox value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} suggestions={DND_DICE} placeholder="1d6" className="w-12 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <select value={weapon.damageType} onChange={(e) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: e.target.value as DamageType }; handleUpdate({ weapons: u }); }} className="w-24 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
                             <option value="">Type</option>
                             {DAMAGE_TYPES.map((type) => (
@@ -1381,13 +1367,13 @@ export function CharacterSheetPanel({
                 {readOnly ? (
                   <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.weaponProficiencies || "None"}</p>
                 ) : (
-                  <ExpandingTextarea
+                  <Combobox
                     value={sheet.weaponProficiencies ?? ""}
                     onChange={(v) => handleUpdate({ weaponProficiencies: v })}
+                    suggestions={["Simple weapons", "Martial weapons", ...DND_WEAPONS]}
                     placeholder="Simple, Martial..."
-                    collapsedRows={2}
-                    expandedRows={5}
-                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                    delimiter=", "
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
               </div>
@@ -1398,13 +1384,13 @@ export function CharacterSheetPanel({
                 {readOnly ? (
                   <p className="text-sm text-gray-700 dark:text-gray-300">{sheet.toolProficiencies || "None"}</p>
                 ) : (
-                  <ExpandingTextarea
+                  <Combobox
                     value={sheet.toolProficiencies ?? ""}
                     onChange={(v) => handleUpdate({ toolProficiencies: v })}
+                    suggestions={DND_TOOLS}
                     placeholder="Thieves' tools..."
-                    collapsedRows={2}
-                    expandedRows={5}
-                    baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                    delimiter=", "
+                    className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
               </div>
@@ -1421,13 +1407,13 @@ export function CharacterSheetPanel({
                   {sheet.speciesTraits || "None"}
                 </p>
               ) : (
-                <ExpandingTextarea
+                <Combobox
                   value={sheet.speciesTraits ?? ""}
                   onChange={(v) => handleUpdate({ speciesTraits: v })}
+                  suggestions={DND_SPECIES_TRAITS}
                   placeholder="Darkvision, Fey Ancestry, Trance..."
-                  collapsedRows={4}
-                  expandedRows={8}
-                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  delimiter=", "
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
               )}
             </div>
@@ -1440,13 +1426,13 @@ export function CharacterSheetPanel({
                   {sheet.feats || "None"}
                 </p>
               ) : (
-                <ExpandingTextarea
+                <Combobox
                   value={sheet.feats ?? ""}
                   onChange={(v) => handleUpdate({ feats: v })}
+                  suggestions={DND_FEATS}
                   placeholder="Great Weapon Master, Sentinel..."
-                  collapsedRows={4}
-                  expandedRows={8}
-                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  delimiter=", "
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
               )}
             </div>
@@ -1593,7 +1579,7 @@ export function CharacterSheetPanel({
                   <tbody>
                     {(sheet.spells || [])
                       .slice()
-                      .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name))
+                      .sort((a, b) => a.level - b.level)
                       .map((spell, index) => {
                         const originalIndex = (sheet.spells || []).findIndex(s => s.id === spell.id);
                         return (
@@ -1662,18 +1648,16 @@ export function CharacterSheetPanel({
                                   </select>
                                 </td>
                                 <td className="py-1 px-1">
-                                  <textarea
+                                  <Combobox
                                     value={spell.name}
-                                    onChange={(e) => {
+                                    onChange={(v) => {
                                       const updated = [...(sheet.spells || [])];
-                                      updated[originalIndex] = { ...spell, name: e.target.value };
+                                      updated[originalIndex] = { ...spell, name: v };
                                       handleUpdate({ spells: updated });
                                     }}
-                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                                    onBlur={(e) => { e.target.style.height = ""; }}
+                                    suggestions={getSpellNames(spell.level)}
                                     placeholder="Spell name"
-                                    rows={1}
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                   />
                                 </td>
                                 <td className="py-1 px-1 text-center">
@@ -1689,18 +1673,16 @@ export function CharacterSheetPanel({
                                   />
                                 </td>
                                 <td className="py-1 px-1">
-                                  <textarea
+                                  <Combobox
                                     value={spell.range}
-                                    onChange={(e) => {
+                                    onChange={(v) => {
                                       const updated = [...(sheet.spells || [])];
-                                      updated[originalIndex] = { ...spell, range: e.target.value };
+                                      updated[originalIndex] = { ...spell, range: v };
                                       handleUpdate({ spells: updated });
                                     }}
-                                    onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                                    onBlur={(e) => { e.target.style.height = ""; }}
+                                    suggestions={DND_SPELL_RANGES}
                                     placeholder="Range"
-                                    rows={1}
-                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                   />
                                 </td>
                                 <td className="py-1 px-1">
@@ -1829,18 +1811,16 @@ export function CharacterSheetPanel({
                         ) : (
                           <>
                             <td className="py-1 px-1">
-                              <textarea
+                              <Combobox
                                 value={item.name}
-                                onChange={(e) => {
+                                onChange={(v) => {
                                   const updated = [...(sheet.equipment || [])];
-                                  updated[index] = { ...item, name: e.target.value };
+                                  updated[index] = { ...item, name: v };
                                   handleUpdate({ equipment: updated });
                                 }}
-                                onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                                onBlur={(e) => { e.target.style.height = ""; }}
+                                suggestions={DND_EQUIPMENT}
                                 placeholder="Item name"
-                                rows={1}
-                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none overflow-hidden"
+                                className="w-full px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                               />
                             </td>
                             <td className="py-1 px-1">
@@ -1983,7 +1963,6 @@ export function CharacterSheetPanel({
                     onChange={(v) => handleUpdate({ personalityTraits: v })}
                     placeholder="I always have a plan..."
                     collapsedRows={2}
-                    expandedRows={4}
                     baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
@@ -1999,7 +1978,6 @@ export function CharacterSheetPanel({
                     onChange={(v) => handleUpdate({ ideals: v })}
                     placeholder="Freedom, Honor..."
                     collapsedRows={2}
-                    expandedRows={4}
                     baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
@@ -2015,7 +1993,6 @@ export function CharacterSheetPanel({
                     onChange={(v) => handleUpdate({ bonds: v })}
                     placeholder="My family..."
                     collapsedRows={2}
-                    expandedRows={4}
                     baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
@@ -2031,7 +2008,6 @@ export function CharacterSheetPanel({
                     onChange={(v) => handleUpdate({ flaws: v })}
                     placeholder="I can't resist a pretty face..."
                     collapsedRows={2}
-                    expandedRows={4}
                     baseClassName="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                   />
                 )}
@@ -2048,7 +2024,6 @@ export function CharacterSheetPanel({
                   onChange={(v) => handleUpdate({ backstory: v })}
                   placeholder="Born in a small village..."
                   collapsedRows={3}
-                  expandedRows={8}
                   baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
               )}
@@ -2063,13 +2038,13 @@ export function CharacterSheetPanel({
               {readOnly ? (
                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.languages || "None"}</p>
               ) : (
-                <ExpandingTextarea
+                <Combobox
                   value={sheet.languages ?? ""}
                   onChange={(v) => handleUpdate({ languages: v })}
+                  suggestions={DND_LANGUAGES}
                   placeholder="Common, Elvish, Dwarvish..."
-                  collapsedRows={2}
-                  expandedRows={4}
-                  baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                  delimiter=", "
+                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
               )}
             </div>
@@ -2086,18 +2061,16 @@ export function CharacterSheetPanel({
                       {readOnly ? (
                         <p className="text-sm text-gray-700 dark:text-gray-300">{attunement || "Empty"}</p>
                       ) : (
-                        <textarea
+                        <Combobox
                           value={attunement}
-                          onChange={(e) => {
+                          onChange={(v) => {
                             const newAttunements: [string, string, string] = [...(sheet.magicItemAttunements ?? ["", "", ""])] as [string, string, string];
-                            newAttunements[i] = e.target.value;
+                            newAttunements[i] = v;
                             handleUpdate({ magicItemAttunements: newAttunements });
                           }}
-                          onFocus={(e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
-                          onBlur={(e) => { e.target.style.height = ""; }}
+                          suggestions={DND_MAGIC_ITEMS}
                           placeholder="Magic item name..."
-                          rows={1}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none overflow-hidden"
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                         />
                       )}
                     </div>
@@ -2117,7 +2090,6 @@ export function CharacterSheetPanel({
                   onChange={(v) => handleUpdate({ appearance: v })}
                   placeholder="Tall, dark hair, piercing blue eyes..."
                   collapsedRows={2}
-                  expandedRows={4}
                   baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
               )}
