@@ -19,6 +19,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "Drawing and erasing now syncs to all players in real-time",
       "Monster AC and HP are now hidden from players (DM only) — conditions remain visible",
       "Token AC and HP now only display on hover, no longer on selection",
+      "Character metadata on hover now shows over other assets like tokens and drawings",
       "Your own tokens now render above locked tokens, making stacked tokens easier to select",
       "Tokens not under fog now render above the fog layer — no more cloud puffs hiding nearby tokens",
       "Tokens under fog no longer show hover metadata or pointer cursor to players",
