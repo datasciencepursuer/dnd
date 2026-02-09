@@ -542,11 +542,11 @@ export function MapEditor({
     });
   }, [map?.tokens, updateToken]);
 
-  // Undo/Redo - get stable references directly from temporal store
+  // Undo/Redo - for fog, drawing, and token operations
   const temporalStore = useMapStore.temporal;
   const undo = useCallback(() => {
     temporalStore.getState().undo();
-    // Sync changes after undo
+    // Sync changes after undo (fog/drawing/tokens)
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
@@ -556,7 +556,7 @@ export function MapEditor({
 
   const redo = useCallback(() => {
     temporalStore.getState().redo();
-    // Sync changes after redo
+    // Sync changes after redo (fog/drawing/tokens)
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
@@ -564,21 +564,21 @@ export function MapEditor({
     }
   }, [temporalStore, broadcastMapSync, syncDebounced]);
 
-  // Keyboard shortcuts for undo/redo
+  // Keyboard shortcuts - undo/redo for fog, drawing, and token operations
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Ignore if typing in an input
+      // Allow native undo/redo for inputs and text areas
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
-      // Ctrl+Z / Cmd+Z for undo
+      // Ctrl+Z / Cmd+Z for undo (fog, drawing, and token operations)
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
       }
 
-      // Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y for redo
+      // Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y for redo (fog, drawing, and token operations)
       if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
         e.preventDefault();
         redo();
