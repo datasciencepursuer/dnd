@@ -8,6 +8,7 @@ interface DrawingLayerProps {
   currentColor: string;
   currentWidth: number;
   isEraseMode?: boolean;
+  isDragging?: boolean;
   onErasePath?: (id: string) => void;
 }
 
@@ -17,6 +18,7 @@ export const DrawingLayer = memo(function DrawingLayer({
   currentColor,
   currentWidth,
   isEraseMode = false,
+  isDragging = false,
   onErasePath,
 }: DrawingLayerProps) {
   const [hoveredPathId, setHoveredPathId] = useState<string | null>(null);
@@ -34,8 +36,8 @@ export const DrawingLayer = memo(function DrawingLayer({
           lineCap="round"
           lineJoin="round"
           globalCompositeOperation="source-over"
-          listening={isEraseMode}
-          hitStrokeWidth={isEraseMode ? 20 : 0}
+          listening={isEraseMode && !isDragging}
+          hitStrokeWidth={isEraseMode && !isDragging ? 20 : 0}
           onMouseEnter={isEraseMode ? () => setHoveredPathId(path.id) : undefined}
           onMouseLeave={isEraseMode ? () => setHoveredPathId(null) : undefined}
           onClick={isEraseMode ? () => onErasePath?.(path.id) : undefined}

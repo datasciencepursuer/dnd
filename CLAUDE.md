@@ -4,27 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-D&D Map Editor - A React Router v7 full-stack application for creating and managing tabletop RPG maps. Uses React 19, TypeScript (strict mode), and Tailwind CSS v4.
+D&D Map Editor - A React Router v7 full-stack application for creating and managing tabletop RPG maps. Uses React 19, TypeScript (strict mode with `verbatimModuleSyntax`), and Tailwind CSS v4.
 
 ## Commands
 
 - `pnpm run dev` - Start development server with HMR (http://localhost:5173)
 - `pnpm run dev:party` - Start PartyKit WebSocket server for real-time sync
 - `pnpm run dev:all` - Start both React Router and PartyKit servers concurrently
-- `pnpm run typecheck` - Run TypeScript type checking and generate route types
+- `pnpm run typecheck` - Generate route types (`react-router typegen`) then run `tsc`
 - `pnpm run email:dev` - Preview email templates at http://localhost:3000
 - `pnpm drizzle-kit generate` - Generate migration files
 - `pnpm drizzle-kit migrate` - Apply pending migrations
 - `pnpm run party:deploy` - Deploy PartyKit to production
+- `pnpm start` - Serve production build via `react-router-serve`
 
-**Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it.
+**Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it. The build command runs three steps: `drizzle-kit generate` → `drizzle-kit migrate` → `react-router build`.
 
 **No test suite**: There are no tests configured. No test runner, no test files.
 
 ## Architecture
 
 ### Routing
-- React Router v7 file-based routing configured in `app/routes.ts`
+- React Router v7 with routes **explicitly configured** in `app/routes.ts` (not auto-discovered from filenames)
 - Route types auto-generated in `.react-router/types/`
 - Path alias `~/` maps to `app/` directory
 
@@ -43,7 +44,7 @@ Uses better-auth for email/password authentication.
 - Server config: `app/.server/auth/auth.server.ts`
 - Client: `app/lib/auth-client.ts` (exports `signIn`, `signUp`, `signOut`, `useSession`)
 - API routes: `/api/auth/*` handled by `app/routes/api.auth.$.tsx`
-- Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders
+- Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders (throws redirect to `/login` if unauthenticated)
 - Schema: Auth tables (user, session, account, verification) in `app/.server/db/schema.ts`
 - Rate limiting: 3 signups per IP per 12 hours
 
@@ -58,7 +59,9 @@ Uses better-auth for email/password authentication.
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
 
-**Vite SSR note**: Konva requires special Vite config — `ssr.noExternal: ["konva", "react-konva"]` in `vite.config.ts`.
+**Vite SSR note**: Konva requires both `ssr.noExternal` AND `optimizeDeps.include` for `["konva", "react-konva"]` in `vite.config.ts`.
+
+**Konva Performance Pattern**: Avoid React state updates during high-frequency events (mouse/touch move). Use refs for intermediate values and update Konva nodes imperatively via `node.x()`, `node.width()`, `node.getLayer().batchDraw()`. React state should only change on start/end of interactions (e.g., mousedown/mouseup), not during drag/move. See `MapCanvas.tsx` viewport handling and drag rectangle as examples.
 
 **State Management** - Four Zustand stores:
 - `map-store.ts` - Persisted map data (tokens, grid, fog, combat, drawings, character sheets). Uses `zundo` temporal middleware for undo/redo (50 history limit). Implements dirty token tracking with 10-second staleness window for optimistic updates.
@@ -126,6 +129,7 @@ Canvas-based map editor using Konva.js (`react-konva`).
 WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 - Config: `partykit.json`
 - Client hooks: `useMapSync.ts` (HTTP sync), `usePartySync.ts` (WebSocket)
+- Message types use a discriminated union pattern (e.g., `token-move`, `token-update`, `fog-paint`, `fog-erase`, `map-sync`)
 - Syncs: token operations, fog painting, pings, drawings, combat, dice rolls, token stats, DM transfer, and presence
 - Auto-save: 1-2 second debounce after changes
 - Dirty token tracking: Prevents server updates from overwriting local optimistic updates during 10-second staleness window

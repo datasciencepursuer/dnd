@@ -40,7 +40,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   // Drag rectangle state for fog and erase tools
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [dragEnd, setDragEnd] = useState<{ x: number; y: number } | null>(null);
+  const dragEndRef = useRef<{ x: number; y: number } | null>(null);
+  const dragRectRef = useRef<any>(null);
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
 
@@ -348,7 +349,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
       setDragStart(pos);
-      setDragEnd(pos);
+      dragEndRef.current = pos;
       setIsDraggingRect(true);
       setDragMode("fog");
       return;
@@ -359,7 +360,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
       setDragStart(pos);
-      setDragEnd(pos);
+      dragEndRef.current = pos;
       setIsDraggingRect(true);
       setDragMode("erase");
       return;
@@ -375,11 +376,18 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   };
 
   const handleMouseMove = (e: any) => {
-    // Update drag rectangle
+    // Update drag rectangle imperatively (no React state update)
     if (isDraggingRect && dragStart) {
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
-      setDragEnd(pos);
+      dragEndRef.current = pos;
+      if (dragRectRef.current) {
+        dragRectRef.current.x(Math.min(dragStart.x, pos.x));
+        dragRectRef.current.y(Math.min(dragStart.y, pos.y));
+        dragRectRef.current.width(Math.abs(pos.x - dragStart.x));
+        dragRectRef.current.height(Math.abs(pos.y - dragStart.y));
+        dragRectRef.current.getLayer().batchDraw();
+      }
       return;
     }
 
@@ -392,6 +400,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   const handleMouseUp = (e: any) => {
     // Complete drag rectangle operation
+    const dragEnd = dragEndRef.current;
     if (isDraggingRect && dragStart && dragEnd && dragMode) {
       const { col: startCol, row: startRow } = getCellFromPosition(dragStart);
       const { col: endCol, row: endRow } = getCellFromPosition(dragEnd);
@@ -426,7 +435,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       }
 
       setDragStart(null);
-      setDragEnd(null);
+      dragEndRef.current = null;
       setIsDraggingRect(false);
       setDragMode(null);
       return;
@@ -446,6 +455,70 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     }
     setIsDrawing(false);
     setCurrentPath(null);
+  };
+
+  const handleTouchStart = (e: any) => {
+    // Pan tool: Konva's draggable handles touch panning natively
+    if (selectedTool === "pan") return;
+
+    // Fog tool: start drag rectangle
+    if (selectedTool === "fog" && userId) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setDragStart(pos);
+      dragEndRef.current = pos;
+      setIsDraggingRect(true);
+      setDragMode("fog");
+      return;
+    }
+
+    // Erase tool: start drag rectangle
+    if (selectedTool === "erase") {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setDragStart(pos);
+      dragEndRef.current = pos;
+      setIsDraggingRect(true);
+      setDragMode("erase");
+      return;
+    }
+
+    // Draw tool: start drawing path
+    if (selectedTool === "draw" && selectedToken) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      setIsDrawing(true);
+      setCurrentPath([pos.x, pos.y]);
+    }
+  };
+
+  const handleTouchMove = (e: any) => {
+    e.evt.preventDefault();
+
+    // Update drag rectangle imperatively (no React state update)
+    if (isDraggingRect && dragStart) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      dragEndRef.current = pos;
+      if (dragRectRef.current) {
+        dragRectRef.current.x(Math.min(dragStart.x, pos.x));
+        dragRectRef.current.y(Math.min(dragStart.y, pos.y));
+        dragRectRef.current.width(Math.abs(pos.x - dragStart.x));
+        dragRectRef.current.height(Math.abs(pos.y - dragStart.y));
+        dragRectRef.current.getLayer().batchDraw();
+      }
+      return;
+    }
+
+    if (!isDrawing || selectedTool !== "draw" || !currentPath) return;
+
+    const stage = stageRef.current;
+    const pos = stage.getRelativePointerPosition();
+    setCurrentPath([...currentPath, pos.x, pos.y]);
+  };
+
+  const handleTouchEnd = (e: any) => {
+    handleMouseUp(e);
   };
 
   const handleDragStart = (e: any) => {
@@ -527,7 +600,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     <div
       ref={containerRef}
       className="flex-1 bg-gray-100 dark:bg-gray-800 overflow-hidden relative"
-      style={{ cursor: cursorStyle }}
+      style={{ cursor: cursorStyle, touchAction: "none" }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {/* Draw tool warning when no token selected */}
@@ -573,6 +646,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         onDragEnd={handleDragEnd}
         onClick={handleClick}
         onTap={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         onContextMenu={handleContextMenu}
         x={viewportRef.current.x}
         y={viewportRef.current.y}
@@ -598,6 +674,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               currentColor={drawingColor}
               currentWidth={drawingWidth}
               isEraseMode={selectedTool === "erase"}
+              isDragging={isDraggingRect}
               onErasePath={handleErasePath}
             />
           </Group>
@@ -640,13 +717,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           <Group>
             <PingLayer pings={activePings} />
           </Group>
-          {/* Drag rectangle overlay */}
-          {isDraggingRect && dragStart && dragEnd && (
+          {/* Drag rectangle overlay — updated imperatively via dragRectRef */}
+          {isDraggingRect && dragStart && (
             <Rect
-              x={Math.min(dragStart.x, dragEnd.x)}
-              y={Math.min(dragStart.y, dragEnd.y)}
-              width={Math.abs(dragEnd.x - dragStart.x)}
-              height={Math.abs(dragEnd.y - dragStart.y)}
+              ref={dragRectRef}
+              x={dragStart.x}
+              y={dragStart.y}
+              width={0}
+              height={0}
               fill={dragMode === "fog" ? "#1a1a2e" : "#ef4444"}
               opacity={0.3}
               stroke={dragMode === "fog" ? "#4a4a6e" : "#dc2626"}
