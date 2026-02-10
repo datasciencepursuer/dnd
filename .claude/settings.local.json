@@ -35,7 +35,8 @@
       "WebFetch(domain:dnd2024.wikidot.com)",
       "WebFetch(domain:www.aidedd.org)",
       "WebFetch(domain:dungeonsanddragonsfan.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git log:*)"
     ]
   }
 }

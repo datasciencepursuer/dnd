@@ -26,7 +26,7 @@ export function Combobox({
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // For delimiter mode: extract the current segment being typed and already-chosen values
   const { currentSegment, existingValues } = delimiter
@@ -82,6 +82,13 @@ export function Combobox({
         onChange(before + item + (after || delimiter));
         // Keep focus so user can continue adding items
         setHighlightIndex(-1);
+        // Re-expand after selection since content changed
+        requestAnimationFrame(() => {
+          if (inputRef.current) {
+            inputRef.current.style.height = "auto";
+            inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+          }
+        });
       } else {
         onChange(item);
         close();
@@ -91,6 +98,17 @@ export function Combobox({
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Always prevent Enter from creating newlines in the textarea
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isOpen && filtered.length > 0 && highlightIndex >= 0 && highlightIndex < filtered.length) {
+        selectItem(filtered[highlightIndex]);
+      } else {
+        close();
+      }
+      return;
+    }
+
     if (!isOpen || filtered.length === 0) {
       if (e.key === "ArrowDown" && suggestions.length > 0 && currentSegment.length > 0) {
         setIsOpen(true);
@@ -112,18 +130,21 @@ export function Combobox({
           prev > 0 ? prev - 1 : filtered.length - 1
         );
         break;
-      case "Enter":
-        e.preventDefault();
-        if (highlightIndex >= 0 && highlightIndex < filtered.length) {
-          selectItem(filtered[highlightIndex]);
-        } else {
-          close();
-        }
-        break;
       case "Escape":
         e.preventDefault();
         close();
         break;
+    }
+  };
+
+  const handleFocus = () => {
+    if (delimiter ? currentSegment.length > 0 : value.length > 0) {
+      setIsOpen(true);
+    }
+    // Auto-expand to show full content
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = inputRef.current.scrollHeight + "px";
     }
   };
 
@@ -137,6 +158,10 @@ export function Combobox({
       return;
     }
     close();
+    // Collapse back to single line
+    if (inputRef.current) {
+      inputRef.current.style.height = "";
+    }
     // Trim on blur like the original textareas
     const trimmed = value.trim();
     if (trimmed !== value) {
@@ -146,9 +171,8 @@ export function Combobox({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <input
+      <textarea
         ref={inputRef}
-        type="text"
         value={value}
         onChange={(e) => {
           const newValue = e.target.value;
@@ -158,17 +182,22 @@ export function Combobox({
           } else {
             if (isOpen) close();
           }
+          // Re-expand as content changes
+          requestAnimationFrame(() => {
+            if (inputRef.current) {
+              inputRef.current.style.height = "auto";
+              inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+            }
+          });
         }}
-        onFocus={() => {
-          if (delimiter ? currentSegment.length > 0 : value.length > 0) {
-            setIsOpen(true);
-          }
-        }}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled}
-        className={className}
+        rows={1}
+        className={`${className} resize-none overflow-hidden`}
+        style={{ lineHeight: "1.4" }}
         autoComplete="off"
       />
       {isOpen && filtered.length > 0 && (

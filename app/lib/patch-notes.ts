@@ -7,6 +7,27 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.3",
+    date: "2026-02-10",
+    title: "Mobile Character Sheet & Session Scheduling",
+    changes: [
+      "Character sheet now goes full-screen on mobile for maximum editing space",
+      "Mobile character sheet splits into three pages — Stats, Spells, and Gear/Bio — navigated via a segmented pill bar",
+      "Sticky header restructured for mobile into three compact rows: avatar and name, stat strip, and condition/toggles",
+      "Race, class, coins, death saves, and hit dice move from the header into dedicated sections on the Stats page on mobile",
+      "Weapons display as stacked cards on mobile — name, bonus/dice/damage type, and notes each get their own row",
+      "Spells display as cards on mobile — level, name, and concentration on top; range, material, and notes below",
+      "Equipment displays as cards on mobile — item name with equipped toggle, quantity and recharge, then notes",
+      "Touch-friendly input sizing on mobile — larger padding, bigger toggle buttons and checkboxes",
+      "Autocomplete fields (weapons, traits, feats, proficiencies, languages) now expand to show full text on focus and collapse on blur",
+      "Switching between mobile and desktop viewports automatically clamps to the correct page count",
+      "Propose upcoming session times in your group with optional notes — up to five active proposals",
+      "Group members can RSVP as available or unavailable for each proposed session",
+      "Session proposals show a summary of who's available, unavailable, or hasn't responded yet",
+      "Proposers and group admins can delete session proposals",
+    ],
+  },
+  {
     version: "0.2.2",
     date: "2026-02-09",
     title: "Mobile Improvements",
