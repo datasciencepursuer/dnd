@@ -1,5 +1,5 @@
 import usePartySocket from "partysocket/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMapStore } from "../store/map-store";
 import { usePresenceStore } from "../store/presence-store";
 import type { DnDMap, GridPosition, Token, Ping, InitiativeEntry, RollResult, Condition } from "../types";
@@ -207,6 +207,9 @@ export function usePartySync({
   const setConnected = usePresenceStore((s) => s.setConnected);
   const setError = usePresenceStore((s) => s.setError);
 
+  // Track whether this is the first connection (skip refresh on initial load since route loader provides fresh data)
+  const hasConnectedOnce = useRef(false);
+
   // Active pings state - pings expire after 3 seconds
   const [activePings, setActivePings] = useState<Ping[]>([]);
 
@@ -228,6 +231,22 @@ export function usePartySync({
     onOpen() {
       setConnected(true);
       setError(null);
+
+      // On reconnection (not initial load), fetch latest map state from server
+      // to avoid broadcasting stale data after being idle/disconnected
+      if (hasConnectedOnce.current && mapId) {
+        fetch(`/api/maps/${mapId}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((mapData) => {
+            if (mapData?.data) {
+              syncMap(mapData.data);
+            }
+          })
+          .catch(() => {
+            // Silently fail - will use existing local state
+          });
+      }
+      hasConnectedOnce.current = true;
     },
 
     onClose() {
@@ -383,6 +402,29 @@ export function usePartySync({
       socket.reconnect();
     }
   }, [enabled, mapId, userId, socket]);
+
+  // Refresh map state when tab becomes visible again (handles idle tabs)
+  useEffect(() => {
+    if (!enabled || !mapId) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && hasConnectedOnce.current) {
+        fetch(`/api/maps/${mapId}`)
+          .then((res) => (res.ok ? res.json() : null))
+          .then((mapData) => {
+            if (mapData?.data) {
+              syncMap(mapData.data);
+            }
+          })
+          .catch(() => {
+            // Silently fail
+          });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [enabled, mapId, syncMap]);
 
   // Check if socket is ready to send
   const isSocketReady = useCallback(
