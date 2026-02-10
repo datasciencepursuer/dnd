@@ -474,35 +474,35 @@ Play
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Hello, {userName}
           </h1>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-2 sm:gap-4">
             <Link
               to="/characters"
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               My Characters
             </Link>
             <Link
               to="/groups"
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Manage Groups
             </Link>
             <button
               onClick={handleOpenModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
             >
               + New Map
             </button>
             <Form method="post" action="/logout">
               <button
                 type="submit"
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer"
+                className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600 cursor-pointer"
               >
                 Logout
               </button>
@@ -514,7 +514,7 @@ Play
         <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => handleFilterChange("all")}
-            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded text-sm font-medium cursor-pointer ${
               activeFilter === "all"
                 ? "bg-blue-600 text-white"
                 : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -524,7 +524,7 @@ Play
           </button>
           <button
             onClick={() => handleFilterChange("personal")}
-            className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+            className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded text-sm font-medium cursor-pointer ${
               activeFilter === "personal"
                 ? "bg-blue-600 text-white"
                 : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -536,7 +536,7 @@ Play
             <button
               key={group.id}
               onClick={() => handleFilterChange(group.id)}
-              className={`px-4 py-2 rounded text-sm font-medium cursor-pointer ${
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded text-sm font-medium cursor-pointer ${
                 activeFilter === group.id
                   ? "bg-blue-600 text-white"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"

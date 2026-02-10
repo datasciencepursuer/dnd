@@ -22,9 +22,10 @@ interface DiceHistoryBarProps {
   onRoll?: (roll: RollResult) => void;
   userName?: string | null;
   userId?: string | null;
+  variant?: "sidebar" | "panel";
 }
 
-export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps) {
+export function DiceHistoryBar({ onRoll, userName, userId, variant = "sidebar" }: DiceHistoryBarProps) {
   const map = useMapStore((s) => s.map);
   const addRollResult = useMapStore((s) => s.addRollResult);
   const clearRollHistory = useMapStore((s) => s.clearRollHistory);
@@ -81,7 +82,7 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  if (isCollapsed) {
+  if (variant === "sidebar" && isCollapsed) {
     return (
       <div className="relative w-0">
         <button
@@ -98,17 +99,19 @@ export function DiceHistoryBar({ onRoll, userName, userId }: DiceHistoryBarProps
   }
 
   return (
-    <div className="relative w-56 lg:w-64 xl:w-72 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full">
-      {/* Collapse tab on left edge */}
-      <button
-        onClick={() => setIsCollapsed(true)}
-        className="absolute top-3 -left-6 z-10 flex items-center justify-center w-6 h-12 bg-white dark:bg-gray-800 border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
-        title="Collapse dice panel"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-        </svg>
-      </button>
+    <div className={variant === "panel" ? "flex flex-col h-full" : "relative w-56 lg:w-64 xl:w-72 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col h-full"}>
+      {/* Collapse tab on left edge - sidebar only */}
+      {variant === "sidebar" && (
+        <button
+          onClick={() => setIsCollapsed(true)}
+          className="absolute top-3 -left-6 z-10 flex items-center justify-center w-6 h-12 bg-white dark:bg-gray-800 border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-lg shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
+          title="Collapse dice panel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+          </svg>
+        </button>
+      )}
       {/* Dice Controls */}
       <div className="p-3 lg:p-4 space-y-3 lg:space-y-4 border-b border-gray-200 dark:border-gray-700">
         {/* Selected Token Indicator */}

@@ -45,6 +45,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
 
+  // Multi-touch (pinch/pan) tracking
+  const multiTouchRef = useRef<{
+    active: boolean;
+    initialDistance: number;
+    initialScale: number;
+    lastMidpoint: { x: number; y: number };
+  } | null>(null);
+
   // Shallow-compared selector prevents re-renders when unrelated map fields change
   // (e.g. viewport saves won't trigger re-render if tokens/grid/fog haven't changed)
   const { tokens, grid, fogPaintedCells, background, freehand, mapId } = useMapStore(
@@ -134,7 +142,15 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
     updateDimensions();
     window.addEventListener("resize", updateDimensions);
-    return () => window.removeEventListener("resize", updateDimensions);
+
+    // ResizeObserver catches container size changes from sidebar collapse/expand
+    const ro = new ResizeObserver(updateDimensions);
+    if (containerRef.current) ro.observe(containerRef.current);
+
+    return () => {
+      window.removeEventListener("resize", updateDimensions);
+      ro.disconnect();
+    };
   }, [setCanvasDimensions]);
 
   // Sync viewport ref from store when map changes (initial load / map switch)
@@ -288,6 +304,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   if (!grid || !tokens || !freehand || !fogPaintedCells) return null;
 
   const cellSize = grid.cellSize;
+
+  const getTouchDistance = (t1: Touch, t2: Touch) =>
+    Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+  const getTouchMidpoint = (t1: Touch, t2: Touch) => ({
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2,
+  });
 
   const handleWheel = (e: any) => {
     e.evt.preventDefault();
@@ -458,6 +482,25 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   };
 
   const handleTouchStart = (e: any) => {
+    const touches = e.evt.touches;
+
+    // Two-finger gesture: start pinch/pan regardless of tool
+    if (touches && touches.length >= 2) {
+      e.evt.preventDefault();
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      multiTouchRef.current = {
+        active: true,
+        initialDistance: getTouchDistance(t1, t2),
+        initialScale: stage.scaleX(),
+        lastMidpoint: getTouchMidpoint(t1, t2),
+      };
+      return;
+    }
+
     // Pan tool: Konva's draggable handles touch panning natively
     if (selectedTool === "pan") return;
 
@@ -494,6 +537,50 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   const handleTouchMove = (e: any) => {
     e.evt.preventDefault();
+    const touches = e.evt.touches;
+
+    // Two-finger gesture: pinch-to-zoom + pan
+    if (touches && touches.length >= 2 && multiTouchRef.current?.active) {
+      const t1 = touches[0];
+      const t2 = touches[1];
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const newDistance = getTouchDistance(t1, t2);
+      const newMidpoint = getTouchMidpoint(t1, t2);
+
+      // Calculate new scale from pinch ratio
+      const scaleRatio = newDistance / multiTouchRef.current.initialDistance;
+      const newScale = Math.max(
+        MIN_ZOOM,
+        Math.min(MAX_ZOOM, multiTouchRef.current.initialScale * scaleRatio)
+      );
+
+      // Calculate pan delta from midpoint movement
+      const dx = newMidpoint.x - multiTouchRef.current.lastMidpoint.x;
+      const dy = newMidpoint.y - multiTouchRef.current.lastMidpoint.y;
+
+      // Zoom toward midpoint (same math as handleWheel)
+      const oldScale = stage.scaleX();
+      const midpointWorld = {
+        x: (newMidpoint.x - stage.x()) / oldScale,
+        y: (newMidpoint.y - stage.y()) / oldScale,
+      };
+
+      const newPos = {
+        x: newMidpoint.x - midpointWorld.x * newScale + dx,
+        y: newMidpoint.y - midpointWorld.y * newScale + dy,
+      };
+
+      // Apply imperatively (no React state during gesture)
+      stage.scale({ x: newScale, y: newScale });
+      stage.position(newPos);
+      stage.batchDraw();
+
+      viewportRef.current = { x: newPos.x, y: newPos.y, scale: newScale };
+      multiTouchRef.current.lastMidpoint = newMidpoint;
+      return;
+    }
 
     // Update drag rectangle imperatively (no React state update)
     if (isDraggingRect && dragStart) {
@@ -518,6 +605,17 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   };
 
   const handleTouchEnd = (e: any) => {
+    // Finalize multi-touch gesture
+    if (multiTouchRef.current?.active) {
+      const remaining = e.evt.touches?.length ?? 0;
+      if (remaining < 2) {
+        multiTouchRef.current = null;
+        setViewport(viewportRef.current.x, viewportRef.current.y, viewportRef.current.scale);
+        return;
+      }
+      return;
+    }
+
     handleMouseUp(e);
   };
 

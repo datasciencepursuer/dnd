@@ -7,6 +7,19 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.2",
+    date: "2026-02-09",
+    title: "Mobile Improvements",
+    changes: [
+      "Two-finger drag to pan the map on any tool — no need to switch to the Pan tool on mobile",
+      "Pinch-to-zoom on mobile and tablet, centered between your fingers",
+      "Touching a token now reveals its info (name, HP, AC, condition) just like hovering with a mouse",
+      "Locked tokens also show their info on touch",
+      "Maps page now adapts to phone and tablet screens — header stacks vertically, buttons wrap, and padding scales down",
+      "Filter tabs use compact sizing on small screens so more fit without scrolling",
+    ],
+  },
+  {
     version: "0.2.1",
     date: "2026-02-06",
     title: "Character Sheet Autocomplete & Rendering Fixes",

@@ -60,7 +60,9 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
   const [isTransferring, setIsTransferring] = useState(false);
   const [zoomInputFocused, setZoomInputFocused] = useState(false);
   const [zoomInputValue, setZoomInputValue] = useState("");
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const dmDropdownRef = useRef<HTMLDivElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
   const revalidator = useRevalidator();
 
   // Close dropdown when clicking outside
@@ -75,6 +77,19 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showDmDropdown]);
+
+  // Close overflow menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (overflowMenuRef.current && !overflowMenuRef.current.contains(e.target as Node)) {
+        setShowOverflowMenu(false);
+      }
+    };
+    if (showOverflowMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showOverflowMenu]);
 
   // Handle DM transfer
   const handleTransferDm = async (newDmId: string) => {
@@ -255,21 +270,21 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
         <div className="flex items-center gap-3">
           <Link
             to="/maps"
-            className="px-3 py-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+            className="p-2 lg:px-3 lg:py-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
           >
-            ← Maps
+            ←<span className="hidden lg:inline"> Maps</span>
           </Link>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 hidden lg:block" />
           <input
             type="text"
             value={mapName}
             onChange={handleNameChange}
             placeholder="Map name"
             disabled={!canEditMap()}
-            className="px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
+            className="hidden lg:block px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
           />
           {/* Role indicator - clickable for DM to transfer */}
-          <div className="relative" ref={dmDropdownRef}>
+          <div className="relative hidden lg:flex" ref={dmDropdownRef}>
             {isDungeonMaster() && transferOptions.length > 0 ? (
               <>
                 <button
@@ -316,84 +331,87 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
               <button
                 key={tool.id}
                 onClick={() => setTool(tool.id)}
-                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                   selectedTool === tool.id
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
                 title={tool.hint || `${tool.label} (${tool.shortcut})`}
               >
-                <span className="mr-1">{tool.icon}</span>
-                {tool.label}
-                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
+                <span className="lg:mr-1">{tool.icon}</span>
+                <span className="hidden lg:inline">{tool.label}</span>
+                <span className="hidden lg:inline ml-1 text-xs opacity-60">({tool.shortcut})</span>
               </button>
             ))}
             {/* Draw tool - available to everyone */}
             <button
               onClick={() => setTool(drawTool.id)}
-              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+              className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                 selectedTool === drawTool.id
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
               title={drawTool.hint || `${drawTool.label} (${drawTool.shortcut})`}
             >
-              <span className="mr-1">{drawTool.icon}</span>
-              {drawTool.label}
-              <span className="ml-1 text-xs opacity-60">({drawTool.shortcut})</span>
+              <span className="lg:mr-1">{drawTool.icon}</span>
+              <span className="hidden lg:inline">{drawTool.label}</span>
+              <span className="hidden lg:inline ml-1 text-xs opacity-60">({drawTool.shortcut})</span>
             </button>
             {/* Erase tool - available to everyone */}
             <button
               onClick={() => setTool(eraseTool.id)}
-              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+              className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                 selectedTool === eraseTool.id
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
               title={eraseTool.hint || `${eraseTool.label} (${eraseTool.shortcut})`}
             >
-              <span className="mr-1">{eraseTool.icon}</span>
-              {eraseTool.label}
-              <span className="ml-1 text-xs opacity-60">({eraseTool.shortcut})</span>
+              <span className="lg:mr-1">{eraseTool.icon}</span>
+              <span className="hidden lg:inline">{eraseTool.label}</span>
+              <span className="hidden lg:inline ml-1 text-xs opacity-60">({eraseTool.shortcut})</span>
             </button>
             {/* Fog tool - DM only */}
             {canEditMap() && mapEditTools.map((tool) => (
               <button
                 key={tool.id}
                 onClick={() => setTool(tool.id)}
-                className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+                className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                   selectedTool === tool.id
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                 }`}
                 title={tool.hint || `${tool.label} (${tool.shortcut})`}
               >
-                <span className="mr-1">{tool.icon}</span>
-                {tool.label}
-                <span className="ml-1 text-xs opacity-60">({tool.shortcut})</span>
+                <span className="lg:mr-1">{tool.icon}</span>
+                <span className="hidden lg:inline">{tool.label}</span>
+                <span className="hidden lg:inline ml-1 text-xs opacity-60">({tool.shortcut})</span>
               </button>
             ))}
             <button
               onClick={() => setTool(pingTool.id)}
-              className={`px-3 py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
+              className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
                 selectedTool === pingTool.id
                   ? "bg-blue-600 text-white"
                   : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
               }`}
               title={pingTool.hint || `${pingTool.label} (${pingTool.shortcut})`}
             >
-              <span className="mr-1">{pingTool.icon}</span>
-              {pingTool.label}
-              <span className="ml-1 text-xs opacity-60">({pingTool.shortcut})</span>
+              <span className="lg:mr-1">{pingTool.icon}</span>
+              <span className="hidden lg:inline">{pingTool.label}</span>
+              <span className="hidden lg:inline ml-1 text-xs opacity-60">({pingTool.shortcut})</span>
             </button>
           </div>
-          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+          <span className="hidden lg:inline text-xs text-gray-500 dark:text-gray-400 ml-2">
             Right-click to pan
+          </span>
+          <span className="lg:hidden text-xs text-gray-500 dark:text-gray-400 ml-1">
+            Two-finger drag to pan
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Zoom slider */}
+          {/* Zoom controls */}
           {map && (
             <>
               <div className="flex items-center gap-1">
@@ -417,7 +435,7 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                   step={ZOOM_STEP}
                   value={map.viewport.scale}
                   onChange={(e) => handleZoom(parseFloat(e.target.value))}
-                  className="w-24 h-1.5 accent-blue-600 cursor-pointer"
+                  className="hidden lg:block w-24 h-1.5 accent-blue-600 cursor-pointer"
                   title={`Zoom: ${Math.round(map.viewport.scale / ZOOM_REFERENCE * 100)}%`}
                 />
                 <button
@@ -459,15 +477,15 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                       (e.target as HTMLInputElement).blur();
                     }
                   }}
-                  className="w-12 text-xs font-medium text-gray-600 dark:text-gray-400 text-center tabular-nums bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none rounded py-0.5"
+                  className="hidden lg:block w-12 text-xs font-medium text-gray-600 dark:text-gray-400 text-center tabular-nums bg-transparent border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-400 focus:outline-none rounded py-0.5"
                 />
               </div>
-              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+              <div className="hidden lg:block w-px h-6 bg-gray-300 dark:bg-gray-600" />
             </>
           )}
-          {/* Grid settings - visible to all, editable for DM only */}
+          {/* Grid settings - desktop only */}
           {map && (
-            <>
+            <div className="hidden lg:flex items-center gap-1">
               <span className="text-sm text-gray-600 dark:text-gray-400">Grid:</span>
               {canEditMap() ? (
                 <div className="flex items-center gap-1">
@@ -506,11 +524,12 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                   Apply
                 </button>
               )}
-              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-            </>
+              <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 ml-2" />
+            </div>
           )}
+          {/* Local play toggle - desktop only */}
           {isDungeonMaster() && (
-            <>
+            <div className="hidden lg:flex items-center gap-3">
               <button
                 onClick={togglePlayingLocally}
                 className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border cursor-pointer transition-colors ${
@@ -524,10 +543,11 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
                 <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
               </button>
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
-            </>
+            </div>
           )}
+          {/* User avatar - desktop only */}
           {userName && (
-            <div className="flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
                 <span className="text-sm font-medium text-white">
                   {userName.charAt(0).toUpperCase()}
@@ -538,6 +558,138 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
               </span>
             </div>
           )}
+          {/* Mobile overflow menu */}
+          <div className="flex lg:hidden relative" ref={overflowMenuRef}>
+            <button
+              onClick={() => setShowOverflowMenu(!showOverflowMenu)}
+              className="p-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
+              title="More options"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
+              </svg>
+            </button>
+            {showOverflowMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 space-y-3">
+                {/* Map name */}
+                <div>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Map Name</label>
+                  <input
+                    type="text"
+                    value={mapName}
+                    onChange={handleNameChange}
+                    placeholder="Map name"
+                    disabled={!canEditMap()}
+                    className="w-full px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+                  />
+                </div>
+                {/* Role badge - with DM transfer on mobile */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Role:</span>
+                  {isDungeonMaster() && transferOptions.length > 0 ? (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowDmDropdown(!showDmDropdown)}
+                        className="text-xs px-2 py-1 rounded bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800 cursor-pointer flex items-center gap-1"
+                      >
+                        DM
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {showDmDropdown && (
+                        <div className="absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-50 min-w-[160px]">
+                          <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                            Transfer DM to:
+                          </div>
+                          {transferOptions.map((member) => (
+                            <button
+                              key={member.id}
+                              onClick={() => handleTransferDm(member.id)}
+                              disabled={isTransferring}
+                              className="w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 cursor-pointer"
+                            >
+                              {member.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      isDungeonMaster()
+                        ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
+                        : "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+                    }`}>
+                      {isDungeonMaster() ? "DM" : "Player"}
+                    </span>
+                  )}
+                </div>
+                {/* Grid settings - DM only */}
+                {map && canEditMap() && (
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 block">Grid Size</label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">W</span>
+                      <input
+                        type="number"
+                        value={width}
+                        onChange={(e) => setWidth(e.target.value === "" ? "" : parseInt(e.target.value))}
+                        min={5}
+                        max={100}
+                        className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      <span className="text-gray-400 dark:text-gray-500">&times;</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">H</span>
+                      <input
+                        type="number"
+                        value={height}
+                        onChange={(e) => setHeight(e.target.value === "" ? "" : parseInt(e.target.value))}
+                        min={5}
+                        max={100}
+                        className="w-14 px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      />
+                      {hasChanges && (
+                        <button
+                          onClick={handleApply}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                        >
+                          Apply
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {/* Local play toggle - DM only */}
+                {isDungeonMaster() && (
+                  <button
+                    onClick={togglePlayingLocally}
+                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md border cursor-pointer transition-colors ${
+                      isPlayingLocally
+                        ? "bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-300"
+                        : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    <span>{isPlayingLocally ? "🎲" : "👁"}</span>
+                    <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
+                  </button>
+                )}
+                {/* User info */}
+                {userName && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center">
+                      <span className="text-xs font-medium text-white">
+                        {userName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {userName}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

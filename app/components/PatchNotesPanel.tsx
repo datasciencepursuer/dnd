@@ -14,8 +14,11 @@ export function PatchNotesPanel() {
   return (
     <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg mb-6">
       {/* Collapsed bar */}
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(!expanded); } }}
         className="w-full flex items-center gap-3 p-4 cursor-pointer text-left"
       >
         <svg
@@ -66,7 +69,7 @@ export function PatchNotesPanel() {
             clipRule="evenodd"
           />
         </svg>
-      </button>
+      </div>
 
       {/* Expanded content */}
       {expanded && (

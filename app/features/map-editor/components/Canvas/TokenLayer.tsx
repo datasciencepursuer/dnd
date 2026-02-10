@@ -635,6 +635,9 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     };
 
     const handleMouseUp = () => {
+      // Clear touch-triggered hover
+      onHoverEndPropRef.current();
+
       if (!isDraggingRef.current) return;
 
       const token = draggingTokenRef.current;
@@ -689,6 +692,10 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       if (!canMoveTokenRef.current(token.ownerId)) {
         // Show locked indicator while mouse is down
         setLockedMouseDownId(token.id);
+        // Touch: also reveal token info (name, HP, AC) like mouse hover does
+        if (e.evt?.type === "touchstart" && nonFoggedTokenIdsRef.current.has(tokenId)) {
+          onHoverStartPropRef.current(tokenId);
+        }
         e.cancelBubble = true;
         return;
       }
@@ -698,6 +705,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       // Prevent default drag behavior
       if (e.evt) {
         e.evt.preventDefault();
+      }
+
+      // Touch: trigger hover to reveal token info (name, HP, AC)
+      if (e.evt?.type === "touchstart" && nonFoggedTokenIdsRef.current.has(tokenId)) {
+        onHoverStartPropRef.current(tokenId);
       }
 
       const cs = cellSizeRef.current;

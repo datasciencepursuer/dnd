@@ -5,8 +5,9 @@ import { DiceHistoryBar } from "./DiceHistoryBar";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
 import { InitiativeSetupModal } from "./InitiativeSetupModal";
+import { MobileSidebarRail } from "./Mobile";
 import { useMapStore, useEditorStore } from "../store";
-import { useMapSync } from "../hooks";
+import { useMapSync, useIsMobile } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, RollResult } from "../types";
@@ -41,6 +42,7 @@ export function MapEditor({
   groupMembers = [],
   groupId = null,
 }: MapEditorProps) {
+  const isMobile = useIsMobile();
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const updateToken = useMapStore((s) => s.updateToken);
@@ -666,25 +668,49 @@ export function MapEditor({
   return (
     <div className="flex flex-col h-full">
       <Toolbar userName={userName} userId={userId} mapId={mapId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          mapId={mapId}
-          onEditToken={handleEditToken}
-          onTokenDelete={handleTokenDelete}
-          onTokenCreate={handleTokenCreate}
-          onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
-          onSelectAndCenter={handleSelectAndCenter}
-          onCombatRequest={broadcastCombatRequest}
-          onStartCombat={handleStartCombat}
-          onEndCombat={handleEndCombat}
-          isInCombat={isInCombat}
-          initiativeOrder={initiativeOrder}
-          pendingCombatRequest={combatRequest}
-          currentUserName={userName}
-          currentTurnIndex={currentTurnIndex}
-          onNextTurn={handleNextTurn}
-          onPrevTurn={handlePrevTurn}
-        />
+      <div className="flex flex-1 overflow-hidden relative">
+        {isMobile ? (
+          <MobileSidebarRail
+            mapId={mapId}
+            onEditToken={handleEditToken}
+            onTokenDelete={handleTokenDelete}
+            onTokenCreate={handleTokenCreate}
+            onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
+            onSelectAndCenter={handleSelectAndCenter}
+            onCombatRequest={broadcastCombatRequest}
+            onStartCombat={handleStartCombat}
+            onEndCombat={handleEndCombat}
+            isInCombat={isInCombat}
+            initiativeOrder={initiativeOrder}
+            pendingCombatRequest={combatRequest}
+            currentUserName={userName}
+            currentTurnIndex={currentTurnIndex}
+            onNextTurn={handleNextTurn}
+            onPrevTurn={handlePrevTurn}
+            onDiceRoll={handleDiceRoll}
+            userName={userName}
+            userId={userId}
+          />
+        ) : (
+          <Sidebar
+            mapId={mapId}
+            onEditToken={handleEditToken}
+            onTokenDelete={handleTokenDelete}
+            onTokenCreate={handleTokenCreate}
+            onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
+            onSelectAndCenter={handleSelectAndCenter}
+            onCombatRequest={broadcastCombatRequest}
+            onStartCombat={handleStartCombat}
+            onEndCombat={handleEndCombat}
+            isInCombat={isInCombat}
+            initiativeOrder={initiativeOrder}
+            pendingCombatRequest={combatRequest}
+            currentUserName={userName}
+            currentTurnIndex={currentTurnIndex}
+            onNextTurn={handleNextTurn}
+            onPrevTurn={handlePrevTurn}
+          />
+        )}
         <Suspense
           fallback={
             <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-800">
@@ -705,7 +731,9 @@ export function MapEditor({
             activePings={activePings}
           />
         </Suspense>
-        <DiceHistoryBar onRoll={handleDiceRoll} userName={userName} userId={userId} />
+        {!isMobile && (
+          <DiceHistoryBar onRoll={handleDiceRoll} userName={userName} userId={userId} />
+        )}
       </div>
 
       {editingToken && (

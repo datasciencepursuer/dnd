@@ -943,25 +943,7 @@ export const useMapStore = create<MapState>()(
     {
       // Only track fog, drawing, and token operations in undo history
       partialize: (state) => ({
-        map: state.map ? {
-          ...state.map,
-          // Include fog, drawing, and token data in undo history
-          fogOfWar: state.map.fogOfWar,
-          freehandPaths: state.map.freehandPaths,
-          tokens: state.map.tokens,
-          // Preserve other fields but don't track them in undo
-          id: state.map.id,
-          name: state.map.name,
-          createdAt: state.map.createdAt,
-          updatedAt: state.map.updatedAt,
-          grid: state.map.grid,
-          background: state.map.background,
-          viewport: state.map.viewport,
-          rollHistory: state.map.rollHistory,
-          characterSheets: state.map.characterSheets,
-          monsterGroups: state.map.monsterGroups,
-          combat: state.map.combat,
-        } : null,
+        map: state.map ? { ...state.map } : null,
         // Don't track dirty token state in undo
         dirtyTokens: state.dirtyTokens,
         dirtyTimestamps: state.dirtyTimestamps,
