@@ -29,4 +29,6 @@ export default [
   route("api/characters", "routes/api.characters.tsx"),
   route("api/characters/:characterId", "routes/api.characters.$characterId.tsx"),
   route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
+  route("api/groups/:groupId/meetups", "routes/api.groups.$groupId.meetups.tsx"),
+  route("api/groups/:groupId/meetups/:meetupId", "routes/api.groups.$groupId.meetups.$meetupId.tsx"),
 ] satisfies RouteConfig;

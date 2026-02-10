@@ -1,0 +1,1 @@
+ALTER TABLE "meetup_proposals" ADD COLUMN "proposed_end_date" timestamp NOT NULL;

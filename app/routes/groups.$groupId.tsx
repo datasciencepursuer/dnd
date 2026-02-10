@@ -1,5 +1,5 @@
 import type { Route } from "./+types/groups.$groupId";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useLoaderData, useNavigate } from "react-router";
 import type { GroupRole } from "~/types/group";
 
@@ -33,6 +33,24 @@ interface GroupData {
   memberCount: number;
   mapCount: number;
   pendingInvitations: number;
+}
+
+interface MeetupRsvp {
+  userId: string;
+  status: "available" | "unavailable";
+  userName: string;
+  updatedAt: string;
+}
+
+interface MeetupProposal {
+  id: string;
+  proposedDate: string;
+  proposedEndDate: string;
+  note: string | null;
+  createdAt: string;
+  proposedBy: string;
+  proposerName: string;
+  rsvps: MeetupRsvp[];
 }
 
 interface LoaderData {
@@ -140,6 +158,19 @@ export default function GroupDetail() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<{ email: string; url: string } | null>(null);
+
+  // Meetup state
+  const [proposals, setProposals] = useState<MeetupProposal[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showProposeModal, setShowProposeModal] = useState(false);
+  const [proposeDate, setProposeDate] = useState("");
+  const [proposeStartTime, setProposeStartTime] = useState("");
+  const [proposeEndTime, setProposeEndTime] = useState("");
+  const [proposeNote, setProposeNote] = useState("");
+  const [meetupLoading, setMeetupLoading] = useState(true);
+  const [meetupError, setMeetupError] = useState<string | null>(null);
+  const [meetupSubmitting, setMeetupSubmitting] = useState(false);
+  const [deleteMeetupId, setDeleteMeetupId] = useState<string | null>(null);
 
   const handleEditGroup = async () => {
     if (!editName.trim()) return;
@@ -286,6 +317,100 @@ export default function GroupDetail() {
     }
   };
 
+  // Meetup polling and handlers
+  const fetchMeetups = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/groups/${group.id}/meetups`);
+      if (res.ok) {
+        const data = await res.json();
+        setProposals(data.proposals);
+        setCurrentUserId(data.currentUserId);
+      }
+    } catch {
+      // Silently fail on polling errors
+    } finally {
+      setMeetupLoading(false);
+    }
+  }, [group.id]);
+
+  useEffect(() => {
+    fetchMeetups();
+    const interval = setInterval(fetchMeetups, 10_000);
+    return () => clearInterval(interval);
+  }, [fetchMeetups]);
+
+  const handlePropose = async () => {
+    if (!proposeDate || !proposeStartTime || !proposeEndTime) return;
+
+    setMeetupSubmitting(true);
+    setMeetupError(null);
+
+    try {
+      const res = await fetch(`/api/groups/${group.id}/meetups`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposedDate: new Date(`${proposeDate}T${proposeStartTime}`).toISOString(),
+          proposedEndDate: new Date(`${proposeDate}T${proposeEndTime}`).toISOString(),
+          note: proposeNote.trim() || null,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        setShowProposeModal(false);
+        setProposeDate("");
+        setProposeStartTime("");
+        setProposeEndTime("");
+        setProposeNote("");
+        fetchMeetups();
+      } else {
+        setMeetupError(result.error || "Failed to create proposal");
+      }
+    } catch {
+      setMeetupError("Failed to create proposal");
+    } finally {
+      setMeetupSubmitting(false);
+    }
+  };
+
+  const handleRsvp = async (meetupId: string, status: "available" | "unavailable") => {
+    try {
+      const res = await fetch(`/api/groups/${group.id}/meetups/${meetupId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+
+      if (res.ok) {
+        fetchMeetups();
+      }
+    } catch {
+      // Silently fail
+    }
+  };
+
+  const handleDeleteProposal = async () => {
+    if (!deleteMeetupId) return;
+
+    setMeetupSubmitting(true);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/meetups/${deleteMeetupId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setDeleteMeetupId(null);
+        fetchMeetups();
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setMeetupSubmitting(false);
+    }
+  };
+
   const getRoleBadge = (role: GroupRole) => {
     const colors = {
       owner: "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300",
@@ -405,6 +530,138 @@ export default function GroupDetail() {
                 )}
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* Upcoming Sessions Section */}
+        <section className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h2 className="font-semibold text-gray-900 dark:text-white">Upcoming Sessions</h2>
+            <button
+              onClick={() => {
+                setShowProposeModal(true);
+                setMeetupError(null);
+              }}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 cursor-pointer"
+            >
+              + Propose a Time
+            </button>
+          </div>
+          <div className="p-4">
+            {meetupLoading ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">Loading...</p>
+            ) : proposals.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400 text-sm">
+                No upcoming sessions proposed. Be the first to suggest a time!
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {proposals.map((proposal) => {
+                  const date = new Date(proposal.proposedDate);
+                  const endDate = new Date(proposal.proposedEndDate);
+                  const myRsvp = proposal.rsvps.find((r) => r.userId === currentUserId);
+                  const availableCount = proposal.rsvps.filter((r) => r.status === "available").length;
+                  const unavailableCount = proposal.rsvps.filter((r) => r.status === "unavailable").length;
+                  const totalMembers = members.length;
+                  const noResponseCount = totalMembers - availableCount - unavailableCount;
+                  const canDeleteProposal = proposal.proposedBy === currentUserId || canEdit;
+
+                  return (
+                    <div
+                      key={proposal.id}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {date.toLocaleDateString(undefined, {
+                              weekday: "long",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {date.toLocaleTimeString(undefined, {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                            {" – "}
+                            {endDate.toLocaleTimeString(undefined, {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                            {" "}
+                            <span className="text-gray-400 dark:text-gray-500">
+                              proposed by {proposal.proposerName}
+                            </span>
+                          </div>
+                          {proposal.note && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 italic mt-1">
+                              {proposal.note}
+                            </p>
+                          )}
+                        </div>
+                        {canDeleteProposal && (
+                          <button
+                            onClick={() => setDeleteMeetupId(proposal.id)}
+                            className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {availableCount} available / {unavailableCount} unavailable / {noResponseCount} no response
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <button
+                          onClick={() => handleRsvp(proposal.id, "available")}
+                          className={`px-3 py-1.5 text-sm rounded cursor-pointer ${
+                            myRsvp?.status === "available"
+                              ? "bg-green-600 text-white"
+                              : "border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          }`}
+                        >
+                          Available
+                        </button>
+                        <button
+                          onClick={() => handleRsvp(proposal.id, "unavailable")}
+                          className={`px-3 py-1.5 text-sm rounded cursor-pointer ${
+                            myRsvp?.status === "unavailable"
+                              ? "bg-red-600 text-white"
+                              : "border border-red-600 text-red-600 dark:text-red-400 dark:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          }`}
+                        >
+                          Unavailable
+                        </button>
+                      </div>
+
+                      {proposal.rsvps.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {proposal.rsvps.map((rsvp) => (
+                            <span
+                              key={rsvp.userId}
+                              className={`text-xs px-2 py-1 rounded ${
+                                rsvp.status === "available"
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                  : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                              }`}
+                            >
+                              {rsvp.userName}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 
@@ -682,6 +939,172 @@ export default function GroupDetail() {
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? "Deleting..." : "Delete Group"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Propose Session Modal */}
+        {showProposeModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Propose a Session
+              </h2>
+
+              {meetupError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-red-700 dark:text-red-300 text-sm">
+                  {meetupError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={proposeDate}
+                    onChange={(e) => setProposeDate(e.target.value)}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Start Time
+                    </label>
+                    <select
+                      value={proposeStartTime}
+                      onChange={(e) => setProposeStartTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Start</option>
+                      {Array.from({ length: 24 }, (_, h) => [
+                        `${String(h).padStart(2, "0")}:00`,
+                        `${String(h).padStart(2, "0")}:30`,
+                      ])
+                        .flat()
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {new Date(`2000-01-01T${t}`).toLocaleTimeString(undefined, {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      End Time
+                    </label>
+                    <select
+                      value={proposeEndTime}
+                      onChange={(e) => setProposeEndTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">End</option>
+                      {Array.from({ length: 24 }, (_, h) => [
+                        `${String(h).padStart(2, "0")}:00`,
+                        `${String(h).padStart(2, "0")}:30`,
+                      ])
+                        .flat()
+                        .filter((t) => !proposeStartTime || t > proposeStartTime)
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {new Date(`2000-01-01T${t}`).toLocaleTimeString(undefined, {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Note (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={proposeNote}
+                    onChange={(e) => setProposeNote(e.target.value)}
+                    maxLength={200}
+                    placeholder="e.g., Session 5 - The Dragon's Lair"
+                    className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
+                    {proposeNote.length}/200
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowProposeModal(false);
+                    setProposeDate("");
+                    setProposeStartTime("");
+                    setProposeEndTime("");
+                    setProposeNote("");
+                    setMeetupError(null);
+                  }}
+                  disabled={meetupSubmitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePropose}
+                  disabled={meetupSubmitting || !proposeDate || !proposeStartTime || !proposeEndTime}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50"
+                >
+                  {meetupSubmitting ? "Proposing..." : "Propose"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Session Proposal Modal */}
+        {deleteMeetupId && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900 flex items-center justify-center flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-600 dark:text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Delete Proposal
+                </h2>
+              </div>
+
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Are you sure you want to delete this session proposal? All RSVPs will be removed.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteMeetupId(null)}
+                  disabled={meetupSubmitting}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteProposal}
+                  disabled={meetupSubmitting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                >
+                  {meetupSubmitting ? "Deleting..." : "Delete"}
                 </button>
               </div>
             </div>

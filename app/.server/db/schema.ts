@@ -18,6 +18,9 @@ export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
 // Upload type enum
 export const uploadTypeEnum = pgEnum("upload_type", ["token", "map"]);
 
+// RSVP status enum
+export const rsvpStatusEnum = pgEnum("rsvp_status", ["available", "unavailable"]);
+
 // better-auth user table
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -196,6 +199,48 @@ export const DEFAULT_PERMISSIONS: Record<MapRole, PlayerPermissions> = {
   },
 };
 
+// Meetup proposals table
+export const meetupProposals = pgTable(
+  "meetup_proposals",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    proposedBy: text("proposed_by")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    proposedDate: timestamp("proposed_date").notNull(),
+    proposedEndDate: timestamp("proposed_end_date").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    groupIdIdx: index("meetup_proposals_group_id_idx").on(table.groupId),
+    groupDateIdx: index("meetup_proposals_group_date_idx").on(table.groupId, table.proposedDate),
+  })
+);
+
+// Meetup RSVPs table
+export const meetupRsvps = pgTable(
+  "meetup_rsvps",
+  {
+    id: text("id").primaryKey(),
+    proposalId: text("proposal_id")
+      .notNull()
+      .references(() => meetupProposals.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    status: rsvpStatusEnum("status").notNull(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueProposalUser: unique().on(table.proposalId, table.userId),
+    proposalIdIdx: index("meetup_rsvps_proposal_id_idx").on(table.proposalId),
+  })
+);
+
 // Drizzle relations for easier querying
 export const userRelations = relations(user, ({ many }) => ({
   maps: many(maps),
@@ -204,6 +249,8 @@ export const userRelations = relations(user, ({ many }) => ({
   sentGroupInvitations: many(groupInvitations),
   uploads: many(uploads),
   characters: many(characters),
+  meetupProposals: many(meetupProposals),
+  meetupRsvps: many(meetupRsvps),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -214,6 +261,7 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   members: many(groupMembers),
   invitations: many(groupInvitations),
   maps: many(maps),
+  meetupProposals: many(meetupProposals),
 }));
 
 export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
@@ -246,6 +294,29 @@ export const mapsRelations = relations(maps, ({ one }) => ({
   group: one(groups, {
     fields: [maps.groupId],
     references: [groups.id],
+  }),
+}));
+
+export const meetupProposalsRelations = relations(meetupProposals, ({ one, many }) => ({
+  group: one(groups, {
+    fields: [meetupProposals.groupId],
+    references: [groups.id],
+  }),
+  proposer: one(user, {
+    fields: [meetupProposals.proposedBy],
+    references: [user.id],
+  }),
+  rsvps: many(meetupRsvps),
+}));
+
+export const meetupRsvpsRelations = relations(meetupRsvps, ({ one }) => ({
+  proposal: one(meetupProposals, {
+    fields: [meetupRsvps.proposalId],
+    references: [meetupProposals.id],
+  }),
+  user: one(user, {
+    fields: [meetupRsvps.userId],
+    references: [user.id],
   }),
 }));
 
@@ -334,3 +405,7 @@ export type NewUpload = typeof uploads.$inferInsert;
 export type UploadType = "token" | "map";
 export type Character = typeof characters.$inferSelect;
 export type NewCharacter = typeof characters.$inferInsert;
+export type MeetupProposal = typeof meetupProposals.$inferSelect;
+export type NewMeetupProposal = typeof meetupProposals.$inferInsert;
+export type MeetupRsvp = typeof meetupRsvps.$inferSelect;
+export type NewMeetupRsvp = typeof meetupRsvps.$inferInsert;
