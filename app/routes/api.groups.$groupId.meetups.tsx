@@ -22,6 +22,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       proposedDate: meetupProposals.proposedDate,
       proposedEndDate: meetupProposals.proposedEndDate,
       note: meetupProposals.note,
+      sessionType: meetupProposals.sessionType,
       createdAt: meetupProposals.createdAt,
       proposedBy: meetupProposals.proposedBy,
       proposerName: user.name,
@@ -74,6 +75,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       proposedDate: p.proposedDate.toISOString(),
       proposedEndDate: p.proposedEndDate.toISOString(),
       note: p.note,
+      sessionType: p.sessionType,
       createdAt: p.createdAt.toISOString(),
       proposedBy: p.proposedBy,
       proposerName: p.proposerName,
@@ -103,7 +105,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   await requireGroupPermission(groupId, userId, "view");
 
   const body = await request.json();
-  const { proposedDate, proposedEndDate, note } = body;
+  const { proposedDate, proposedEndDate, note, sessionType } = body;
 
   if (!proposedDate || !proposedEndDate) {
     return Response.json({ error: "Start and end times are required" }, { status: 400 });
@@ -154,6 +156,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     proposedDate: startDate,
     proposedEndDate: endDate,
     note: note?.trim() || null,
+    sessionType: sessionType === "in-person" ? "in-person" : "virtual",
   });
 
   return Response.json({ id, success: true });

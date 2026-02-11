@@ -1,0 +1,1 @@
+ALTER TABLE "meetup_proposals" ADD COLUMN "session_type" text DEFAULT 'virtual' NOT NULL;

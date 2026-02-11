@@ -24,6 +24,7 @@ export const PATCH_NOTES: PatchNote[] = [
       "Propose upcoming session times in your group with optional notes — up to five active proposals",
       "Group members can RSVP as available or unavailable for each proposed session",
       "Session proposals show a summary of who's available, unavailable, or hasn't responded yet",
+      "Session proposals can be flagged as Virtual or In Person with a segmented toggle",
       "Proposers and group admins can delete session proposals",
     ],
   },

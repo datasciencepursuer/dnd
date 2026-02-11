@@ -71,6 +71,13 @@
       "when": 1770695735577,
       "tag": "0009_blue_thor_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1770829239433,
+      "tag": "0010_chunky_masked_marvel",
+      "breakpoints": true
     }
   ]
 }

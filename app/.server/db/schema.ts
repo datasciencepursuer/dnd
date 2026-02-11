@@ -213,6 +213,7 @@ export const meetupProposals = pgTable(
     proposedDate: timestamp("proposed_date").notNull(),
     proposedEndDate: timestamp("proposed_end_date").notNull(),
     note: text("note"),
+    sessionType: text("session_type").notNull().default("virtual"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
