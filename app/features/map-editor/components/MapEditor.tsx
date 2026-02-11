@@ -1,7 +1,7 @@
 import { useEffect, lazy, Suspense, useState, useCallback, useRef, useMemo } from "react";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
-import { DiceHistoryBar } from "./DiceHistoryBar";
+import { ChatPanel } from "./ChatPanel";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
 import { InitiativeSetupModal } from "./InitiativeSetupModal";
@@ -10,7 +10,7 @@ import { useMapStore, useEditorStore } from "../store";
 import { useMapSync, useIsMobile } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
-import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, RollResult } from "../types";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -31,6 +31,7 @@ interface MapEditorProps {
   userName?: string | null;
   groupMembers?: GroupMemberInfo[];
   groupId?: string | null;
+  mapOwnerId?: string | null;
 }
 
 export function MapEditor({
@@ -41,6 +42,7 @@ export function MapEditor({
   userName = null,
   groupMembers = [],
   groupId = null,
+  mapOwnerId = null,
 }: MapEditorProps) {
   const isMobile = useIsMobile();
   const map = useMapStore((s) => s.map);
@@ -80,7 +82,6 @@ export function MapEditor({
     broadcastFogPaintRange,
     broadcastFogEraseRange,
     broadcastPing,
-    broadcastDiceRoll,
     broadcastTokenStats,
     broadcastDrawingAdd,
     broadcastDrawingRemove,
@@ -88,6 +89,7 @@ export function MapEditor({
     broadcastCombatRequest,
     broadcastCombatResponse,
     broadcastCombatEnd,
+    broadcastChatMessage,
     clearCombatRequest,
     activePings,
     combatRequest,
@@ -146,15 +148,6 @@ export function MapEditor({
       syncDebounced(500);
     },
     [map?.tokens, broadcastTokenUpdate, syncDebounced]
-  );
-
-  // Combined handler for dice roll: broadcast via WebSocket + persist to DB
-  const handleDiceRoll = useCallback(
-    (roll: RollResult) => {
-      broadcastDiceRoll(roll);
-      syncNow();
-    },
-    [broadcastDiceRoll, syncNow]
   );
 
   // Combined handler for fog painting: broadcast + debounced sync
@@ -504,6 +497,18 @@ export function MapEditor({
     setEditorContext(userId, permission, customPermissions);
   }, [userId, permission, customPermissions, setEditorContext]);
 
+  // Auto-select the only movable token for players with a single unit
+  useEffect(() => {
+    if (!map?.tokens || isDungeonMaster()) return;
+    const { selectedElementIds } = useEditorStore.getState();
+    if (selectedElementIds.length > 0) return;
+
+    const movable = map.tokens.filter((t) => t.visible && canMoveToken(t.ownerId));
+    if (movable.length === 1) {
+      setSelectedElements([movable[0].id]);
+    }
+  }, [map?.tokens, isDungeonMaster, canMoveToken, setSelectedElements]);
+
   // Track which tokens we've already fetched sheets for (to avoid duplicate fetches)
   const fetchedTokenSheetsRef = useRef<Set<string>>(new Set());
 
@@ -687,9 +692,11 @@ export function MapEditor({
             currentTurnIndex={currentTurnIndex}
             onNextTurn={handleNextTurn}
             onPrevTurn={handlePrevTurn}
-            onDiceRoll={handleDiceRoll}
             userName={userName}
             userId={userId}
+            onSendChatMessage={broadcastChatMessage}
+            isDM={isDungeonMaster()}
+            mapOwnerId={mapOwnerId || userId || ""}
           />
         ) : (
           <Sidebar
@@ -732,7 +739,14 @@ export function MapEditor({
           />
         </Suspense>
         {!isMobile && (
-          <DiceHistoryBar onRoll={handleDiceRoll} userName={userName} userId={userId} />
+          <ChatPanel
+            mapId={mapId || ""}
+            userId={userId || ""}
+            userName={userName || "Anonymous"}
+            isDM={isDungeonMaster()}
+            onSendMessage={broadcastChatMessage}
+            mapOwnerId={mapOwnerId || userId || ""}
+          />
         )}
       </div>
 

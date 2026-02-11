@@ -2,6 +2,8 @@ import usePartySocket from "partysocket/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMapStore } from "../store/map-store";
 import { usePresenceStore } from "../store/presence-store";
+import { useChatStore } from "../store/chat-store";
+import type { ChatMessageData } from "../store/chat-store";
 import type { DnDMap, GridPosition, Token, Ping, InitiativeEntry, RollResult, Condition } from "../types";
 
 // Message types matching the server
@@ -152,6 +154,17 @@ interface TokenStatsMessage {
   userId: string;
 }
 
+interface ChatMessageMsg {
+  type: "chat-message";
+  chatMessage: ChatMessageData;
+  userId: string;
+}
+
+interface ChatHistoryMsg {
+  type: "chat-history";
+  messages: ChatMessageData[];
+}
+
 type ServerMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
@@ -172,7 +185,9 @@ type ServerMessage =
   | CombatResponseMessage
   | CombatEndMessage
   | DiceRollMessage
-  | TokenStatsMessage;
+  | TokenStatsMessage
+  | ChatMessageMsg
+  | ChatHistoryMsg;
 
 // PartyKit host from environment variable
 // In development: defaults to localhost
@@ -388,6 +403,16 @@ export function usePartySync({
             if (message.userId !== userId) {
               useMapStore.getState().updateCharacterSheet(message.tokenId, message.stats);
             }
+            break;
+
+          case "chat-message":
+            if (message.userId !== userId) {
+              useChatStore.getState().addMessage(message.chatMessage);
+            }
+            break;
+
+          case "chat-history":
+            useChatStore.getState().appendHistory(message.messages);
             break;
         }
       } catch (error) {
@@ -696,6 +721,20 @@ export function usePartySync({
     [isSocketReady, socket, userId]
   );
 
+  // Broadcast chat message to other clients (optimistic local add)
+  const broadcastChatMessage = useCallback(
+    (chatMessage: ChatMessageData) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "chat-message",
+        chatMessage,
+        userId,
+      }));
+      useChatStore.getState().addMessage(chatMessage);
+    },
+    [isSocketReady, socket, userId]
+  );
+
   // Clear combat request (for DM to dismiss without responding)
   const clearCombatRequest = useCallback(() => {
     setCombatRequest(null);
@@ -720,6 +759,7 @@ export function usePartySync({
     broadcastCombatRequest,
     broadcastCombatResponse,
     broadcastCombatEnd,
+    broadcastChatMessage,
     clearCombatRequest,
     activePings,
     combatRequest,

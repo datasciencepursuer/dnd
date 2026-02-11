@@ -7,6 +7,28 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.4",
+    date: "2026-02-11",
+    title: "Chat, Dice & Whispers",
+    changes: [
+      "New session chat panel — send messages, roll dice, and whisper all from one place",
+      "Roll dice inline with /r (e.g. /r 1d20+5) — results show the breakdown and total for everyone",
+      "Quick-roll dice buttons with configurable count and modifier — tap d4 through d100 without typing",
+      "Select a token before rolling to attribute the roll to that character",
+      "Whisper private messages to any online player with /w — autocomplete dropdown shows who's available",
+      "Use /dmw to whisper a text message directly to the DM without selecting a target",
+      "Secret dice rolls with /dr — only you and the DM see the result",
+      "Whisper messages appear in purple with italic text so they stand out from public chat",
+      "Whisper target stays active after sending so you can send multiple private messages in a row",
+      "Mobile chat opens as a floating overlay from the bottom — tap the chat bubble to toggle",
+      "Mobile chat overlay takes up 40% of the screen so your tokens stay visible while chatting",
+      "Mobile unit list and combat controls consolidated into a single panel — initiative order, turn controls, and token list in one place",
+      "Chat messages now batch-persist to the database every 30 seconds instead of per-message, reducing server load",
+      "Characters page now adapts to phone and tablet screens — header stacks vertically, cards stack, and padding scales down",
+      "Deleting a character now shows a styled confirmation modal instead of the browser default dialog",
+    ],
+  },
+  {
     version: "0.2.3",
     date: "2026-02-10",
     title: "Mobile Character Sheet & Session Scheduling",

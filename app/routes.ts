@@ -31,4 +31,6 @@ export default [
   route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
   route("api/groups/:groupId/meetups", "routes/api.groups.$groupId.meetups.tsx"),
   route("api/groups/:groupId/meetups/:meetupId", "routes/api.groups.$groupId.meetups.$meetupId.tsx"),
+  route("api/maps/:mapId/chat", "routes/api.maps.$mapId.chat.tsx"),
+  route("api/maps/:mapId/chat/batch", "routes/api.maps.$mapId.chat.batch.tsx"),
 ] satisfies RouteConfig;

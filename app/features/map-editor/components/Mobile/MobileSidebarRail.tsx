@@ -3,11 +3,12 @@ import { BackgroundPanel } from "../Sidebar/BackgroundPanel";
 import { TokenPanel } from "../Sidebar/TokenPanel";
 import { PresenceList } from "../Sidebar/PresenceList";
 import { CombatPanel } from "../Sidebar/CombatPanel";
-import { DiceHistoryBar } from "../DiceHistoryBar";
-import { useEditorStore } from "../../store";
-import type { Token, InitiativeEntry, RollResult } from "../../types";
+import { ChatPanel } from "../ChatPanel";
+import { useEditorStore, useChatStore } from "../../store";
+import type { Token, InitiativeEntry } from "../../types";
+import type { ChatMessageData } from "../../store/chat-store";
 
-type PanelId = "units" | "create" | "editMap" | "combat" | "players" | "dice";
+type PanelId = "units" | "create" | "editMap" | "players";
 
 interface MobileSidebarRailProps {
   mapId?: string;
@@ -26,12 +27,14 @@ interface MobileSidebarRailProps {
   currentTurnIndex?: number;
   onNextTurn?: () => void;
   onPrevTurn?: () => void;
-  // Dice props
-  onDiceRoll?: (roll: RollResult) => void;
   userName?: string | null;
   userId?: string | null;
+  onSendChatMessage?: (chatMessage: ChatMessageData) => void;
+  isDM?: boolean;
+  mapOwnerId?: string;
 }
 
+// Ordered by frequency of use: most accessed → least accessed
 const railButtons: { id: PanelId; label: string; icon: React.ReactNode; condition?: "canCreateToken" | "canEditMap" | "hasMapId" }[] = [
   {
     id: "units",
@@ -63,30 +66,12 @@ const railButtons: { id: PanelId; label: string; icon: React.ReactNode; conditio
     ),
   },
   {
-    id: "combat",
-    label: "Combat",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-        <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z" />
-      </svg>
-    ),
-  },
-  {
     id: "players",
     label: "Players",
     condition: "hasMapId",
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path d="M7 8a3 3 0 100-6 3 3 0 000 6zM14.5 9a2.5 2.5 0 100-5 2.5 2.5 0 000 5zM1.615 16.428a1.224 1.224 0 01-.569-1.175 6.002 6.002 0 0111.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 017 18a9.953 9.953 0 01-5.385-1.572zM14.5 16h-.106c.07-.297.088-.611.048-.933a7.47 7.47 0 00-1.588-3.755 4.502 4.502 0 015.874 2.636.818.818 0 01-.36.98A7.465 7.465 0 0114.5 16z" />
-      </svg>
-    ),
-  },
-  {
-    id: "dice",
-    label: "Dice",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-        <path d="M12.378 1.602a.75.75 0 00-.756 0L3 6.632l9 5.25 9-5.25-8.622-5.03zM21.75 7.93l-9 5.25v9l8.628-5.032a.75.75 0 00.372-.648V7.93zm-10.5 14.25v-9l-9-5.25v8.57a.75.75 0 00.372.648l8.628 5.033z" />
       </svg>
     ),
   },
@@ -109,17 +94,37 @@ export function MobileSidebarRail({
   currentTurnIndex = 0,
   onNextTurn,
   onPrevTurn,
-  onDiceRoll,
   userName,
   userId,
+  onSendChatMessage,
+  isDM = false,
+  mapOwnerId,
 }: MobileSidebarRailProps) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [chatOpen, setChatOverlay] = useState(false);
   const canEditMap = useEditorStore((s) => s.canEditMap);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const unreadCount = useChatStore((s) => s.unreadCount);
+  const setChatOpen = useChatStore((s) => s.setOpen);
+
+  const dismissAll = () => {
+    setActivePanel(null);
+    setChatOverlay(false);
+    setChatOpen(false);
+  };
 
   const togglePanel = (id: PanelId) => {
+    setChatOverlay(false);
+    setChatOpen(false);
     setActivePanel(activePanel === id ? null : id);
+  };
+
+  const toggleChat = () => {
+    const next = !chatOpen;
+    setChatOverlay(next);
+    setChatOpen(next);
+    if (next) setActivePanel(null);
   };
 
   const visibleButtons = railButtons.filter((btn) => {
@@ -145,15 +150,24 @@ export function MobileSidebarRail({
             title={btn.label}
           >
             {btn.icon}
-            {/* Red dot for active combat */}
-            {btn.id === "combat" && isInCombat && (
+            {/* Red dot for active combat on units button */}
+            {btn.id === "units" && isInCombat && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
             )}
           </button>
         ))}
       </div>
 
-      {/* Overlay Panel */}
+      {/* Dismiss backdrop - tap canvas area to close everything */}
+      {(activePanel || chatOpen) && (
+        <div
+          className="fixed inset-0 z-10"
+          onClick={dismissAll}
+          onTouchStart={dismissAll}
+        />
+      )}
+
+      {/* Rail Overlay Panel */}
       {activePanel && (
         <div className="absolute left-12 top-0 bottom-0 w-[280px] z-20 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 shadow-lg flex flex-col transition-all duration-200">
           {/* Panel Header */}
@@ -172,37 +186,10 @@ export function MobileSidebarRail({
           </div>
 
           {/* Panel Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-hidden">
             {activePanel === "units" && (
-              <TokenPanel
-                onEditToken={onEditToken}
-                mode="list"
-                mapId={mapId}
-                onTokenDelete={onTokenDelete}
-                onTokenCreate={onTokenCreate}
-                onSelectAndCenter={onSelectAndCenter}
-                isInCombat={isInCombat}
-                initiativeOrder={initiativeOrder}
-                currentTurnIndex={currentTurnIndex}
-                onNextTurn={onNextTurn}
-                onPrevTurn={onPrevTurn}
-              />
-            )}
-            {activePanel === "create" && canCreateToken() && (
-              <TokenPanel
-                onEditToken={onEditToken}
-                mode="create"
-                mapId={mapId}
-                onTokenDelete={onTokenDelete}
-                onTokenCreate={onTokenCreate}
-                onSelectAndCenter={onSelectAndCenter}
-              />
-            )}
-            {activePanel === "editMap" && canEditMap() && (
-              <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />
-            )}
-            {activePanel === "combat" && (
-              <>
+              <div className="h-full overflow-y-auto">
+                {/* Combat controls inline at top */}
                 <CombatPanel
                   isInCombat={isInCombat}
                   onCombatRequest={onCombatRequest}
@@ -212,29 +199,89 @@ export function MobileSidebarRail({
                   pendingRequest={pendingCombatRequest}
                   currentUserName={currentUserName}
                 />
-                {isInCombat && initiativeOrder && (
-                  <TokenPanel
-                    onEditToken={onEditToken}
-                    mode="list"
-                    mapId={mapId}
-                    onTokenDelete={onTokenDelete}
-                    onTokenCreate={onTokenCreate}
-                    onSelectAndCenter={onSelectAndCenter}
-                    isInCombat={isInCombat}
-                    initiativeOrder={initiativeOrder}
-                    currentTurnIndex={currentTurnIndex}
-                    onNextTurn={onNextTurn}
-                    onPrevTurn={onPrevTurn}
-                  />
-                )}
-              </>
+                {/* Token list (sorted by initiative when in combat) */}
+                <TokenPanel
+                  onEditToken={onEditToken}
+                  mode="list"
+                  mapId={mapId}
+                  onTokenDelete={onTokenDelete}
+                  onTokenCreate={onTokenCreate}
+                  onSelectAndCenter={onSelectAndCenter}
+                  isInCombat={isInCombat}
+                  initiativeOrder={initiativeOrder}
+                  currentTurnIndex={currentTurnIndex}
+                  onNextTurn={onNextTurn}
+                  onPrevTurn={onPrevTurn}
+                />
+              </div>
+            )}
+            {activePanel === "create" && canCreateToken() && (
+              <div className="h-full overflow-y-auto">
+                <TokenPanel
+                  onEditToken={onEditToken}
+                  mode="create"
+                  mapId={mapId}
+                  onTokenDelete={onTokenDelete}
+                  onTokenCreate={onTokenCreate}
+                  onSelectAndCenter={onSelectAndCenter}
+                />
+              </div>
+            )}
+            {activePanel === "editMap" && canEditMap() && (
+              <div className="h-full overflow-y-auto">
+                <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />
+              </div>
             )}
             {activePanel === "players" && mapId && (
-              <PresenceList mapId={mapId} />
+              <div className="h-full overflow-y-auto">
+                <PresenceList mapId={mapId} />
+              </div>
             )}
-            {activePanel === "dice" && (
-              <DiceHistoryBar onRoll={onDiceRoll} userName={userName} userId={userId} variant="panel" />
-            )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Chat Button - bottom right (hidden when chat is open) */}
+      {mapId && onSendChatMessage && !chatOpen && (
+        <button
+          onClick={toggleChat}
+          className="fixed bottom-4 right-4 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6">
+            <path fillRule="evenodd" d="M3.43 2.524A41.29 41.29 0 0110 2c2.236 0 4.43.18 6.57.524 1.437.231 2.43 1.49 2.43 2.902v5.148c0 1.413-.993 2.67-2.43 2.902a41.202 41.202 0 01-5.183.501.78.78 0 00-.528.224l-3.579 3.58A.75.75 0 016 17.25v-3.443a41.033 41.033 0 01-2.57-.33C2.993 13.244 2 11.986 2 10.574V5.426c0-1.413.993-2.67 2.43-2.902z" clipRule="evenodd" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {/* Chat Overlay - slides up from bottom */}
+      {chatOpen && mapId && onSendChatMessage && (
+        <div className="fixed inset-x-0 bottom-0 z-30 h-[40vh] bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-2xl rounded-t-2xl flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Chat</span>
+            <button
+              onClick={toggleChat}
+              className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <ChatPanel
+              mapId={mapId}
+              userId={userId || ""}
+              userName={userName || "Anonymous"}
+              isDM={isDM}
+              onSendMessage={onSendChatMessage}
+              variant="panel"
+              mapOwnerId={mapOwnerId || userId || ""}
+            />
           </div>
         </div>
       )}

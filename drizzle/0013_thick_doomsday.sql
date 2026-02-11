@@ -1,0 +1,1 @@
+ALTER TABLE "map_chat_messages" ADD COLUMN "metadata" jsonb;

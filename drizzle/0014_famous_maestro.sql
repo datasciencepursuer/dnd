@@ -1,0 +1,2 @@
+ALTER TABLE "map_chat_messages" ADD COLUMN "recipient_id" text;--> statement-breakpoint
+ALTER TABLE "map_chat_messages" ADD CONSTRAINT "map_chat_messages_recipient_id_user_id_fk" FOREIGN KEY ("recipient_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;

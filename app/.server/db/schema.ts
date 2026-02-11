@@ -252,6 +252,8 @@ export const userRelations = relations(user, ({ many }) => ({
   characters: many(characters),
   meetupProposals: many(meetupProposals),
   meetupRsvps: many(meetupRsvps),
+  chatMessages: many(mapChatMessages, { relationName: "chatMessageSender" }),
+  receivedWhispers: many(mapChatMessages, { relationName: "chatMessageRecipient" }),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -287,7 +289,7 @@ export const groupInvitationsRelations = relations(groupInvitations, ({ one }) =
   }),
 }));
 
-export const mapsRelations = relations(maps, ({ one }) => ({
+export const mapsRelations = relations(maps, ({ one, many }) => ({
   owner: one(user, {
     fields: [maps.userId],
     references: [user.id],
@@ -296,7 +298,9 @@ export const mapsRelations = relations(maps, ({ one }) => ({
     fields: [maps.groupId],
     references: [groups.id],
   }),
+  chatMessages: many(mapChatMessages),
 }));
+
 
 export const meetupProposalsRelations = relations(meetupProposals, ({ one, many }) => ({
   group: one(groups, {
@@ -385,6 +389,47 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   }),
 }));
 
+// Map chat messages table
+export const mapChatMessages = pgTable(
+  "map_chat_messages",
+  {
+    id: text("id").primaryKey(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    userName: text("user_name").notNull(),
+    message: text("message").notNull(),
+    role: text("role").notNull(), // "dm" | "player"
+    metadata: jsonb("metadata"), // dice roll data, etc.
+    recipientId: text("recipient_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    mapIdIdx: index("map_chat_messages_map_id_idx").on(table.mapId),
+    mapCreatedIdx: index("map_chat_messages_map_created_idx").on(table.mapId, table.createdAt),
+  })
+);
+
+export const mapChatMessagesRelations = relations(mapChatMessages, ({ one }) => ({
+  map: one(maps, {
+    fields: [mapChatMessages.mapId],
+    references: [maps.id],
+  }),
+  user: one(user, {
+    fields: [mapChatMessages.userId],
+    references: [user.id],
+    relationName: "chatMessageSender",
+  }),
+  recipient: one(user, {
+    fields: [mapChatMessages.recipientId],
+    references: [user.id],
+    relationName: "chatMessageRecipient",
+  }),
+}));
+
 // Type exports
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -410,3 +455,5 @@ export type MeetupProposal = typeof meetupProposals.$inferSelect;
 export type NewMeetupProposal = typeof meetupProposals.$inferInsert;
 export type MeetupRsvp = typeof meetupRsvps.$inferSelect;
 export type NewMeetupRsvp = typeof meetupRsvps.$inferInsert;
+export type MapChatMessage = typeof mapChatMessages.$inferSelect;
+export type NewMapChatMessage = typeof mapChatMessages.$inferInsert;

@@ -22,6 +22,7 @@ interface LoaderData {
   userName: string;
   groupMembers: GroupMemberInfo[];
   groupId: string | null;
+  mapOwnerId: string;
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -62,6 +63,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   return {
     ...mapData,
+    mapOwnerId: mapData.userId,
     userId: session.user.id,
     userName: session.user.name,
   };
@@ -91,6 +93,7 @@ export default function PlaygroundWithMap() {
           userName={data.userName}
           groupMembers={data.groupMembers}
           groupId={data.groupId}
+          mapOwnerId={data.mapOwnerId}
         />
       ) : null}
     </div>

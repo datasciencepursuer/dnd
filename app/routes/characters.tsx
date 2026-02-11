@@ -60,6 +60,8 @@ export default function Characters() {
   const [editingCharacter, setEditingCharacter] = useState<CharacterData | null>(null);
   const [editingSheetCharacter, setEditingSheetCharacter] = useState<CharacterData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingCharacter, setDeletingCharacter] = useState<CharacterData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -162,11 +164,12 @@ export default function Characters() {
     }
   };
 
-  const handleDelete = async (characterId: string, characterName: string) => {
-    if (!confirm(`Delete "${characterName}"? This cannot be undone.`)) return;
+  const handleDeleteConfirm = async () => {
+    if (!deletingCharacter) return;
 
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/characters/${characterId}`, {
+      const response = await fetch(`/api/characters/${deletingCharacter.id}`, {
         method: "DELETE",
       });
 
@@ -178,6 +181,9 @@ export default function Characters() {
       }
     } catch {
       alert("Failed to delete character");
+    } finally {
+      setIsDeleting(false);
+      setDeletingCharacter(null);
     }
   };
 
@@ -190,7 +196,7 @@ export default function Characters() {
     return (
       <div
         key={character.id}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex items-start gap-4"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col sm:flex-row items-start gap-3 sm:gap-4"
       >
         {/* Avatar */}
         <div className="flex-shrink-0">
@@ -198,12 +204,12 @@ export default function Characters() {
             <img
               src={character.imageUrl}
               alt={character.name}
-              className="w-16 h-16 rounded-full object-cover border-2"
+              className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border-2"
               style={{ borderColor: character.color }}
             />
           ) : (
             <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold"
+              className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl font-bold"
               style={{ backgroundColor: character.color }}
             >
               {character.name.charAt(0).toUpperCase()}
@@ -241,22 +247,22 @@ export default function Characters() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex flex-wrap gap-2 flex-shrink-0 w-full sm:w-auto">
           <button
             onClick={() => setEditingSheetCharacter(character)}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer flex-1 sm:flex-initial text-center"
           >
             {character.characterSheet ? "Character Sheet" : "Create Sheet"}
           </button>
           <button
             onClick={() => openEditModal(character)}
-            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer flex-1 sm:flex-initial text-center"
           >
             Edit
           </button>
           <button
-            onClick={() => handleDelete(character.id, character.name)}
-            className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded cursor-pointer"
+            onClick={() => setDeletingCharacter(character)}
+            className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded cursor-pointer flex-1 sm:flex-initial text-center"
           >
             Delete
           </button>
@@ -266,10 +272,10 @@ export default function Characters() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               My Characters
@@ -278,16 +284,16 @@ export default function Characters() {
               Manage characters shared across your maps
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <Link
               to="/maps"
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Back to Maps
             </Link>
             <button
               onClick={openCreateModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
             >
               + New Character
             </button>
@@ -296,7 +302,7 @@ export default function Characters() {
 
         {/* Character List */}
         {characters.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 sm:p-8 text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No characters yet. Create your first character!
             </p>
@@ -465,6 +471,36 @@ export default function Characters() {
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? "Saving..." : editingCharacter ? "Save Changes" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deletingCharacter && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                Delete Character
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                Are you sure you want to delete <span className="font-semibold text-gray-900 dark:text-white">"{deletingCharacter.name}"</span>? This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeletingCharacter(null)}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
                 </button>
               </div>
             </div>

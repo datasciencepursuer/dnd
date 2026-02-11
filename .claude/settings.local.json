@@ -36,7 +36,9 @@
       "WebFetch(domain:www.aidedd.org)",
       "WebFetch(domain:dungeonsanddragonsfan.com)",
       "WebFetch(domain:github.com)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "WebFetch(domain:docs.partykit.io)",
+      "Bash(npx partykit dev:*)"
     ]
   }
 }

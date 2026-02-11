@@ -81,6 +81,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const clearSelection = useEditorStore((s) => s.clearSelection);
   const userId = useEditorStore((s) => s.userId);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const canMoveToken = useEditorStore((s) => s.canMoveToken);
   const canPing = useEditorStore((s) => s.canPing);
   const recordPing = useEditorStore((s) => s.recordPing);
   const setCanvasDimensions = useEditorStore((s) => s.setCanvasDimensions);
@@ -662,10 +663,16 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
     // If clicking on empty canvas (Stage or Layer), clear selection
     // But keep selection when using draw tool (needs selected token for color)
+    // Also skip clearing when the player has exactly one movable token (auto-select keeps it selected)
     // In Konva, clicking empty space in a Layer targets the Layer, not the Stage
     const targetType = e.target.getType?.() || e.target.nodeType;
     if (e.target === e.target.getStage() || targetType === "Layer") {
       if (selectedTool !== "draw") {
+        // Don't deselect if the player only has one movable token (auto-select would re-select it)
+        if (!isDungeonMaster() && tokens) {
+          const movable = tokens.filter((t) => t.visible && canMoveToken(t.ownerId));
+          if (movable.length === 1) return;
+        }
         clearSelection();
       }
     }

@@ -8,7 +8,7 @@
     "dev:party": "partykit dev",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:party\"",
     "email:dev": "email dev --dir app/.server/emails",
-    "party:deploy": "partykit deploy",
+    "party:deploy": "partykit deploy --with-vars",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc"
   },
