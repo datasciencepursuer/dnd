@@ -46,11 +46,11 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
 
   return (
     <div className="flex items-baseline gap-1.5 flex-wrap">
-      <span className="text-sm text-gray-600 dark:text-gray-300">{messageText}</span>
+      <span className="text-[13px] text-gray-600 dark:text-gray-300">{messageText}</span>
       <span className="text-gray-400 dark:text-gray-500">&rarr;</span>
       <span className="text-base font-bold text-gray-900 dark:text-white">{diceRoll.total}</span>
       {showBreakdown && (
-        <span className="text-[11px] text-gray-400 dark:text-gray-500 font-mono">
+        <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
           [{diceRoll.rolls.join(", ")}]{diceRoll.modifier !== 0 ? (diceRoll.modifier > 0 ? ` + ${diceRoll.modifier}` : ` - ${Math.abs(diceRoll.modifier)}`) : ""}
         </span>
       )}
@@ -60,7 +60,7 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
           {diceRoll.tokenColor && (
             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 self-center" style={{ backgroundColor: diceRoll.tokenColor }} />
           )}
-          <span className="text-[11px] text-gray-400 dark:text-gray-500">{diceRoll.tokenName}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">{diceRoll.tokenName}</span>
         </>
       )}
     </div>
@@ -436,7 +436,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
                 {/* Inline header: name, badge, whisper label, time */}
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`text-[11px] font-semibold ${
+                    className={`text-xs font-semibold ${
                       isWhisper
                         ? "text-purple-700 dark:text-purple-400"
                         : isMsgDM
@@ -447,21 +447,21 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
                     {isSelf ? "You" : msg.userName}
                   </span>
                   {isMsgDM && (
-                    <span className="text-[9px] font-bold px-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 leading-tight">
+                    <span className="text-[10px] font-bold px-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 leading-tight">
                       DM
                     </span>
                   )}
                   {isWhisper && (
                     <>
-                      <span className="text-[9px] font-bold px-1 rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 leading-tight">
+                      <span className="text-[10px] font-bold px-1 rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 leading-tight">
                         whisper
                       </span>
-                      <span className="text-[10px] text-purple-500 dark:text-purple-400 italic">
+                      <span className="text-[11px] text-purple-500 dark:text-purple-400 italic">
                         {isSelf ? `to ${msg.recipientName}` : `from ${msg.userName}`}
                       </span>
                     </>
                   )}
-                  <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto flex-shrink-0">
+                  <span className="text-[11px] text-gray-400 dark:text-gray-500 ml-auto flex-shrink-0">
                     {formatRelativeTime(msg.createdAt)}
                   </span>
                 </div>
@@ -469,7 +469,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
                 {diceRoll ? (
                   <DiceRollMessage diceRoll={diceRoll} messageText={msg.message} />
                 ) : (
-                  <p className={`text-sm whitespace-pre-wrap break-words ${
+                  <p className={`text-[13px] whitespace-pre-wrap break-words ${
                     isWhisper
                       ? "text-purple-800 dark:text-purple-200 italic"
                       : "text-gray-800 dark:text-gray-200"
