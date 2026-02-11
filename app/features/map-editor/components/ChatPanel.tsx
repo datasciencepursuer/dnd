@@ -46,7 +46,7 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
 
   return (
     <div className="flex items-baseline gap-1.5 flex-wrap">
-      <span className="text-sm text-gray-600 dark:text-gray-300">{messageText}</span>
+      <span className="text-base text-gray-600 dark:text-gray-300">{messageText}</span>
       <span className="text-gray-400 dark:text-gray-500">&rarr;</span>
       <span className="text-base font-bold text-gray-900 dark:text-white">{diceRoll.total}</span>
       {showBreakdown && (
@@ -474,7 +474,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
                 {diceRoll ? (
                   <DiceRollMessage diceRoll={diceRoll} messageText={msg.message} />
                 ) : (
-                  <p className={`text-sm whitespace-pre-wrap break-words ${
+                  <p className={`text-base whitespace-pre-wrap break-words ${
                     isWhisper
                       ? "text-purple-800 dark:text-purple-200 italic"
                       : "text-gray-800 dark:text-gray-200"
