@@ -1,8 +1,9 @@
-import { eq, asc, or, isNull, and } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { db } from "~/.server/db";
-import { mapChatMessages } from "~/.server/db/schema";
+import { mapChatChunks } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
+import type { ChatMessageData } from "~/features/map-editor/store/chat-store";
 
 interface RouteArgs {
   request: Request;
@@ -15,21 +16,28 @@ export async function loader({ request, params }: RouteArgs) {
 
   await requireMapPermission(mapId, session.user.id, "view");
 
-  const messages = await db
+  const chunks = await db
     .select()
-    .from(mapChatMessages)
-    .where(
-      and(
-        eq(mapChatMessages.mapId, mapId),
-        or(
-          isNull(mapChatMessages.recipientId),
-          eq(mapChatMessages.userId, session.user.id),
-          eq(mapChatMessages.recipientId, session.user.id),
-        )
-      )
-    )
-    .orderBy(asc(mapChatMessages.createdAt))
-    .limit(200);
+    .from(mapChatChunks)
+    .where(eq(mapChatChunks.mapId, mapId))
+    .orderBy(asc(mapChatChunks.createdAt));
+
+  // Flatten all chunks into a single message array
+  const allMessages = chunks.flatMap(
+    (chunk) => chunk.messages as ChatMessageData[]
+  );
+
+  // Filter whispers in JS (same logic as before)
+  const userId = session.user.id;
+  const visible = allMessages.filter(
+    (msg) =>
+      !msg.recipientId ||
+      msg.userId === userId ||
+      msg.recipientId === userId
+  );
+
+  // Return last 200
+  const messages = visible.slice(-200);
 
   return Response.json({ messages });
 }
@@ -45,11 +53,12 @@ export async function action({ request, params }: RouteArgs) {
   const access = await requireMapPermission(mapId, session.user.id, "view");
 
   const body = await request.json();
-  const { id, message, metadata, recipientId } = body as {
+  const { id, message, metadata, recipientId, recipientName } = body as {
     id: string;
     message: string;
     metadata?: unknown;
     recipientId?: string;
+    recipientName?: string;
   };
 
   if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -61,21 +70,28 @@ export async function action({ request, params }: RouteArgs) {
   }
 
   const role = access.isDungeonMaster ? "dm" : "player";
+  const now = new Date();
 
-  const [saved] = await db
-    .insert(mapChatMessages)
-    .values({
-      id: id || crypto.randomUUID(),
-      mapId,
-      userId: session.user.id,
-      userName: session.user.name,
-      message: message.trim(),
-      role,
-      metadata: metadata ?? null,
-      recipientId: recipientId || null,
-    })
-    .onConflictDoNothing()
-    .returning();
+  const messageData: ChatMessageData = {
+    id: id || crypto.randomUUID(),
+    mapId,
+    userId: session.user.id,
+    userName: session.user.name,
+    message: message.trim(),
+    role,
+    createdAt: now.toISOString(),
+    metadata: metadata as ChatMessageData["metadata"] ?? null,
+    recipientId: recipientId || null,
+    recipientName: recipientName || null,
+  };
 
-  return Response.json({ message: saved });
+  const chunkId = crypto.randomUUID();
+  await db.insert(mapChatChunks).values({
+    id: chunkId,
+    mapId,
+    messages: [messageData],
+    createdAt: now,
+  });
+
+  return Response.json({ message: messageData });
 }

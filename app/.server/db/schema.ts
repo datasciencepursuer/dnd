@@ -299,6 +299,7 @@ export const mapsRelations = relations(maps, ({ one, many }) => ({
     references: [groups.id],
   }),
   chatMessages: many(mapChatMessages),
+  chatChunks: many(mapChatChunks),
 }));
 
 
@@ -389,7 +390,23 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   }),
 }));
 
-// Map chat messages table
+// Map chat chunks table (JSONB array of messages per chunk)
+export const mapChatChunks = pgTable(
+  "map_chat_chunks",
+  {
+    id: text("id").primaryKey(),
+    mapId: text("map_id")
+      .notNull()
+      .references(() => maps.id, { onDelete: "cascade" }),
+    messages: jsonb("messages").notNull(), // ChatMessageData[]
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    mapCreatedIdx: index("map_chat_chunks_map_created_idx").on(table.mapId, table.createdAt),
+  })
+);
+
+// Map chat messages table (legacy - kept for existing data)
 export const mapChatMessages = pgTable(
   "map_chat_messages",
   {
@@ -430,6 +447,13 @@ export const mapChatMessagesRelations = relations(mapChatMessages, ({ one }) => 
   }),
 }));
 
+export const mapChatChunksRelations = relations(mapChatChunks, ({ one }) => ({
+  map: one(maps, {
+    fields: [mapChatChunks.mapId],
+    references: [maps.id],
+  }),
+}));
+
 // Type exports
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
@@ -457,3 +481,5 @@ export type MeetupRsvp = typeof meetupRsvps.$inferSelect;
 export type NewMeetupRsvp = typeof meetupRsvps.$inferInsert;
 export type MapChatMessage = typeof mapChatMessages.$inferSelect;
 export type NewMapChatMessage = typeof mapChatMessages.$inferInsert;
+export type MapChatChunk = typeof mapChatChunks.$inferSelect;
+export type NewMapChatChunk = typeof mapChatChunks.$inferInsert;

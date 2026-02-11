@@ -1,5 +1,5 @@
 import { db } from "~/.server/db";
-import { mapChatMessages } from "~/.server/db/schema";
+import { mapChatChunks } from "~/.server/db/schema";
 
 interface RouteArgs {
   request: Request;
@@ -9,6 +9,7 @@ interface RouteArgs {
 /**
  * Internal batch endpoint for PartyKit to flush buffered chat messages.
  * Authenticated via shared secret (BETTER_AUTH_SECRET), not user session.
+ * Stores the entire batch as a single JSONB chunk row.
  */
 export async function action({ request, params }: RouteArgs) {
   if (request.method !== "POST") {
@@ -33,6 +34,7 @@ export async function action({ request, params }: RouteArgs) {
       role: string;
       metadata?: unknown;
       recipientId?: string | null;
+      recipientName?: string | null;
       createdAt: string;
     }>;
   };
@@ -41,23 +43,13 @@ export async function action({ request, params }: RouteArgs) {
     return Response.json({ inserted: 0 });
   }
 
-  const values = messages.map((msg) => ({
-    id: msg.id,
+  const chunkId = crypto.randomUUID();
+  await db.insert(mapChatChunks).values({
+    id: chunkId,
     mapId,
-    userId: msg.userId,
-    userName: msg.userName,
-    message: msg.message,
-    role: msg.role,
-    metadata: msg.metadata ?? null,
-    recipientId: msg.recipientId || null,
-    createdAt: new Date(msg.createdAt),
-  }));
+    messages: messages,
+    createdAt: new Date(),
+  });
 
-  const result = await db
-    .insert(mapChatMessages)
-    .values(values)
-    .onConflictDoNothing()
-    .returning({ id: mapChatMessages.id });
-
-  return Response.json({ inserted: result.length });
+  return Response.json({ inserted: messages.length });
 }
