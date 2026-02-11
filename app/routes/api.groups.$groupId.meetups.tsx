@@ -22,7 +22,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       proposedDate: meetupProposals.proposedDate,
       proposedEndDate: meetupProposals.proposedEndDate,
       note: meetupProposals.note,
-      sessionType: meetupProposals.sessionType,
       createdAt: meetupProposals.createdAt,
       proposedBy: meetupProposals.proposedBy,
       proposerName: user.name,
@@ -40,7 +39,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   // Get RSVPs for all future proposals
   const proposalIds = futureProposals.map((p) => p.id);
-  let rsvpsByProposal: Record<string, Array<{ userId: string; status: string; userName: string; updatedAt: string }>> = {};
+  let rsvpsByProposal: Record<string, Array<{ userId: string; status: string; attendanceType: string | null; userName: string; updatedAt: string }>> = {};
 
   if (proposalIds.length > 0) {
     const { inArray } = await import("drizzle-orm");
@@ -49,6 +48,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         proposalId: meetupRsvps.proposalId,
         userId: meetupRsvps.userId,
         status: meetupRsvps.status,
+        attendanceType: meetupRsvps.attendanceType,
         userName: user.name,
         updatedAt: meetupRsvps.updatedAt,
       })
@@ -63,6 +63,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       rsvpsByProposal[rsvp.proposalId].push({
         userId: rsvp.userId,
         status: rsvp.status,
+        attendanceType: rsvp.attendanceType,
         userName: rsvp.userName,
         updatedAt: rsvp.updatedAt.toISOString(),
       });
@@ -75,7 +76,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       proposedDate: p.proposedDate.toISOString(),
       proposedEndDate: p.proposedEndDate.toISOString(),
       note: p.note,
-      sessionType: p.sessionType,
       createdAt: p.createdAt.toISOString(),
       proposedBy: p.proposedBy,
       proposerName: p.proposerName,
@@ -105,7 +105,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   await requireGroupPermission(groupId, userId, "view");
 
   const body = await request.json();
-  const { proposedDate, proposedEndDate, note, sessionType } = body;
+  const { proposedDate, proposedEndDate, note } = body;
 
   if (!proposedDate || !proposedEndDate) {
     return Response.json({ error: "Start and end times are required" }, { status: 400 });
@@ -156,7 +156,6 @@ export async function action({ request, params }: Route.ActionArgs) {
     proposedDate: startDate,
     proposedEndDate: endDate,
     note: note?.trim() || null,
-    sessionType: sessionType === "in-person" ? "in-person" : "virtual",
   });
 
   return Response.json({ id, success: true });

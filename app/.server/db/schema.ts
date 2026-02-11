@@ -213,7 +213,6 @@ export const meetupProposals = pgTable(
     proposedDate: timestamp("proposed_date").notNull(),
     proposedEndDate: timestamp("proposed_end_date").notNull(),
     note: text("note"),
-    sessionType: text("session_type").notNull().default("virtual"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => ({
@@ -234,6 +233,7 @@ export const meetupRsvps = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     status: rsvpStatusEnum("status").notNull(),
+    attendanceType: text("attendance_type"),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (table) => ({

@@ -45,11 +45,17 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (request.method === "POST") {
     // RSVP to a proposal
     const body = await request.json();
-    const { status } = body;
+    const { status, attendanceType } = body;
 
     if (status !== "available" && status !== "unavailable") {
       return Response.json({ error: "Status must be 'available' or 'unavailable'" }, { status: 400 });
     }
+
+    if (status === "available" && attendanceType !== "in-person" && attendanceType !== "virtual") {
+      return Response.json({ error: "attendanceType must be 'in-person' or 'virtual' when available" }, { status: 400 });
+    }
+
+    const resolvedAttendanceType = status === "available" ? attendanceType : null;
 
     const { nanoid } = await import("nanoid");
 
@@ -60,12 +66,14 @@ export async function action({ request, params }: Route.ActionArgs) {
         proposalId: meetupId,
         userId,
         status,
+        attendanceType: resolvedAttendanceType,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: [meetupRsvps.proposalId, meetupRsvps.userId],
         set: {
           status,
+          attendanceType: resolvedAttendanceType,
           updatedAt: new Date(),
         },
       });

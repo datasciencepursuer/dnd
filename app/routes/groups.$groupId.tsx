@@ -38,6 +38,7 @@ interface GroupData {
 interface MeetupRsvp {
   userId: string;
   status: "available" | "unavailable";
+  attendanceType: "in-person" | "virtual" | null;
   userName: string;
   updatedAt: string;
 }
@@ -47,7 +48,6 @@ interface MeetupProposal {
   proposedDate: string;
   proposedEndDate: string;
   note: string | null;
-  sessionType: string;
   createdAt: string;
   proposedBy: string;
   proposerName: string;
@@ -168,7 +168,6 @@ export default function GroupDetail() {
   const [proposeStartTime, setProposeStartTime] = useState("");
   const [proposeEndTime, setProposeEndTime] = useState("");
   const [proposeNote, setProposeNote] = useState("");
-  const [proposeSessionType, setProposeSessionType] = useState<"virtual" | "in-person">("virtual");
   const [meetupLoading, setMeetupLoading] = useState(true);
   const [meetupError, setMeetupError] = useState<string | null>(null);
   const [meetupSubmitting, setMeetupSubmitting] = useState(false);
@@ -355,7 +354,6 @@ export default function GroupDetail() {
           proposedDate: new Date(`${proposeDate}T${proposeStartTime}`).toISOString(),
           proposedEndDate: new Date(`${proposeDate}T${proposeEndTime}`).toISOString(),
           note: proposeNote.trim() || null,
-          sessionType: proposeSessionType,
         }),
       });
 
@@ -367,7 +365,6 @@ export default function GroupDetail() {
         setProposeStartTime("");
         setProposeEndTime("");
         setProposeNote("");
-        setProposeSessionType("virtual");
         fetchMeetups();
       } else {
         setMeetupError(result.error || "Failed to create proposal");
@@ -379,12 +376,12 @@ export default function GroupDetail() {
     }
   };
 
-  const handleRsvp = async (meetupId: string, status: "available" | "unavailable") => {
+  const handleRsvp = async (meetupId: string, status: "available" | "unavailable", attendanceType?: "in-person" | "virtual") => {
     try {
       const res = await fetch(`/api/groups/${group.id}/meetups/${meetupId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, attendanceType: attendanceType ?? null }),
       });
 
       if (res.ok) {
@@ -564,10 +561,11 @@ export default function GroupDetail() {
                   const date = new Date(proposal.proposedDate);
                   const endDate = new Date(proposal.proposedEndDate);
                   const myRsvp = proposal.rsvps.find((r) => r.userId === currentUserId);
-                  const availableCount = proposal.rsvps.filter((r) => r.status === "available").length;
+                  const inPersonCount = proposal.rsvps.filter((r) => r.status === "available" && r.attendanceType === "in-person").length;
+                  const virtualCount = proposal.rsvps.filter((r) => r.status === "available" && r.attendanceType === "virtual").length;
                   const unavailableCount = proposal.rsvps.filter((r) => r.status === "unavailable").length;
                   const totalMembers = members.length;
-                  const noResponseCount = totalMembers - availableCount - unavailableCount;
+                  const noResponseCount = totalMembers - inPersonCount - virtualCount - unavailableCount;
                   const canDeleteProposal = proposal.proposedBy === currentUserId || canEdit;
 
                   return (
@@ -597,22 +595,6 @@ export default function GroupDetail() {
                                 minute: "2-digit",
                               })}
                             </span>
-                            <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium ${
-                              proposal.sessionType === "in-person"
-                                ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                            }`}>
-                              {proposal.sessionType === "in-person" ? (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                                </svg>
-                              ) : (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                  <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                              {proposal.sessionType === "in-person" ? "In Person" : "Virtual"}
-                            </span>
                             <span className="text-gray-400 dark:text-gray-500">
                               proposed by {proposal.proposerName}
                             </span>
@@ -635,20 +617,36 @@ export default function GroupDetail() {
 
                       <div className="flex flex-wrap items-center gap-2 mb-3">
                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {availableCount} available / {unavailableCount} unavailable / {noResponseCount} no response
+                          {inPersonCount} in person / {virtualCount} virtual / {unavailableCount} unavailable / {noResponseCount} no response
                         </span>
                       </div>
 
                       <div className="flex flex-wrap gap-2 mb-3">
                         <button
-                          onClick={() => handleRsvp(proposal.id, "available")}
-                          className={`px-3 py-1.5 text-sm rounded cursor-pointer ${
-                            myRsvp?.status === "available"
-                              ? "bg-green-600 text-white"
-                              : "border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          onClick={() => handleRsvp(proposal.id, "available", "in-person")}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded cursor-pointer ${
+                            myRsvp?.status === "available" && myRsvp?.attendanceType === "in-person"
+                              ? "bg-amber-600 text-white"
+                              : "border border-amber-600 text-amber-600 dark:text-amber-400 dark:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
                           }`}
                         >
-                          Available
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                          </svg>
+                          In Person
+                        </button>
+                        <button
+                          onClick={() => handleRsvp(proposal.id, "available", "virtual")}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded cursor-pointer ${
+                            myRsvp?.status === "available" && myRsvp?.attendanceType === "virtual"
+                              ? "bg-blue-600 text-white"
+                              : "border border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
+                          </svg>
+                          Virtual
                         </button>
                         <button
                           onClick={() => handleRsvp(proposal.id, "unavailable")}
@@ -668,9 +666,11 @@ export default function GroupDetail() {
                             <span
                               key={rsvp.userId}
                               className={`text-xs px-2 py-1 rounded ${
-                                rsvp.status === "available"
-                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                  : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                rsvp.status === "unavailable"
+                                  ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                  : rsvp.attendanceType === "in-person"
+                                    ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                    : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                               }`}
                             >
                               {rsvp.userName}
@@ -1050,42 +1050,6 @@ export default function GroupDetail() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Session Type
-                  </label>
-                  <div className="flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setProposeSessionType("virtual")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${
-                        proposeSessionType === "virtual"
-                          ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
-                          : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 5a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2h-2.22l.123.489.804.804A1 1 0 0113 18H7a1 1 0 01-.707-1.707l.804-.804L7.22 15H5a2 2 0 01-2-2V5zm5.771 7H5V5h10v7H8.771z" clipRule="evenodd" />
-                      </svg>
-                      Virtual
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setProposeSessionType("in-person")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors cursor-pointer ${
-                        proposeSessionType === "in-person"
-                          ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
-                          : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
-                      In Person
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Note (optional)
                   </label>
                   <input
@@ -1110,7 +1074,6 @@ export default function GroupDetail() {
                     setProposeStartTime("");
                     setProposeEndTime("");
                     setProposeNote("");
-                    setProposeSessionType("virtual");
                     setMeetupError(null);
                   }}
                   disabled={meetupSubmitting}
