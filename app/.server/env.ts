@@ -22,4 +22,10 @@ export const env = {
   get RESEND_API_KEY() {
     return getEnvVar("RESEND_API_KEY");
   },
+  get GOOGLE_CLIENT_ID() {
+    return getEnvVar("GOOGLE_CLIENT_ID");
+  },
+  get GOOGLE_CLIENT_SECRET() {
+    return getEnvVar("GOOGLE_CLIENT_SECRET");
+  },
 };
