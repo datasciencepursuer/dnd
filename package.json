@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm exec drizzle-kit generate && pnpm exec drizzle-kit migrate && pnpm run party:deploy && pnpm exec react-router build",
+    "build": "pnpm exec drizzle-kit generate && pnpm exec drizzle-kit migrate && pnpm exec react-router build",
     "dev": "react-router dev",
     "dev:party": "partykit dev",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:party\"",

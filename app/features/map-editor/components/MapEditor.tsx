@@ -9,6 +9,7 @@ import { MobileSidebarRail } from "./Mobile";
 import { useMapStore, useEditorStore } from "../store";
 import { useMapSync, useIsMobile } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
+import { useChatPersistence } from "../hooks/useChatPersistence";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet } from "../types";
 
@@ -99,6 +100,8 @@ export function MapEditor({
     userName,
     enabled: !!mapId && !!userId,
   });
+
+  useChatPersistence(mapId);
 
   // Combined handler: broadcast via WebSocket + persist to DB
   const handleTokenMoved = useCallback(

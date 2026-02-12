@@ -1,5 +1,7 @@
 import { db } from "~/.server/db";
 import { mapChatChunks } from "~/.server/db/schema";
+import { requireAuth } from "~/.server/auth/session";
+import { requireMapPermission } from "~/.server/permissions/map-permissions";
 
 interface RouteArgs {
   request: Request;
@@ -7,23 +9,19 @@ interface RouteArgs {
 }
 
 /**
- * Internal batch endpoint for PartyKit to flush buffered chat messages.
- * Authenticated via shared secret (BETTER_AUTH_SECRET), not user session.
- * Stores the entire batch as a single JSONB chunk row.
+ * Batch endpoint for persisting chat message chunks.
+ * Called by the client every 30 seconds to flush buffered messages.
  */
 export async function action({ request, params }: RouteArgs) {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Verify shared secret
-  const authHeader = request.headers.get("x-party-secret");
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!authHeader || !secret || authHeader !== secret) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+  const session = await requireAuth(request);
   const mapId = params.mapId;
+
+  await requireMapPermission(mapId, session.user.id, "view");
+
   const body = await request.json();
   const { messages } = body as {
     messages: Array<{
@@ -47,7 +45,7 @@ export async function action({ request, params }: RouteArgs) {
   await db.insert(mapChatChunks).values({
     id: chunkId,
     mapId,
-    messages: messages,
+    messages,
     createdAt: new Date(),
   });
 

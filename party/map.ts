@@ -210,31 +210,9 @@ interface ConnectedUser {
 export default class MapPartyServer implements Party.Server {
   private users: Map<string, ConnectedUser> = new Map();
   private chatMessages: ChatMessageData[] = [];
-  private unpersistedChatMessages: ChatMessageData[] = [];
   private readonly MAX_CHAT_BUFFER = 100;
-  private readonly FLUSH_INTERVAL_MS = 30_000; // 30 seconds
-  private isFlushing = false;
 
   constructor(readonly room: Party.Room) {}
-
-  async onStart() {
-    // Schedule the first periodic flush alarm
-    const existing = await this.room.storage.getAlarm();
-    if (!existing) {
-      await this.room.storage.setAlarm(Date.now() + this.FLUSH_INTERVAL_MS);
-    }
-  }
-
-  async onAlarm() {
-    // Periodic flush of unpersisted chat messages to DB
-    await this.flushChatToDb();
-
-    // Reschedule if there are still connections (room is active)
-    const connections = [...this.room.getConnections()];
-    if (connections.length > 0) {
-      await this.room.storage.setAlarm(Date.now() + this.FLUSH_INTERVAL_MS);
-    }
-  }
 
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
     // User info passed via query params
@@ -254,9 +232,6 @@ export default class MapPartyServer implements Party.Server {
     // Broadcast updated presence to all clients
     this.broadcastPresence();
 
-    // Ensure flush alarm is running while room has connections
-    this.ensureAlarm();
-
     // Send chat history buffer to the new connection (filter whispers)
     if (this.chatMessages.length > 0) {
       const userChatHistory = userId
@@ -275,7 +250,7 @@ export default class MapPartyServer implements Party.Server {
     }
   }
 
-  async onClose(conn: Party.Connection) {
+  onClose(conn: Party.Connection) {
     const user = this.users.get(conn.id);
     this.users.delete(conn.id);
 
@@ -289,12 +264,6 @@ export default class MapPartyServer implements Party.Server {
     }
 
     this.broadcastPresence();
-
-    // Flush on last disconnect so no messages are lost
-    const connections = [...this.room.getConnections()];
-    if (connections.length === 0 && this.unpersistedChatMessages.length > 0) {
-      await this.flushChatToDb();
-    }
   }
 
   onMessage(message: string, sender: Party.Connection) {
@@ -307,9 +276,6 @@ export default class MapPartyServer implements Party.Server {
         if (this.chatMessages.length > this.MAX_CHAT_BUFFER) {
           this.chatMessages.shift();
         }
-
-        // Track for batch DB persistence
-        this.unpersistedChatMessages.push(data.chatMessage);
 
         // Whisper: send only to recipient's connections (sender has optimistic update)
         if (data.chatMessage.recipientId) {
@@ -346,54 +312,4 @@ export default class MapPartyServer implements Party.Server {
     this.room.broadcast(JSON.stringify(presenceMessage));
   }
 
-  private async ensureAlarm() {
-    const existing = await this.room.storage.getAlarm();
-    if (!existing) {
-      await this.room.storage.setAlarm(Date.now() + this.FLUSH_INTERVAL_MS);
-    }
-  }
-
-  private async flushChatToDb() {
-    if (this.isFlushing || this.unpersistedChatMessages.length === 0) return;
-    this.isFlushing = true;
-
-    // Grab the current batch and clear the queue
-    const batch = this.unpersistedChatMessages.splice(0);
-    const mapId = this.room.id;
-
-    // Resolve the app host for the API call
-    const appHost = (this.room.env.BETTER_AUTH_URL as string) || "http://localhost:5173";
-    const secret = this.room.env.BETTER_AUTH_SECRET as string;
-
-    if (!secret) {
-      console.error("BETTER_AUTH_SECRET not configured — chat messages will not be persisted");
-      // Put messages back so they can be retried
-      this.unpersistedChatMessages.unshift(...batch);
-      this.isFlushing = false;
-      return;
-    }
-
-    try {
-      const response = await fetch(`${appHost}/api/maps/${mapId}/chat/batch`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-party-secret": secret,
-        },
-        body: JSON.stringify({ messages: batch }),
-      });
-
-      if (!response.ok) {
-        console.error(`Chat flush failed (${response.status}): ${await response.text()}`);
-        // Put messages back for retry on next flush
-        this.unpersistedChatMessages.unshift(...batch);
-      }
-    } catch (error) {
-      console.error("Chat flush network error:", error);
-      // Put messages back for retry on next flush
-      this.unpersistedChatMessages.unshift(...batch);
-    } finally {
-      this.isFlushing = false;
-    }
-  }
 }

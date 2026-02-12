@@ -1,0 +1,1 @@
+DROP TABLE "map_chat_messages" CASCADE;

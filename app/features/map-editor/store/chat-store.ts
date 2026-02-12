@@ -30,6 +30,7 @@ interface ChatState {
   unreadCount: number;
   isOpen: boolean;
   isLoaded: boolean;
+  pendingPersist: ChatMessageData[];
 }
 
 interface ChatActions {
@@ -39,6 +40,8 @@ interface ChatActions {
   setOpen: (open: boolean) => void;
   toggleOpen: () => void;
   setLoaded: (loaded: boolean) => void;
+  takePendingPersist: () => ChatMessageData[];
+  returnPendingPersist: (msgs: ChatMessageData[]) => void;
   reset: () => void;
 }
 
@@ -49,18 +52,20 @@ const initialState: ChatState = {
   unreadCount: 0,
   isOpen: false,
   isLoaded: false,
+  pendingPersist: [],
 };
 
 export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   ...initialState,
 
   addMessage: (msg) => {
-    const { messages, isOpen } = get();
+    const { messages, isOpen, pendingPersist } = get();
     if (messages.some((m) => m.id === msg.id)) return;
     const updated = [...messages, msg].slice(-MAX_MESSAGES);
     set({
       messages: updated,
       unreadCount: isOpen ? 0 : get().unreadCount + 1,
+      pendingPersist: [...pendingPersist, msg],
     });
   },
 
@@ -89,6 +94,16 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   setLoaded: (loaded) => set({ isLoaded: loaded }),
+
+  takePendingPersist: () => {
+    const batch = get().pendingPersist;
+    set({ pendingPersist: [] });
+    return batch;
+  },
+
+  returnPendingPersist: (msgs) => {
+    set({ pendingPersist: [...msgs, ...get().pendingPersist] });
+  },
 
   reset: () => set(initialState),
 }));

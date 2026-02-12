@@ -22,12 +22,19 @@ export async function loader({ request, params }: RouteArgs) {
     .where(eq(mapChatChunks.mapId, mapId))
     .orderBy(asc(mapChatChunks.createdAt));
 
-  // Flatten all chunks into a single message array
-  const allMessages = chunks.flatMap(
-    (chunk) => chunk.messages as ChatMessageData[]
-  );
+  // Flatten all chunks and deduplicate (multiple clients may persist the same message)
+  const seen = new Set<string>();
+  const allMessages: ChatMessageData[] = [];
+  for (const chunk of chunks) {
+    for (const msg of chunk.messages as ChatMessageData[]) {
+      if (!seen.has(msg.id)) {
+        seen.add(msg.id);
+        allMessages.push(msg);
+      }
+    }
+  }
 
-  // Filter whispers in JS (same logic as before)
+  // Filter whispers in JS
   const userId = session.user.id;
   const visible = allMessages.filter(
     (msg) =>
