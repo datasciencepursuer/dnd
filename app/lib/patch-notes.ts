@@ -7,6 +7,22 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.5",
+    date: "2026-02-11",
+    title: "Monster Compendium",
+    changes: [
+      "New Monster Compendium in the token panel — search and place 334 SRD monsters with pre-filled stat blocks",
+      "Search monsters by name, filter by Challenge Rating and creature type",
+      "Preview and edit monster stats (AC, HP, speed, abilities) before placing — customize templates on the fly",
+      "Upload or pick an image for monster tokens — applied to all tokens in a batch",
+      "Add multiple monsters at once with the quantity selector — auto-creates a monster group for shared initiative",
+      "Tokens auto-size based on creature size (Large=2 cells, Huge=3, Gargantuan=4) with type-based colors",
+      "Character sheets auto-populate with full stat blocks including abilities, weapons, features, spells, and traits",
+      "Speed type toggle (Run/Fly/Swim/Burrow/Climb) now styled as a clickable pill so it's clearly interactive",
+      "Fixed level input clipping for two-digit levels (10–20)",
+    ],
+  },
+  {
     version: "0.2.4",
     date: "2026-02-11",
     title: "Chat, Dice & Whispers",

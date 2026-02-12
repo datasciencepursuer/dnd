@@ -15,6 +15,7 @@ interface MobileSidebarRailProps {
   onEditToken?: (token: Token) => void;
   onTokenDelete?: (tokenId: string) => void;
   onTokenCreate?: (token: Token) => void;
+  onMapChanged?: () => void;
   onBackgroundChange?: () => void;
   onSelectAndCenter?: (token: Token) => void;
   onCombatRequest?: () => void;
@@ -82,6 +83,7 @@ export function MobileSidebarRail({
   onEditToken,
   onTokenDelete,
   onTokenCreate,
+  onMapChanged,
   onBackgroundChange,
   onSelectAndCenter,
   onCombatRequest,
@@ -223,6 +225,7 @@ export function MobileSidebarRail({
                   mapId={mapId}
                   onTokenDelete={onTokenDelete}
                   onTokenCreate={onTokenCreate}
+                  onMapChanged={onMapChanged}
                   onSelectAndCenter={onSelectAndCenter}
                 />
               </div>

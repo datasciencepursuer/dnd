@@ -49,6 +49,16 @@ export interface AbilityScores {
 
 export type CreatureSize = "S" | "M" | "L"; // Small, Medium, Large
 
+// Movement speeds (in feet)
+export interface SpeedInfo {
+  walk: number;
+  fly: number;
+  swim: number;
+  burrow: number;
+  climb: number;
+  hover: boolean;
+}
+
 // Skill proficiency level: none → proficient → expertise
 export type SkillLevel = "none" | "proficient" | "expertise";
 
@@ -207,7 +217,7 @@ export interface CharacterSheet {
   hitDice: string; // e.g., "1d10"
   proficiencyBonus: number;
   initiative: number;
-  speed: number; // feet
+  speed: SpeedInfo;
   creatureSize: CreatureSize;
 
   // Abilities
@@ -267,6 +277,9 @@ export interface CharacterSheet {
   bonds: string;
   flaws: string;
   backstory: string;
+
+  // Overridable calculated fields (null = auto-calculate)
+  passivePerception: number | null;
 
   // Additional Info
   languages: string;

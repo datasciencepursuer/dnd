@@ -5,6 +5,8 @@ import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
+import { MonsterCompendium } from "./MonsterCompendium";
+import { ConfirmModal } from "../ConfirmModal";
 import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
 
 interface TokenPanelProps {
@@ -13,6 +15,7 @@ interface TokenPanelProps {
   mapId?: string;
   onTokenDelete?: (tokenId: string) => void;
   onTokenCreate?: (token: Token) => void;
+  onMapChanged?: () => void;
   onSelectAndCenter?: (token: Token) => void;
   // Combat props
   isInCombat?: boolean;
@@ -28,6 +31,7 @@ export function TokenPanel({
   mapId,
   onTokenDelete,
   onTokenCreate,
+  onMapChanged,
   onSelectAndCenter,
   isInCombat = false,
   initiativeOrder = null,
@@ -49,6 +53,8 @@ export function TokenPanel({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
+  const [createMode, setCreateMode] = useState<"custom" | "compendium">("custom");
+  const [deleteConfirm, setDeleteConfirm] = useState<Token | null>(null);
   const dragRef = useRef<{ index: number; startY: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -155,14 +161,16 @@ export function TokenPanel({
 
   const canCreate = canCreateToken();
 
-  const handleDeleteToken = (e: React.MouseEvent, tokenId: string) => {
+  const handleDeleteToken = (e: React.MouseEvent, token: Token) => {
     e.stopPropagation(); // Prevent opening edit dialog
+    setDeleteConfirm(token);
+  };
 
-    // Delete locally first for responsive UI
-    removeToken(tokenId);
-
-    // Then sync to server via callback
-    onTokenDelete?.(tokenId);
+  const handleDeleteConfirm = () => {
+    if (!deleteConfirm) return;
+    removeToken(deleteConfirm.id);
+    onTokenDelete?.(deleteConfirm.id);
+    setDeleteConfirm(null);
   };
 
   const handleDuplicateToken = (e: React.MouseEvent, tokenId: string) => {
@@ -274,6 +282,16 @@ export function TokenPanel({
     return true;
   }) ?? [];
 
+  // Stable colors for monster groups (assigned in order of group creation)
+  const GROUP_COLORS = ["#a855f7", "#f97316", "#06b6d4", "#ec4899", "#84cc16", "#eab308", "#6366f1", "#14b8a6"];
+  const groupColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (monsterGroups ?? []).forEach((g, i) => {
+      map.set(g.id, GROUP_COLORS[i % GROUP_COLORS.length]);
+    });
+    return map;
+  }, [monsterGroups]);
+
   // During combat, create a map of tokenId -> initiative entry for quick lookup
   const initiativeMap = new Map<string, InitiativeEntry>();
   if (isInCombat && initiativeOrder) {
@@ -377,6 +395,8 @@ export function TokenPanel({
               const showBottomBorder = isDragOver && dropPosition === "below";
               const initEntry = initiativeMap.get(token.id);
               const isCurrent = isCurrentTurn(token.id);
+              const groupColor = token.monsterGroupId ? groupColorMap.get(token.monsterGroupId) : undefined;
+              const groupName = token.monsterGroupId ? monsterGroups.find(g => g.id === token.monsterGroupId)?.name : undefined;
               return (
                 <div
                   key={token.id}
@@ -390,6 +410,8 @@ export function TokenPanel({
                   } ${canEdit ? "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600" : ""} ${
                     isDragging ? "opacity-50" : ""
                   } ${showTopBorder ? "border-t-2 border-blue-500" : ""} ${showBottomBorder ? "border-b-2 border-blue-500" : ""}`}
+                  style={groupColor ? { borderLeft: `3px solid ${groupColor}` } : undefined}
+                  title={groupName ? `Group: ${groupName}` : undefined}
                 >
                   {/* Initiative rank during combat */}
                   {isInCombat && initEntry && (
@@ -464,7 +486,7 @@ export function TokenPanel({
                   )}
                   {!isInCombat && canDelete && (
                     <button
-                      onClick={(e) => handleDeleteToken(e, token.id)}
+                      onClick={(e) => handleDeleteToken(e, token)}
                       className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 -m-1"
                       title="Delete unit"
                     >
@@ -500,6 +522,17 @@ export function TokenPanel({
           <p className="text-sm">{isInCombat ? "No combatants" : "No units on the map"}</p>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirm !== null}
+        title="Delete Unit"
+        message={`Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        confirmVariant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(null)}
+      />
     </>
   );
 
@@ -519,6 +552,36 @@ export function TokenPanel({
         <>
           <h3 className="font-semibold text-gray-900 dark:text-white">Create Unit</h3>
 
+          {/* Custom / Monster Templates toggle - DM only */}
+          {isDungeonMaster() && (
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                onClick={() => setCreateMode("custom")}
+                className={`px-2 py-1.5 text-xs rounded border cursor-pointer ${
+                  createMode === "custom"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                }`}
+              >
+                Custom
+              </button>
+              <button
+                onClick={() => setCreateMode("compendium")}
+                className={`px-2 py-1.5 text-xs rounded border cursor-pointer ${
+                  createMode === "compendium"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                }`}
+              >
+                Monster Templates
+              </button>
+            </div>
+          )}
+
+          {/* Compendium mode */}
+          {createMode === "compendium" && isDungeonMaster() ? (
+            <MonsterCompendium onTokenCreate={onTokenCreate} onMapChanged={onMapChanged} />
+          ) : (
           <div className="space-y-3">
             <input
               type="text"
@@ -743,6 +806,7 @@ export function TokenPanel({
               Add Unit
             </button>
           </div>
+          )}
         </>
       )}
 

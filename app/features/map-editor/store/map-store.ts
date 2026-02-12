@@ -236,10 +236,25 @@ export const useMapStore = create<MapState>()(
           newDirtyTokens.delete(id);
           const newDirtyTimestamps = new Map(state.dirtyTimestamps);
           newDirtyTimestamps.delete(id);
+          const deletedToken = state.map.tokens.find((t) => t.id === id);
+          const remainingTokens = state.map.tokens.filter((t) => t.id !== id);
+          // Clean up orphaned monster groups
+          let monsterGroups = state.map.monsterGroups;
+          if (deletedToken?.monsterGroupId) {
+            const groupStillHasTokens = remainingTokens.some(
+              (t) => t.monsterGroupId === deletedToken.monsterGroupId
+            );
+            if (!groupStillHasTokens) {
+              monsterGroups = monsterGroups.filter(
+                (g) => g.id !== deletedToken.monsterGroupId
+              );
+            }
+          }
           return {
             map: {
               ...state.map,
-              tokens: state.map.tokens.filter((t) => t.id !== id),
+              tokens: remainingTokens,
+              monsterGroups,
               updatedAt: new Date().toISOString(),
             },
             dirtyTokens: newDirtyTokens,

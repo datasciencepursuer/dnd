@@ -13,6 +13,7 @@ interface SidebarProps {
   onEditToken?: (token: Token) => void;
   onTokenDelete?: (tokenId: string) => void;
   onTokenCreate?: (token: Token) => void;
+  onMapChanged?: () => void;
   onBackgroundChange?: () => void;
   onSelectAndCenter?: (token: Token) => void;
   // Combat props
@@ -34,6 +35,7 @@ export function Sidebar({
   onEditToken,
   onTokenDelete,
   onTokenCreate,
+  onMapChanged,
   onBackgroundChange,
   onSelectAndCenter,
   onCombatRequest,
@@ -126,6 +128,7 @@ export function Sidebar({
             mapId={mapId}
             onTokenDelete={onTokenDelete}
             onTokenCreate={onTokenCreate}
+            onMapChanged={onMapChanged}
             onSelectAndCenter={onSelectAndCenter}
             isInCombat={isInCombat}
             initiativeOrder={initiativeOrder}

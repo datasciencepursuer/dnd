@@ -63,11 +63,12 @@ Canvas-based map editor using Konva.js (`react-konva`).
 
 **Konva Performance Pattern**: Avoid React state updates during high-frequency events (mouse/touch move). Use refs for intermediate values and update Konva nodes imperatively via `node.x()`, `node.width()`, `node.getLayer().batchDraw()`. React state should only change on start/end of interactions (e.g., mousedown/mouseup), not during drag/move. See `MapCanvas.tsx` viewport handling and drag rectangle as examples.
 
-**State Management** - Four Zustand stores:
+**State Management** - Five Zustand stores:
 - `map-store.ts` - Persisted map data (tokens, grid, fog, combat, drawings, character sheets). Uses `zundo` temporal middleware for undo/redo (50 history limit). Implements dirty token tracking with 10-second staleness window for optimistic updates.
 - `editor-store.ts` - Ephemeral UI state (selected tool, selection, permissions, ping rate limiting). No persistence.
 - `dice-store.ts` - Dice rolling state and history (keeps last 8 rolls)
 - `presence-store.ts` - Real-time user presence tracking for collaborative editing
+- `chat-store.ts` - Chat messages, unread count, and pending persistence buffer. Max 200 messages in memory. Includes dice notation parser and roller.
 
 **Key Types** (`types.ts`):
 - `DnDMap` - Complete map document (grid, tokens, walls, areas, fog, viewport, combat, drawings)
@@ -98,6 +99,8 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/maps/:mapId` - Single map operations (GET, PUT, DELETE)
 - `/api/maps/:mapId/tokens/:tokenId` - Token CRUD
 - `/api/maps/:mapId/tokens/:tokenId/move` - Token movement
+- `/api/maps/:mapId/chat` - Chat history (GET) and single message (POST, max 500 chars)
+- `/api/maps/:mapId/chat/batch` - Batch chat persistence (POST, called by `useChatPersistence`)
 - `/api/uploadthing` - Image upload endpoint
 - `/api/uploadthing/files` - File operations
 - `/api/uploads` - Upload management
@@ -110,6 +113,8 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/groups/:groupId/invite` - Send group invitations
 - `/api/groups/:groupId/leave` - Leave a group
 - `/api/groups/:groupId/tokens` - Group token library
+- `/api/groups/:groupId/meetups` - Group meetup scheduling (GET list, POST create)
+- `/api/groups/:groupId/meetups/:meetupId` - Single meetup operations
 
 **Character API Routes**:
 - `/api/characters` - Character library CRUD (GET list, POST create)
@@ -130,7 +135,8 @@ WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 - Config: `partykit.json`
 - Client hooks: `useMapSync.ts` (HTTP sync), `usePartySync.ts` (WebSocket)
 - Message types use a discriminated union pattern (e.g., `token-move`, `token-update`, `fog-paint`, `fog-erase`, `map-sync`)
-- Syncs: token operations, fog painting, pings, drawings, combat, dice rolls, token stats, DM transfer, and presence
+- Syncs: token operations, fog painting, pings, drawings, combat, dice rolls, chat messages, token stats, DM transfer, and presence
+- Chat: real-time via WebSocket, persisted to DB in JSONB chunks (`mapChatChunks` table). `useChatPersistence` hook flushes pending messages every 30 seconds (skips if no new messages). Also flushes on disconnect, unmount, and beforeunload via `navigator.sendBeacon`.
 - Auto-save: 1-2 second debounce after changes
 - Dirty token tracking: Prevents server updates from overwriting local optimistic updates during 10-second staleness window
 - Broadcasts exclude sender (they already have the update)

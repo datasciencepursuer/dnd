@@ -1,4 +1,4 @@
-import type { AbilityScore, AbilityScores, CharacterSheet, SkillProficiencies, SkillLevel, ArmorProficiencies } from "../types";
+import type { AbilityScore, AbilityScores, CharacterSheet, SpeedInfo, SkillProficiencies, SkillLevel, ArmorProficiencies } from "../types";
 
 export function calculateModifier(score: number): number {
   return Math.floor((score - 10) / 2);
@@ -80,6 +80,17 @@ export function createDefaultArmorProficiencies(): ArmorProficiencies {
   };
 }
 
+export function createDefaultSpeed(walk: number = 30): SpeedInfo {
+  return { walk, fly: 0, swim: 0, burrow: 0, climb: 0, hover: false };
+}
+
+/** Migrate legacy `speed: number` to SpeedInfo object */
+export function ensureSpeed(speed: SpeedInfo | number | undefined): SpeedInfo {
+  if (!speed) return createDefaultSpeed();
+  if (typeof speed === "number") return createDefaultSpeed(speed);
+  return { ...createDefaultSpeed(), ...speed };
+}
+
 // Skill to ability mapping
 export const SKILL_ABILITIES: Record<keyof SkillProficiencies, keyof AbilityScores> = {
   athletics: "strength",
@@ -154,7 +165,7 @@ export function createDefaultCharacterSheet(): CharacterSheet {
     hitDice: "1d8",
     proficiencyBonus: 2,
     initiative: 0,
-    speed: 30,
+    speed: createDefaultSpeed(),
     creatureSize: "M",
 
     // Abilities
@@ -215,6 +226,9 @@ export function createDefaultCharacterSheet(): CharacterSheet {
     flaws: "",
     backstory: "",
 
+    // Overridable calculated fields
+    passivePerception: null,
+
     // Additional Info
     languages: "",
     equipment: [],
@@ -231,7 +245,7 @@ export function calculateSkillModifier(
   const ability = SKILL_ABILITIES[skill];
   const abilityMod = sheet.abilities[ability].modifier;
   const skillLevel = sheet.skills?.[skill];
-  const profBonus = calculateProficiencyBonus(sheet.level);
+  const profBonus = sheet.proficiencyBonus;
   if (skillLevel === "expertise") return abilityMod + profBonus * 2;
   if (skillLevel === "proficient") return abilityMod + profBonus;
   return abilityMod;
@@ -240,6 +254,11 @@ export function calculateSkillModifier(
 // Calculate Passive Perception: 10 + Wisdom modifier + proficiency bonus (if proficient)
 export function calculatePassivePerception(sheet: CharacterSheet): number {
   return 10 + calculateSkillModifier(sheet, "perception");
+}
+
+// Get effective passive perception: uses override if set, otherwise calculates
+export function getEffectivePassivePerception(sheet: CharacterSheet): number {
+  return sheet.passivePerception ?? calculatePassivePerception(sheet);
 }
 
 // Coerce a single skill value from legacy boolean or unknown to SkillLevel

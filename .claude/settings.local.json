@@ -38,7 +38,12 @@
       "WebFetch(domain:github.com)",
       "Bash(git log:*)",
       "WebFetch(domain:docs.partykit.io)",
-      "Bash(npx partykit dev:*)"
+      "Bash(npx partykit dev:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:www.dnd5eapi.co)",
+      "Bash(gzip:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

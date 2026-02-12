@@ -3,7 +3,7 @@ import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficien
 import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
 import { Combobox } from "./Combobox";
-import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, ensureSkills, calculateProficiencyBonus } from "../../utils/character-utils";
+import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, getEffectivePassivePerception, ensureSkills, ensureSpeed, calculateProficiencyBonus } from "../../utils/character-utils";
 import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/dnd-srd";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useUploadThing } from "~/utils/uploadthing";
@@ -261,6 +261,7 @@ export function CharacterSheetPanel({
   const [isSyncing, setIsSyncing] = useState(false);
   const [hasPendingChanges, setHasPendingChanges] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [speedType, setSpeedType] = useState<"walk" | "fly" | "swim" | "burrow" | "climb">("walk");
   const isMobile = useIsMobile();
   const sheetPageKey = `characterSheetPage-${token?.id ?? character?.id ?? ""}`;
   const [currentPage, setCurrentPage] = useState<number>(() => {
@@ -861,7 +862,7 @@ export function CharacterSheetPanel({
                   {readOnly ? (
                     <span className="text-xs font-bold text-gray-900 dark:text-white">{sheet.level}</span>
                   ) : (
-                    <NumericInput value={sheet.level} onChange={(val) => handleUpdate({ level: val })} min={1} max={20} defaultValue={1} className="w-8 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                    <NumericInput value={sheet.level} onChange={(val) => handleUpdate({ level: val, proficiencyBonus: calculateProficiencyBonus(val) })} min={1} max={20} defaultValue={1} className="w-10 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                   )}
                 </div>
                 {/* XP */}
@@ -883,9 +884,9 @@ export function CharacterSheetPanel({
                     <span className="text-xs font-medium text-gray-900 dark:text-white">{sheet.hpCurrent}/{sheet.hpMax}</span>
                   ) : (
                     <>
-                      <NumericInput value={sheet.hpCurrent} onChange={(val) => handleUpdate({ hpCurrent: val })} min={0} max={999} defaultValue={0} className="w-10 px-0.5 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <NumericInput value={sheet.hpCurrent} onChange={(val) => handleUpdate({ hpCurrent: val })} min={0} max={999} defaultValue={0} className="w-12 px-0.5 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                       <span className="text-gray-400 text-xs">/</span>
-                      <NumericInput value={sheet.hpMax} onChange={(val) => handleUpdate({ hpMax: val })} min={1} max={999} defaultValue={1} className="w-10 px-0.5 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <NumericInput value={sheet.hpMax} onChange={(val) => handleUpdate({ hpMax: val })} min={1} max={999} defaultValue={1} className="w-12 px-0.5 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     </>
                   )}
                 </div>
@@ -909,24 +910,43 @@ export function CharacterSheetPanel({
                   )}
                 </div>
                 <div className="w-px h-4 bg-gray-200 dark:bg-gray-700" />
-                {/* Spd */}
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Spd</span>
+                {/* Spd - click label to cycle type */}
+                <div className="flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const types = ["walk", "fly", "swim", "burrow", "climb"] as const;
+                      const idx = types.indexOf(speedType);
+                      setSpeedType(types[(idx + 1) % types.length]);
+                    }}
+                    className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer leading-none py-0.5 transition-colors"
+                    title={`Showing ${speedType} speed — click to cycle`}
+                  >
+                    {{ walk: "Run", fly: "Fly", swim: "Swim", burrow: "Burrow", climb: "Climb" }[speedType]}
+                  </button>
                   {readOnly ? (
-                    <span className="text-xs font-bold text-gray-900 dark:text-white">{sheet.speed}</span>
+                    <span className="text-xs font-bold text-gray-900 dark:text-white">{ensureSpeed(sheet.speed)[speedType]}</span>
                   ) : (
-                    <NumericInput value={sheet.speed} onChange={(val) => handleUpdate({ speed: val })} min={0} max={999} defaultValue={30} className="w-10 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                    <NumericInput value={ensureSpeed(sheet.speed)[speedType]} onChange={(val) => handleUpdate({ speed: { ...ensureSpeed(sheet.speed), [speedType]: val } })} min={0} max={999} defaultValue={speedType === "walk" ? 30 : 0} className="w-10 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                   )}
                 </div>
                 {/* Prof */}
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Prof</span>
-                  <span className="text-xs font-bold text-gray-900 dark:text-white">{formatModifier(calculateProficiencyBonus(sheet.level))}</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">Prof</span>
+                  {readOnly ? (
+                    <span className="text-xs font-bold text-gray-900 dark:text-white">{formatModifier(sheet.proficiencyBonus)}</span>
+                  ) : (
+                    <NumericInput value={sheet.proficiencyBonus} onChange={(val) => handleUpdate({ proficiencyBonus: val })} min={0} max={20} defaultValue={2} className="w-10 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  )}
                 </div>
                 {/* Perception */}
-                <div className="flex items-center gap-0.5">
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400">Perc</span>
-                  <span className="text-xs font-bold text-gray-900 dark:text-white">{calculatePassivePerception(sheet)}</span>
+                <div className="flex flex-col items-center">
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 leading-none">Perc</span>
+                  {readOnly ? (
+                    <span className="text-xs font-bold text-gray-900 dark:text-white">{getEffectivePassivePerception(sheet)}</span>
+                  ) : (
+                    <NumericInput value={getEffectivePassivePerception(sheet)} onChange={(val) => handleUpdate({ passivePerception: val === calculatePassivePerception(sheet) ? null : val })} min={0} max={99} defaultValue={10} className="w-10 px-0.5 py-1 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                  )}
                 </div>
               </div>
 
@@ -1226,7 +1246,7 @@ export function CharacterSheetPanel({
                     {readOnly ? (
                       <span className="text-xs font-bold text-gray-900 dark:text-white">{sheet.level}</span>
                     ) : (
-                      <NumericInput value={sheet.level} onChange={(val) => handleUpdate({ level: val })} min={1} max={20} defaultValue={1} className="w-8 px-0.5 py-0.5 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                      <NumericInput value={sheet.level} onChange={(val) => handleUpdate({ level: val, proficiencyBonus: calculateProficiencyBonus(val) })} min={1} max={20} defaultValue={1} className="w-10 px-0.5 py-0.5 text-xs font-bold text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                     )}
                     {readOnly ? (
                       <span className="text-xs text-gray-400">({sheet.experience}xp)</span>
@@ -1245,9 +1265,9 @@ export function CharacterSheetPanel({
                       <span className="text-xs font-medium text-gray-900 dark:text-white">{sheet.hpCurrent}/{sheet.hpMax}</span>
                     ) : (
                       <>
-                        <NumericInput value={sheet.hpCurrent} onChange={(val) => handleUpdate({ hpCurrent: val })} min={0} max={999} defaultValue={0} className="w-9 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        <NumericInput value={sheet.hpCurrent} onChange={(val) => handleUpdate({ hpCurrent: val })} min={0} max={999} defaultValue={0} className="w-11 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                         <span className="text-gray-400 text-xs">/</span>
-                        <NumericInput value={sheet.hpMax} onChange={(val) => handleUpdate({ hpMax: val })} min={1} max={999} defaultValue={1} className="w-9 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                        <NumericInput value={sheet.hpMax} onChange={(val) => handleUpdate({ hpMax: val })} min={1} max={999} defaultValue={1} className="w-11 px-0.5 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                       </>
                     )}
                   </div>
@@ -1274,7 +1294,7 @@ export function CharacterSheetPanel({
               <div className="flex flex-wrap items-center gap-1 mt-0.5">
                 {readOnly ? (
                   <span className="text-xs text-gray-600 dark:text-gray-400">
-                    {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, { S: "Small", M: "Medium", L: "Large" }[sheet.creatureSize]].filter(Boolean).join(" / ") || "No details"}
+                    {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, sheet.creatureSize].filter(Boolean).join(" / ") || "No details"}
                   </span>
                 ) : (
                   <>
@@ -1296,21 +1316,40 @@ export function CharacterSheetPanel({
             <div className="flex items-start gap-3 border-l border-gray-200 dark:border-gray-700 pl-2 flex-shrink-0">
               {/* Perception */}
               <div className="text-center flex-shrink-0">
-                <div className="text-xs text-gray-500 dark:text-gray-400">Perception</div>
-                <div className="text-sm font-bold text-gray-900 dark:text-white">{calculatePassivePerception(sheet)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Perc</div>
+                {readOnly ? (
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">{getEffectivePassivePerception(sheet)}</div>
+                ) : (
+                  <NumericInput value={getEffectivePassivePerception(sheet)} onChange={(val) => handleUpdate({ passivePerception: val === calculatePassivePerception(sheet) ? null : val })} min={0} max={99} defaultValue={10} className="w-10 text-sm font-bold text-center bg-transparent border-b border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500" />
+                )}
               </div>
-              {/* Prof - calculated from level */}
+              {/* Prof */}
               <div className="text-center flex-shrink-0">
                 <div className="text-xs text-gray-500 dark:text-gray-400">Prof</div>
-                <div className="text-sm font-bold text-gray-900 dark:text-white">{formatModifier(calculateProficiencyBonus(sheet.level))}</div>
-              </div>
-              {/* Spd */}
-              <div className="text-center flex-shrink-0">
-                <div className="text-xs text-gray-500 dark:text-gray-400">Spd</div>
                 {readOnly ? (
-                  <div className="text-sm font-bold text-gray-900 dark:text-white">{sheet.speed}</div>
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">{formatModifier(sheet.proficiencyBonus)}</div>
                 ) : (
-                  <NumericInput value={sheet.speed} onChange={(val) => handleUpdate({ speed: val })} min={0} max={999} defaultValue={30} className="w-10 text-sm font-bold text-center bg-transparent border-b border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500" />
+                  <NumericInput value={sheet.proficiencyBonus} onChange={(val) => handleUpdate({ proficiencyBonus: val })} min={0} max={20} defaultValue={2} className="w-10 text-sm font-bold text-center bg-transparent border-b border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500" />
+                )}
+              </div>
+              {/* Spd - tap label to cycle type */}
+              <div className="flex flex-col items-center flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const types = ["walk", "fly", "swim", "burrow", "climb"] as const;
+                    const idx = types.indexOf(speedType);
+                    setSpeedType(types[(idx + 1) % types.length]);
+                  }}
+                  className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-1.5 py-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/60 cursor-pointer transition-colors"
+                  title={`Showing ${speedType} speed — tap to cycle`}
+                >
+                  {{ walk: "Run", fly: "Fly", swim: "Swim", burrow: "Burrow", climb: "Climb" }[speedType]}
+                </button>
+                {readOnly ? (
+                  <div className="text-sm font-bold text-gray-900 dark:text-white">{ensureSpeed(sheet.speed)[speedType]}</div>
+                ) : (
+                  <NumericInput value={ensureSpeed(sheet.speed)[speedType]} onChange={(val) => handleUpdate({ speed: { ...ensureSpeed(sheet.speed), [speedType]: val } })} min={0} max={999} defaultValue={speedType === "walk" ? 30 : 0} className="w-10 text-sm font-bold text-center bg-transparent border-b border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:border-blue-500" />
                 )}
               </div>
               {/* Hit Dice */}
@@ -1429,7 +1468,7 @@ export function CharacterSheetPanel({
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Character Details</h3>
               {readOnly ? (
                 <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, { S: "Small", M: "Medium", L: "Large" }[sheet.creatureSize]].filter(Boolean).join(" / ") || "No details"}
+                  {[sheet.race, sheet.characterClass, sheet.subclass, sheet.background, sheet.creatureSize].filter(Boolean).join(" / ") || "No details"}
                 </span>
               ) : (
                 <div className="flex flex-wrap gap-2">
@@ -1874,7 +1913,7 @@ export function CharacterSheetPanel({
                 name="Strength"
                 abilityKey="strength"
                 ability={sheet.abilities.strength}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("strength", a)}
                 onSkillChange={handleSkillChange}
@@ -1884,7 +1923,7 @@ export function CharacterSheetPanel({
                 name="Dexterity"
                 abilityKey="dexterity"
                 ability={sheet.abilities.dexterity}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("dexterity", a)}
                 onSkillChange={handleSkillChange}
@@ -1894,7 +1933,7 @@ export function CharacterSheetPanel({
                 name="Constitution"
                 abilityKey="constitution"
                 ability={sheet.abilities.constitution}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("constitution", a)}
                 onSkillChange={handleSkillChange}
@@ -1904,7 +1943,7 @@ export function CharacterSheetPanel({
                 name="Intelligence"
                 abilityKey="intelligence"
                 ability={sheet.abilities.intelligence}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("intelligence", a)}
                 onSkillChange={handleSkillChange}
@@ -1914,7 +1953,7 @@ export function CharacterSheetPanel({
                 name="Wisdom"
                 abilityKey="wisdom"
                 ability={sheet.abilities.wisdom}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("wisdom", a)}
                 onSkillChange={handleSkillChange}
@@ -1924,7 +1963,7 @@ export function CharacterSheetPanel({
                 name="Charisma"
                 abilityKey="charisma"
                 ability={sheet.abilities.charisma}
-                proficiencyBonus={calculateProficiencyBonus(sheet.level)}
+                proficiencyBonus={sheet.proficiencyBonus}
                 skills={ensureSkills(sheet.skills)}
                 onChange={(a) => handleAbilityChange("charisma", a)}
                 onSkillChange={handleSkillChange}
@@ -2082,13 +2121,13 @@ export function CharacterSheetPanel({
                   <div className="text-center">
                     <div className="text-xs text-gray-500 dark:text-gray-400">Spell Save DC</div>
                     <div className="text-lg font-bold text-gray-900 dark:text-white">
-                      {8 + calculateProficiencyBonus(sheet.level) + sheet.abilities[sheet.spellcastingAbility].modifier}
+                      {8 + sheet.proficiencyBonus + sheet.abilities[sheet.spellcastingAbility].modifier}
                     </div>
                   </div>
                   <div className="text-center">
                     <div className="text-xs text-gray-500 dark:text-gray-400">Spell Attack</div>
                     <div className="text-lg font-bold text-gray-900 dark:text-white">
-                      {formatModifier(calculateProficiencyBonus(sheet.level) + sheet.abilities[sheet.spellcastingAbility].modifier)}
+                      {formatModifier(sheet.proficiencyBonus + sheet.abilities[sheet.spellcastingAbility].modifier)}
                     </div>
                   </div>
                 </div>

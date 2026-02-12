@@ -683,6 +683,7 @@ export function MapEditor({
             onEditToken={handleEditToken}
             onTokenDelete={handleTokenDelete}
             onTokenCreate={handleTokenCreate}
+            onMapChanged={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
             onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
             onSelectAndCenter={handleSelectAndCenter}
             onCombatRequest={broadcastCombatRequest}
@@ -707,6 +708,7 @@ export function MapEditor({
             onEditToken={handleEditToken}
             onTokenDelete={handleTokenDelete}
             onTokenCreate={handleTokenCreate}
+            onMapChanged={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
             onBackgroundChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }}
             onSelectAndCenter={handleSelectAndCenter}
             onCombatRequest={broadcastCombatRequest}
