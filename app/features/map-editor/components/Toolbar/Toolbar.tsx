@@ -33,12 +33,13 @@ interface ToolbarProps {
   userName?: string | null;
   userId?: string | null;
   mapId?: string;
+  groupId?: string | null;
   groupMembers?: GroupMember[];
   onDmTransfer?: (newDmId: string) => void;
   onGridChange?: () => void;
 }
 
-export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransfer, onGridChange }: ToolbarProps) {
+export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], onDmTransfer, onGridChange }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -269,7 +270,7 @@ export function Toolbar({ userName, userId, mapId, groupMembers = [], onDmTransf
       <div className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <Link
-            to="/maps"
+            to={groupId ? `/g/${groupId}` : "/maps"}
             className="p-2 lg:px-3 lg:py-2 rounded text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors cursor-pointer"
           >
             ←<span className="hidden lg:inline"> Maps</span>

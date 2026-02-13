@@ -82,7 +82,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
           <Link
-            to="/maps"
+            to="/"
             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

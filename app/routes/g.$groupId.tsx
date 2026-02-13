@@ -1,5 +1,5 @@
-import type { Route } from "./+types/maps";
-import { useState, useEffect } from "react";
+import type { Route } from "./+types/g.$groupId";
+import { useState, useEffect, useMemo } from "react";
 import { Link, Form, useNavigate, useLoaderData } from "react-router";
 import { redirect } from "react-router";
 import {
@@ -47,44 +47,92 @@ interface ImportableToken {
 }
 
 interface LoaderData {
-  owned: MapListItem[];
-  groups: GroupInfo[];
+  groupId: string;
+  groupName: string;
+  groupMaps: MapListItem[];
+  personalMaps: MapListItem[];
+  userGroups: GroupInfo[];
   userName: string;
+  userRole: string;
 }
 
-export function meta({}: Route.MetaArgs) {
+export function meta({ data }: Route.MetaArgs) {
+  const loaderData = data as LoaderData | undefined;
   return [
-    { title: "Personal Maps - DnD" },
-    { name: "description", content: "View and manage your personal DnD maps" },
+    { title: loaderData?.groupName ? `${loaderData.groupName} - DnD` : "Maps - DnD" },
+    { name: "description", content: "Group maps" },
   ];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const { eq, desc, inArray, isNull, and } = await import("drizzle-orm");
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const { eq, desc, inArray, and, ne, isNull } = await import("drizzle-orm");
   const { db } = await import("~/.server/db");
-  const { maps, groups, groupMembers } = await import("~/.server/db/schema");
+  const { maps, groups, groupMembers, user } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
 
   const session = await requireAuth(request);
   const userId = session.user.id;
+  const { groupId } = params;
 
-  // Redirect ?group=xxx to /g/xxx for backwards compat
-  const url = new URL(request.url);
-  const groupParam = url.searchParams.get("group");
-  if (groupParam && groupParam !== "all" && groupParam !== "personal") {
-    throw redirect(`/g/${groupParam}`);
+  // Verify user is a member of this group
+  const membership = await db
+    .select({ id: groupMembers.id, role: groupMembers.role })
+    .from(groupMembers)
+    .where(and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, userId)))
+    .limit(1);
+
+  if (membership.length === 0) {
+    throw redirect("/maps");
   }
 
-  // Get user's group IDs (for group selector and redirect CTA)
-  const userGroups = await db
+  const userRole = membership[0].role;
+
+  // Get group info
+  const groupData = await db
+    .select({ id: groups.id, name: groups.name })
+    .from(groups)
+    .where(eq(groups.id, groupId))
+    .limit(1);
+
+  if (groupData.length === 0) {
+    throw redirect("/maps");
+  }
+
+  // Update lastGroupId as side effect
+  await db.update(user).set({ lastGroupId: groupId }).where(eq(user.id, userId));
+
+  // Get all user's groups for switcher
+  const userGroupMemberships = await db
     .select({ groupId: groupMembers.groupId })
     .from(groupMembers)
     .where(eq(groupMembers.userId, userId));
 
-  const groupIds = userGroups.map((g) => g.groupId);
+  const allGroupIds = userGroupMemberships.map((g) => g.groupId);
 
-  // Get personal maps only (no group assigned)
-  const ownedMaps = await db
+  const userGroups = allGroupIds.length > 0
+    ? await db
+        .select({ id: groups.id, name: groups.name })
+        .from(groups)
+        .where(inArray(groups.id, allGroupIds))
+    : [];
+
+  // Get maps for this group (all maps in the group)
+  const groupMapsData = await db
+    .select({
+      id: maps.id,
+      name: maps.name,
+      userId: maps.userId,
+      groupId: maps.groupId,
+      createdAt: maps.createdAt,
+      updatedAt: maps.updatedAt,
+      data: maps.data,
+    })
+    .from(maps)
+    .where(eq(maps.groupId, groupId))
+    .orderBy(desc(maps.updatedAt));
+
+  // Get user's personal maps (no group)
+  const personalMapsData = await db
     .select({
       id: maps.id,
       name: maps.name,
@@ -97,22 +145,6 @@ export async function loader({ request }: Route.LoaderArgs) {
     .from(maps)
     .where(and(eq(maps.userId, userId), isNull(maps.groupId)))
     .orderBy(desc(maps.updatedAt));
-
-  // Get groups info
-  const groupsData =
-    groupIds.length > 0
-      ? await db
-          .select({
-            id: groups.id,
-            name: groups.name,
-          })
-          .from(groups)
-          .where(inArray(groups.id, groupIds))
-      : [];
-
-  const groupNameMap = Object.fromEntries(
-    groupsData.map((g) => [g.id, g.name])
-  );
 
   const getMapPreviewData = (data: unknown) => {
     const mapData = data as {
@@ -127,7 +159,25 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 
   return {
-    owned: ownedMaps.map((m) => {
+    groupId,
+    groupName: groupData[0].name,
+    groupMaps: groupMapsData.map((m) => {
+      const { gridWidth, gridHeight, thumbnailUrl } = getMapPreviewData(m.data);
+      return {
+        id: m.id,
+        name: m.name,
+        userId: m.userId,
+        groupId: m.groupId,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        permission: (m.userId === userId ? "dm" : "player") as "dm" | "player",
+        groupName: groupData[0].name,
+        gridWidth,
+        gridHeight,
+        thumbnailUrl,
+      };
+    }),
+    personalMaps: personalMapsData.map((m) => {
       const { gridWidth, gridHeight, thumbnailUrl } = getMapPreviewData(m.data);
       return {
         id: m.id,
@@ -137,25 +187,26 @@ export async function loader({ request }: Route.LoaderArgs) {
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
         permission: "dm" as const,
-        groupName: m.groupId ? groupNameMap[m.groupId] ?? null : null,
+        groupName: null,
         gridWidth,
         gridHeight,
         thumbnailUrl,
       };
     }),
-    groups: groupsData,
+    userGroups,
     userName: session.user.name,
+    userRole,
   };
 }
 
-export default function Maps() {
+export default function GroupMaps() {
   const navigate = useNavigate();
-  const { owned, groups, userName } = useLoaderData<LoaderData>();
+  const { groupId, groupName, groupMaps, personalMaps, userGroups, userName, userRole } =
+    useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
   const [gridWidth, setGridWidth] = useState(DEFAULT_GRID.width);
   const [gridHeight, setGridHeight] = useState(DEFAULT_GRID.height);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [isCreating, setIsCreating] = useState(false);
   const [localMaps, setLocalMaps] = useState<MapIndexEntry[]>([]);
   const [migrationDismissed, setMigrationDismissed] = useState(false);
@@ -178,20 +229,14 @@ export default function Maps() {
     setLocalMaps(maps);
   }, []);
 
-  // Fetch available tokens when group selection changes
+  // Fetch available tokens for this group
   useEffect(() => {
-    if (!selectedGroupId) {
-      setAvailableTokens([]);
-      setSelectedTokenIds(new Set());
-      return;
-    }
-
     const fetchTokens = async () => {
       setIsLoadingTokens(true);
       try {
         const url = showAllLayers
-          ? `/api/groups/${selectedGroupId}/tokens?all=true`
-          : `/api/groups/${selectedGroupId}/tokens`;
+          ? `/api/groups/${groupId}/tokens?all=true`
+          : `/api/groups/${groupId}/tokens`;
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
@@ -205,7 +250,7 @@ export default function Maps() {
     };
 
     fetchTokens();
-  }, [selectedGroupId, showAllLayers]);
+  }, [groupId, showAllLayers]);
 
   const openDeleteModal = (id: string, name: string) => {
     setDeleteModal({ id, name });
@@ -292,7 +337,7 @@ export default function Maps() {
         body: JSON.stringify({
           name: map.name,
           data: map,
-          groupId: selectedGroupId || null,
+          groupId: groupId,
         }),
       });
 
@@ -313,7 +358,6 @@ export default function Maps() {
     setNewMapName("Untitled Map");
     setGridWidth(DEFAULT_GRID.width);
     setGridHeight(DEFAULT_GRID.height);
-    setSelectedGroupId("");
     setSelectedTokenIds(new Set());
     setShowAllLayers(false);
     setShowCreateModal(true);
@@ -365,11 +409,6 @@ export default function Maps() {
         ) : (
           <span className="text-4xl">🗺️</span>
         )}
-        {map.groupName && (
-          <span className="absolute top-2 right-2 text-xs px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
-            {map.groupName}
-          </span>
-        )}
       </div>
       <div className="p-4">
         <div className="flex items-center gap-2 mb-1">
@@ -417,14 +456,14 @@ export default function Maps() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Personal Maps
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
               Hello, {userName}
-            </p>
+            </h1>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-4">
-            <GroupSwitcher currentGroupId={null} groups={groups} />
+            <GroupSwitcher
+              currentGroupId={groupId}
+              groups={userGroups}
+            />
             <Link
               to="/characters"
               className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -437,12 +476,6 @@ export default function Maps() {
             >
               Manage Groups
             </Link>
-            <button
-              onClick={handleOpenModal}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-            >
-              + New Map
-            </button>
             <Link
               to="/settings"
               className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
@@ -459,24 +492,6 @@ export default function Maps() {
             </Form>
           </div>
         </div>
-
-        {/* No groups CTA */}
-        {groups.length === 0 && (
-          <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-6 mb-6">
-            <h3 className="font-semibold text-indigo-900 dark:text-indigo-200 mb-2">
-              Play with your group
-            </h3>
-            <p className="text-sm text-indigo-700 dark:text-indigo-300 mb-3">
-              Create or join a group to share maps and play together in real-time.
-            </p>
-            <Link
-              to="/groups"
-              className="inline-block px-4 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700"
-            >
-              Create or Join a Group
-            </Link>
-          </div>
-        )}
 
         {/* Patch Notes */}
         <PatchNotesPanel />
@@ -515,28 +530,18 @@ export default function Maps() {
                   />
                 </div>
 
-                {groups.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Group (optional)
-                    </label>
-                    <select
-                      value={selectedGroupId}
-                      onChange={(e) => setSelectedGroupId(e.target.value)}
-                      className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    >
-                      <option value="">Personal (no group)</option>
-                      {groups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Group members can view maps in the group.
-                    </p>
+                {/* Group is locked to current group */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Group
+                  </label>
+                  <div className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-600 text-gray-900 dark:text-white">
+                    {groupName}
                   </div>
-                )}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Map will be created in this group. Use <Link to="/maps" className="text-blue-600 dark:text-blue-400 hover:underline">Personal Maps</Link> for ungrouped maps.
+                  </p>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -579,108 +584,106 @@ export default function Maps() {
                   </p>
                 </div>
 
-                {/* Token Import Section - only shown when a group is selected */}
-                {selectedGroupId && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Import Units from Group
-                      </label>
-                      <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={showAllLayers}
-                          onChange={(e) => setShowAllLayers(e.target.checked)}
-                          className="rounded border-gray-300 dark:border-gray-600"
-                        />
-                        Show all types
-                      </label>
-                    </div>
-
-                    {isLoadingTokens ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                        Loading units...
-                      </div>
-                    ) : availableTokens.length === 0 ? (
-                      <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
-                        No {showAllLayers ? "units" : "characters"} found in group maps.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex gap-2 mb-2">
-                          <button
-                            type="button"
-                            onClick={selectAllTokens}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                          >
-                            Select all
-                          </button>
-                          <button
-                            type="button"
-                            onClick={deselectAllTokens}
-                            className="text-xs text-gray-500 dark:text-gray-400 hover:underline cursor-pointer"
-                          >
-                            Clear
-                          </button>
-                          {selectedTokenIds.size > 0 && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-                              {selectedTokenIds.size} selected
-                            </span>
-                          )}
-                        </div>
-                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
-                          {availableTokens.map((token) => (
-                            <label
-                              key={token.id}
-                              className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                                selectedTokenIds.has(token.id)
-                                  ? "bg-blue-50 dark:bg-blue-900/20"
-                                  : ""
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedTokenIds.has(token.id)}
-                                onChange={() => toggleTokenSelection(token.id)}
-                                className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
-                              />
-                              {token.imageUrl ? (
-                                <img
-                                  src={token.imageUrl}
-                                  alt=""
-                                  className="w-6 h-6 rounded-full object-cover"
-                                />
-                              ) : (
-                                <div
-                                  className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                                  style={{ backgroundColor: token.color }}
-                                >
-                                  {token.name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
-                                {token.name}
-                              </span>
-                              {token.source === "library" && (
-                                <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded">
-                                  Shared
-                                </span>
-                              )}
-                              {token.characterSheet && (
-                                <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
-                                  Sheet
-                                </span>
-                              )}
-                            </label>
-                          ))}
-                        </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Selected units will be imported with their stats.
-                        </p>
-                      </>
-                    )}
+                {/* Token Import Section */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Import Units from Group
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={showAllLayers}
+                        onChange={(e) => setShowAllLayers(e.target.checked)}
+                        className="rounded border-gray-300 dark:border-gray-600"
+                      />
+                      Show all types
+                    </label>
                   </div>
-                )}
+
+                  {isLoadingTokens ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                      Loading units...
+                    </div>
+                  ) : availableTokens.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 py-2">
+                      No {showAllLayers ? "units" : "characters"} found in group maps.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={selectAllTokens}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          onClick={deselectAllTokens}
+                          className="text-xs text-gray-500 dark:text-gray-400 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                        {selectedTokenIds.size > 0 && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                            {selectedTokenIds.size} selected
+                          </span>
+                        )}
+                      </div>
+                      <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded">
+                        {availableTokens.map((token) => (
+                          <label
+                            key={token.id}
+                            className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                              selectedTokenIds.has(token.id)
+                                ? "bg-blue-50 dark:bg-blue-900/20"
+                                : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTokenIds.has(token.id)}
+                              onChange={() => toggleTokenSelection(token.id)}
+                              className="rounded border-gray-300 dark:border-gray-600 text-blue-600"
+                            />
+                            {token.imageUrl ? (
+                              <img
+                                src={token.imageUrl}
+                                alt=""
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                style={{ backgroundColor: token.color }}
+                              >
+                                {token.name.charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-900 dark:text-white flex-1 truncate">
+                              {token.name}
+                            </span>
+                            {token.source === "library" && (
+                              <span className="text-xs px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded">
+                                Shared
+                              </span>
+                            )}
+                            {token.characterSheet && (
+                              <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded">
+                                Sheet
+                              </span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Selected units will be imported with their stats.
+                      </p>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -763,15 +766,32 @@ export default function Maps() {
           </div>
         )}
 
-        {/* My Maps Section */}
+        {/* Group Maps Section */}
         <section className="mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-            My Maps
-          </h2>
-          {owned.length === 0 ? (
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+              Group Maps
+            </h2>
+            <span className={`text-xs px-2 py-0.5 rounded ${
+              userRole === "owner"
+                ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300"
+                : userRole === "admin"
+                  ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+            }`}>
+              {userRole}
+            </span>
+            <button
+              onClick={handleOpenModal}
+              className="ml-auto px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+            >
+              + New Map
+            </button>
+          </div>
+          {groupMaps.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
               <p className="text-gray-500 dark:text-gray-400 mb-4">
-                No maps yet. Create your first map!
+                No maps in this group yet. Create your first map!
               </p>
               <button
                 onClick={handleOpenModal}
@@ -782,10 +802,38 @@ export default function Maps() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {owned.map((map) => renderMapCard(map, true))}
+              {groupMaps.map((map) => renderMapCard(map, map.permission === "dm"))}
             </div>
           )}
         </section>
+
+        {/* Personal Maps Section */}
+        {personalMaps.length > 0 && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+                Personal Maps
+              </h2>
+              <Link
+                to="/maps"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {personalMaps.slice(0, 3).map((map) => renderMapCard(map, true))}
+            </div>
+            {personalMaps.length > 3 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                +{personalMaps.length - 3} more personal maps.{" "}
+                <Link to="/maps" className="text-blue-600 dark:text-blue-400 hover:underline">
+                  View all
+                </Link>
+              </p>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

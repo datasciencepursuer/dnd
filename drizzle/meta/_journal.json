@@ -120,6 +120,13 @@
       "when": 1770857578256,
       "tag": "0016_sour_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1770950377091,
+      "tag": "0017_watery_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

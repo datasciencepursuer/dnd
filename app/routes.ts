@@ -6,6 +6,7 @@ export default [
   route("reset-password", "routes/reset-password.tsx"),
   route("logout", "routes/logout.tsx"),
   route("maps", "routes/maps.tsx"),
+  route("g/:groupId", "routes/g.$groupId.tsx"),
   route("settings", "routes/settings.tsx"),
   route("groups", "routes/groups.tsx"),
   route("groups/:groupId", "routes/groups.$groupId.tsx"),

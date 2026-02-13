@@ -675,7 +675,7 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar userName={userName} userId={userId} mapId={mapId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
+      <Toolbar userName={userName} userId={userId} mapId={mapId} groupId={groupId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
       <div className="flex flex-1 overflow-hidden relative">
         {isMobile ? (
           <MobileSidebarRail

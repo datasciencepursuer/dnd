@@ -691,7 +691,7 @@ export default function GroupDetail() {
           <h2 className="font-semibold text-gray-900 dark:text-white mb-4">Actions</h2>
           <div className="flex flex-wrap gap-3">
             <Link
-              to={`/maps?group=${group.id}`}
+              to={`/g/${group.id}`}
               className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600"
             >
               View Maps

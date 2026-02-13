@@ -286,7 +286,7 @@ export default function Characters() {
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3">
             <Link
-              to="/maps"
+              to="/"
               className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
             >
               Back to Maps

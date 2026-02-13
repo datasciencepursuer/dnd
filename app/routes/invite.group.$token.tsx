@@ -291,14 +291,14 @@ export default function InviteGroupToken() {
 
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
-        navigate("/maps");
+        navigate("/");
         return;
       }
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        navigate("/maps");
+        navigate("/");
       } else {
         setError(result.error || "Failed to decline invitation");
         setIsDeclining(false);
@@ -362,7 +362,7 @@ export default function InviteGroupToken() {
               This invitation link is invalid or has been revoked.
             </p>
             <Link
-              to="/maps"
+              to="/"
               className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
             >
               Go to Maps
@@ -384,7 +384,7 @@ export default function InviteGroupToken() {
               This invitation has expired. Please ask for a new invitation.
             </p>
             <Link
-              to="/maps"
+              to="/"
               className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
             >
               Go to Maps
@@ -487,7 +487,7 @@ export default function InviteGroupToken() {
               Please log in with that email address to accept the invitation.
             </p>
             <Link
-              to="/maps"
+              to="/"
               className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
             >
               Go to Maps

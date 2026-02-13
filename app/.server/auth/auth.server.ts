@@ -68,7 +68,7 @@ export const auth = betterAuth({
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
-    callbackURL: "/maps",
+    callbackURL: "/",
     sendVerificationEmail: async ({ user, url }) => {
       const html = await render(VerificationEmail({ url, userName: user.name }));
       await resend.emails.send({
