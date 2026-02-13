@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   getMonthGrid,
   DAY_LABELS_SINGLE,
@@ -24,6 +24,12 @@ export function MiniMonthCalendar({
   const currentParts = useMemo(() => getDatePartsInTz(currentWeekStart, userTimezone), [currentWeekStart, userTimezone]);
   const [viewYear, setViewYear] = useState(currentParts.year);
   const [viewMonth, setViewMonth] = useState(currentParts.month - 1); // getMonthGrid uses 0-based
+
+  // Sync displayed month when week changes externally (e.g., header prev/next buttons)
+  useEffect(() => {
+    setViewYear(currentParts.year);
+    setViewMonth(currentParts.month - 1);
+  }, [currentParts.year, currentParts.month]);
 
   const today = new Date();
   const grid = getMonthGrid(viewYear, viewMonth);
