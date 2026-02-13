@@ -557,6 +557,7 @@ export default function GroupSchedule() {
               isMobile
               totalMembers={members.length}
               userTimezone={userTimezone}
+
             />
           </div>
         </div>
@@ -604,6 +605,7 @@ export default function GroupSchedule() {
               isMobile={false}
               totalMembers={members.length}
               userTimezone={userTimezone}
+
             />
           </div>
         </div>

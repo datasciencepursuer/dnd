@@ -38,6 +38,8 @@ const BODY_PAD_TOP = 10; // px top padding in gutter/day columns (Tailwind pt-2.
 const DEFAULT_SCROLL_HOUR = 8; // scroll to 8 AM on mount
 const TOUCH_HOLD_MS = 300; // ms hold before drag starts
 const TOUCH_MOVE_THRESHOLD = 8; // px movement allowed during hold
+const AUTO_SCROLL_EDGE = 40; // px from container edge to trigger auto-scroll
+const AUTO_SCROLL_SPEED = 4; // px per animation frame
 
 export function WeeklyCalendar({
   weekStart,
@@ -62,8 +64,12 @@ export function WeeklyCalendar({
   }>({ active: false, dayIndex: -1, startSlot: -1, currentSlot: -1, previewEl: null });
   const touchHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchOrigin = useRef<{ x: number; y: number } | null>(null);
-  // When drag is active, we lock every scrollable ancestor so nothing moves.
-  const scrollLockCleanup = useRef<(() => void) | null>(null);
+  // Auto-scroll state for drag-beyond-edge
+  const autoScrollRef = useRef<{
+    rafId: number | null;
+    direction: -1 | 0 | 1; // -1 = up, 0 = none, 1 = down
+    clientY: number; // last known cursor/finger Y for slot recalc during scroll
+  }>({ rafId: null, direction: 0, clientY: 0 });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
   const gutterWidth = isMobile ? GUTTER_WIDTH_MOBILE : GUTTER_WIDTH_DESKTOP;
@@ -110,32 +116,6 @@ export function WeeklyCalendar({
     },
     [days, nowParts, userTimezone]
   );
-
-  /**
-   * Lock the calendar container's scroll position while drag is active.
-   * The browser may have already started a scroll gesture before our hold
-   * timer fires, so we forcefully snap scrollTop back on every scroll event.
-   */
-  const lockScroll = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const savedScroll = container.scrollTop;
-
-    const onScroll = () => {
-      container.scrollTop = savedScroll;
-    };
-    container.addEventListener("scroll", onScroll);
-
-    scrollLockCleanup.current = () => {
-      container.removeEventListener("scroll", onScroll);
-      scrollLockCleanup.current = null;
-    };
-  }, []);
-
-  const unlockScroll = useCallback(() => {
-    scrollLockCleanup.current?.();
-  }, []);
 
   // Scroll to 8 AM on mount or week change
   useEffect(() => {
@@ -184,6 +164,70 @@ export function WeeklyCalendar({
     drag.previewEl.style.top = `${minSlot * SLOT_HEIGHT + BODY_PAD_TOP}px`;
     drag.previewEl.style.height = `${(maxSlot - minSlot + 1) * SLOT_HEIGHT}px`;
   }, []);
+
+  // Auto-scroll: runs a rAF loop that scrolls the container and updates the drag slot
+  const autoScrollTick = useCallback(() => {
+    const as = autoScrollRef.current;
+    const container = containerRef.current;
+    if (!as.direction || !container || !dragRef.current.active) {
+      as.rafId = null;
+      return;
+    }
+    container.scrollTop += as.direction * AUTO_SCROLL_SPEED;
+    // Recalculate slot from the last-known clientY after scroll shift
+    const slot = getSlotFromY(as.clientY);
+    if (slot >= 0 && slot !== dragRef.current.currentSlot) {
+      dragRef.current.currentSlot = slot;
+      updatePreview();
+    }
+    as.rafId = requestAnimationFrame(autoScrollTick);
+  }, [getSlotFromY, updatePreview]);
+
+  const startAutoScroll = useCallback(
+    (direction: -1 | 1, clientY: number) => {
+      const as = autoScrollRef.current;
+      as.direction = direction;
+      as.clientY = clientY;
+      if (!as.rafId) {
+        as.rafId = requestAnimationFrame(autoScrollTick);
+      }
+    },
+    [autoScrollTick]
+  );
+
+  const stopAutoScroll = useCallback(() => {
+    const as = autoScrollRef.current;
+    as.direction = 0;
+    if (as.rafId) {
+      cancelAnimationFrame(as.rafId);
+      as.rafId = null;
+    }
+  }, []);
+
+  /** Check cursor position relative to container and start/stop auto-scroll */
+  const updateAutoScroll = useCallback(
+    (clientY: number) => {
+      const container = containerRef.current;
+      if (!container || !dragRef.current.active) {
+        stopAutoScroll();
+        return;
+      }
+      const rect = container.getBoundingClientRect();
+      // Account for sticky header — the scrollable body starts below it
+      const topEdge = rect.top + HEADER_HEIGHT;
+      const bottomEdge = rect.bottom;
+
+      if (clientY < topEdge + AUTO_SCROLL_EDGE) {
+        startAutoScroll(-1, clientY);
+      } else if (clientY > bottomEdge - AUTO_SCROLL_EDGE) {
+        startAutoScroll(1, clientY);
+      } else {
+        stopAutoScroll();
+      }
+      autoScrollRef.current.clientY = clientY;
+    },
+    [startAutoScroll, stopAutoScroll]
+  );
 
   const finalizeDrag = useCallback(async () => {
     const drag = dragRef.current;
@@ -262,20 +306,22 @@ export function WeeklyCalendar({
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!dragRef.current.active) return;
+      updateAutoScroll(e.clientY);
       const slot = getSlotFromY(e.clientY);
       if (slot >= 0 && slot !== dragRef.current.currentSlot) {
         dragRef.current.currentSlot = slot;
         updatePreview();
       }
     },
-    [getSlotFromY, updatePreview]
+    [getSlotFromY, updatePreview, updateAutoScroll]
   );
 
   const handleMouseUp = useCallback(() => {
+    stopAutoScroll();
     if (dragRef.current.active) {
       finalizeDrag();
     }
-  }, [finalizeDrag]);
+  }, [finalizeDrag, stopAutoScroll]);
 
   // Touch handlers for mobile
   // Strategy: finger down starts a hold timer. If the finger moves more than
@@ -327,12 +373,11 @@ export function WeeklyCalendar({
           previewEl,
         };
         updatePreview();
-
-        // Freeze everything — container, body, html
-        lockScroll();
+        // Note: no lockScroll() — e.preventDefault() in touchmove handles native scroll,
+        // and we need programmatic scrollTop changes for auto-scroll to work.
       }, TOUCH_HOLD_MS);
     },
-    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview, lockScroll, isSlotInPast]
+    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview, isSlotInPast]
   );
 
   // Native touchmove / touchend — must be { passive: false } so preventDefault works
@@ -355,10 +400,11 @@ export function WeeklyCalendar({
         return;
       }
 
-      // In drag mode — kill the scroll
+      // In drag mode — kill native scroll but allow programmatic auto-scroll
       e.preventDefault();
       e.stopPropagation();
 
+      updateAutoScroll(touch.clientY);
       const slot = getSlotFromY(touch.clientY);
       if (slot >= 0 && slot !== dragRef.current.currentSlot) {
         dragRef.current.currentSlot = slot;
@@ -368,8 +414,8 @@ export function WeeklyCalendar({
 
     const onTouchEnd = () => {
       cancelTouchHold();
+      stopAutoScroll();
       if (dragRef.current.active) {
-        unlockScroll();
         finalizeDrag();
       }
     };
@@ -382,9 +428,9 @@ export function WeeklyCalendar({
       grid.removeEventListener("touchmove", onTouchMove);
       grid.removeEventListener("touchend", onTouchEnd);
       grid.removeEventListener("touchcancel", onTouchEnd);
-      unlockScroll(); // clean up if unmounted mid-drag
+      stopAutoScroll();
     };
-  }, [getSlotFromY, updatePreview, cancelTouchHold, finalizeDrag, unlockScroll]);
+  }, [getSlotFromY, updatePreview, updateAutoScroll, cancelTouchHold, finalizeDrag, stopAutoScroll]);
 
   // Delete handler
   const handleDeleteBlock = useCallback(
