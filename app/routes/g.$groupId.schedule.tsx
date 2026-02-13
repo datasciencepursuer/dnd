@@ -13,8 +13,6 @@ import {
   type ScheduleVote,
 } from "~/features/schedule/components/AllFreeSlots";
 import {
-  getNextWeek,
-  getPrevWeek,
   getMemberColor,
   computeAllFreeSpans,
 } from "~/features/schedule/utils/date-utils";
@@ -23,6 +21,8 @@ import {
   toISODateInTz,
   getTimezoneAbbr,
   detectBrowserTimezone,
+  createDateInTz,
+  getDatePartsInTz,
 } from "~/features/schedule/utils/tz-utils";
 import { useScheduleSync } from "~/features/schedule/hooks/useScheduleSync";
 import { TimezoneSelect } from "~/components/TimezoneSelect";
@@ -233,11 +233,14 @@ export default function GroupSchedule() {
     return () => document.removeEventListener("mousedown", handler);
   }, [showTzPicker]);
 
-  // Current week state — use timezone-aware week start
+  // Current week state — parse as Monday midnight in user's timezone
   const [weekStart, setWeekStart] = useState(() => {
     const wp = searchParams.get("week") || initialWeek;
-    const date = new Date(wp + "T00:00:00Z");
-    return isNaN(date.getTime()) ? getWeekStartInTz(new Date(), userTimezone) : date;
+    const parts = wp.split("-").map(Number);
+    if (parts.length === 3 && parts.every((n) => !isNaN(n))) {
+      return createDateInTz(parts[0], parts[1], parts[2], 0, 0, userTimezone);
+    }
+    return getWeekStartInTz(new Date(), userTimezone);
   });
 
   const [blocks, setBlocks] = useState<AvailabilityBlock[]>(initialAvailabilities);
@@ -336,8 +339,14 @@ export default function GroupSchedule() {
     [setSearchParams, fetchBlocks, fetchVotes, userTimezone]
   );
 
-  const handlePrevWeek = () => navigateWeek(getPrevWeek(weekStart));
-  const handleNextWeek = () => navigateWeek(getNextWeek(weekStart));
+  const handlePrevWeek = () => {
+    const p = getDatePartsInTz(weekStart, userTimezone);
+    navigateWeek(createDateInTz(p.year, p.month, p.day - 7, 0, 0, userTimezone));
+  };
+  const handleNextWeek = () => {
+    const p = getDatePartsInTz(weekStart, userTimezone);
+    navigateWeek(createDateInTz(p.year, p.month, p.day + 7, 0, 0, userTimezone));
+  };
   const handleWeekSelect = (ws: Date) => navigateWeek(ws);
 
   const handleBlocksChange = useCallback(() => {
