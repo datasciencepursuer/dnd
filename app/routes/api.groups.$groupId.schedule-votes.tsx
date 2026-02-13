@@ -1,7 +1,7 @@
 import type { Route } from "./+types/api.groups.$groupId.schedule-votes";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { eq, and, gt, lt } = await import("drizzle-orm");
+  const { eq, and, gt } = await import("drizzle-orm");
   const { db } = await import("~/.server/db");
   const { groupScheduleVotes, user } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
@@ -15,28 +15,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   await requireGroupPermission(groupId, userId, "view");
 
-  // Parse week query param
-  const url = new URL(request.url);
-  const weekParam = url.searchParams.get("week");
-
-  let weekStart: Date;
-  if (weekParam) {
-    weekStart = new Date(weekParam + "T00:00:00Z");
-    if (isNaN(weekStart.getTime())) {
-      return Response.json({ error: "Invalid week parameter" }, { status: 400 });
-    }
-  } else {
-    const now = new Date();
-    const day = now.getUTCDay();
-    const diff = day === 0 ? 6 : day - 1;
-    weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diff));
-  }
-
-  // Add ±1 day buffer to catch votes near week boundaries across timezones
-  const queryStart = new Date(weekStart);
-  queryStart.setUTCDate(queryStart.getUTCDate() - 1);
-  const queryEnd = new Date(weekStart);
-  queryEnd.setUTCDate(queryEnd.getUTCDate() + 8);
+  // Fetch all future votes (from yesterday onwards)
+  const queryStart = new Date(Date.now() - 86400000);
 
   const votes = await db
     .select({
@@ -52,7 +32,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .where(
       and(
         eq(groupScheduleVotes.groupId, groupId),
-        lt(groupScheduleVotes.startTime, queryEnd),
         gt(groupScheduleVotes.endTime, queryStart)
       )
     );

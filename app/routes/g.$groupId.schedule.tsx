@@ -110,10 +110,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .innerJoin(user, eq(groupMembers.userId, user.id))
     .where(eq(groupMembers.groupId, groupId));
 
-  // Parse week from search params
-  // The ?week= param is always a Monday date in the user's timezone, stored as YYYY-MM-DD.
-  // On the server we parse it as UTC midnight — the ±1 day buffer on the query handles
-  // any timezone offset discrepancies.
+  // Parse week from search params (used for initial calendar view position)
   const { getWeekStart } = await import("~/features/schedule/utils/date-utils");
   const url = new URL(request.url);
   const weekParam = url.searchParams.get("week");
@@ -127,14 +124,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     weekStart = getWeekStart(new Date());
   }
 
-  // Add ±1 day buffer to catch blocks near week boundaries across timezones
-  const queryStart = new Date(weekStart);
-  queryStart.setUTCDate(queryStart.getUTCDate() - 1);
-  const queryEnd = new Date(weekStart);
-  queryEnd.setUTCDate(queryEnd.getUTCDate() + 8);
+  // Fetch all future availability blocks and votes (from yesterday onwards)
+  const queryStart = new Date(Date.now() - 86400000);
 
-  // Fetch availability blocks and votes in parallel
-  // Uses overlap logic to handle blocks whose UTC times cross week boundaries
   const [blocks, votes] = await Promise.all([
     db
       .select({
@@ -149,7 +141,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       .where(
         and(
           eq(groupAvailabilities.groupId, groupId),
-          lt(groupAvailabilities.startTime, queryEnd),
           gt(groupAvailabilities.endTime, queryStart)
         )
       ),
@@ -167,7 +158,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       .where(
         and(
           eq(groupScheduleVotes.groupId, groupId),
-          lt(groupScheduleVotes.startTime, queryEnd),
           gt(groupScheduleVotes.endTime, queryStart)
         )
       ),
@@ -249,12 +239,6 @@ export default function GroupSchedule() {
     () => new Set(members.map((m) => m.userId))
   );
 
-  // Ref tracks current week for stable WebSocket callback
-  const weekStartRef = useRef(weekStart);
-  useEffect(() => {
-    weekStartRef.current = weekStart;
-  }, [weekStart]);
-
   // Member color map (stable by member order)
   const memberColors = useMemo(() => {
     const map = new Map<string, string>();
@@ -268,56 +252,45 @@ export default function GroupSchedule() {
       computeAllFreeSpans(
         blocks,
         members.map((m) => m.userId),
-        weekStart,
         userTimezone,
         groupTimezone ?? undefined
       ),
-    [blocks, members, weekStart, userTimezone, groupTimezone]
+    [blocks, members, userTimezone, groupTimezone]
   );
 
-  // Fetch blocks for a given week
-  const fetchBlocks = useCallback(
-    async (week: Date) => {
-      try {
-        const res = await fetch(
-          `/api/groups/${groupId}/availability?week=${toISODateInTz(week, userTimezone)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setBlocks(data.availabilities);
-        }
-      } catch {
-        // silently fail
+  // Fetch all future availability blocks
+  const fetchBlocks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/availability`);
+      if (res.ok) {
+        const data = await res.json();
+        setBlocks(data.availabilities);
       }
-    },
-    [groupId, userTimezone]
-  );
+    } catch {
+      // silently fail
+    }
+  }, [groupId]);
 
-  // Fetch votes for a given week
-  const fetchVotes = useCallback(
-    async (week: Date) => {
-      try {
-        const res = await fetch(
-          `/api/groups/${groupId}/schedule-votes?week=${toISODateInTz(week, userTimezone)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setVotes(data.votes);
-        }
-      } catch {
-        // silently fail
+  // Fetch all future votes
+  const fetchVotes = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/schedule-votes`);
+      if (res.ok) {
+        const data = await res.json();
+        setVotes(data.votes);
       }
-    },
-    [groupId, userTimezone]
-  );
+    } catch {
+      // silently fail
+    }
+  }, [groupId]);
 
   // WebSocket: broadcast updates and listen for remote changes
   const onRemoteAvailabilityUpdate = useCallback(() => {
-    fetchBlocks(weekStartRef.current);
+    fetchBlocks();
   }, [fetchBlocks]);
 
   const onRemoteVoteUpdate = useCallback(() => {
-    fetchVotes(weekStartRef.current);
+    fetchVotes();
   }, [fetchVotes]);
 
   const { broadcastAvailabilityUpdate, broadcastVoteUpdate } = useScheduleSync({
@@ -327,16 +300,14 @@ export default function GroupSchedule() {
     onRemoteVoteUpdate,
   });
 
-  // Navigate to a different week
+  // Navigate to a different week (data is already global, just update the view)
   const navigateWeek = useCallback(
     (newWeek: Date) => {
       setWeekStart(newWeek);
       const weekStr = toISODateInTz(newWeek, userTimezone);
       setSearchParams({ week: weekStr }, { replace: true });
-      fetchBlocks(newWeek);
-      fetchVotes(newWeek);
     },
-    [setSearchParams, fetchBlocks, fetchVotes, userTimezone]
+    [setSearchParams, userTimezone]
   );
 
   const handlePrevWeek = () => {
@@ -350,9 +321,9 @@ export default function GroupSchedule() {
   const handleWeekSelect = (ws: Date) => navigateWeek(ws);
 
   const handleBlocksChange = useCallback(() => {
-    fetchBlocks(weekStart);
+    fetchBlocks();
     broadcastAvailabilityUpdate();
-  }, [fetchBlocks, weekStart, broadcastAvailabilityUpdate]);
+  }, [fetchBlocks, broadcastAvailabilityUpdate]);
 
   const handleVote = useCallback(
     async (startTime: string, endTime: string, vote: "local" | "virtual") => {
@@ -363,14 +334,14 @@ export default function GroupSchedule() {
           body: JSON.stringify({ startTime, endTime, vote }),
         });
         if (res.ok) {
-          fetchVotes(weekStart);
+          fetchVotes();
           broadcastVoteUpdate();
         }
       } catch {
         // silently fail
       }
     },
-    [groupId, weekStart, fetchVotes, broadcastVoteUpdate]
+    [groupId, fetchVotes, broadcastVoteUpdate]
   );
 
   const toggleMember = (userId: string) => {

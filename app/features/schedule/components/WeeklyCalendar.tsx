@@ -34,7 +34,7 @@ const TOTAL_SLOTS = 48; // 24h * 2
 const GUTTER_WIDTH_DESKTOP = 52;
 const GUTTER_WIDTH_MOBILE = 28;
 const HEADER_HEIGHT = 40; // px for day headers
-const BODY_PAD_TOP = 10; // px top padding in gutter/day columns (Tailwind pt-2.5)
+const BODY_PAD_TOP = 0;
 const DEFAULT_SCROLL_HOUR = 8; // scroll to 8 AM on mount
 const TOUCH_HOLD_MS = 300; // ms hold before drag starts
 const TOUCH_MOVE_THRESHOLD = 8; // px movement allowed during hold
@@ -684,7 +684,7 @@ export function WeeklyCalendar({
 
         {/* Time gutter */}
         <div
-          className="border-r border-gray-200 dark:border-gray-700 pt-2.5"
+          className="border-r border-gray-200 dark:border-gray-700"
           style={{ gridRow: "2", gridColumn: "1" }}
         >
           {hours.map((h) => (
@@ -694,14 +694,16 @@ export function WeeklyCalendar({
               style={{ height: `${SLOT_HEIGHT * 2}px` }}
             >
               <span
-                className={`absolute -top-2.5 text-gray-400 dark:text-gray-500 ${
+                className={`absolute -top-2 text-gray-400 dark:text-gray-500 ${
                   isMobile ? "right-0.5 text-[10px]" : "right-2 text-xs"
                 }`}
                 suppressHydrationWarning
               >
-                {isMobile
-                  ? (h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`)
-                  : (h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`)}
+                {h === 0
+                  ? ""
+                  : isMobile
+                    ? (h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`)
+                    : (h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`)}
               </span>
             </div>
           ))}
@@ -720,7 +722,7 @@ export function WeeklyCalendar({
             <div
               key={dayIndex}
               data-day-column
-              className={`relative border-r border-gray-200 dark:border-gray-700 last:border-r-0 pt-2.5 ${
+              className={`relative border-r border-gray-200 dark:border-gray-700 last:border-r-0 ${
                 isToday ? "bg-blue-50/30 dark:bg-blue-900/10" : ""
               }`}
               style={{ gridRow: "2", gridColumn: dayIndex + 2 }}

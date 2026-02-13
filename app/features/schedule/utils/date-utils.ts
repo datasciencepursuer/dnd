@@ -1,10 +1,10 @@
 import {
-  getWeekDaysInTz,
   isSameDayInTz,
   getSlotInTz,
-  slotToUtcDate,
   formatTimeInTz,
   formatDayInTz,
+  getDatePartsInTz,
+  createDateInTz,
 } from "./tz-utils";
 
 /**
@@ -162,28 +162,46 @@ export interface AllFreeSpan {
 }
 
 /**
- * Compute contiguous spans where 2+ members overlap.
+ * Compute contiguous spans where 2+ members overlap across all days in the blocks.
  * Each span tracks how many members are free and whether it's all members.
- * Spans are sorted: all-free first, then by overlap count descending.
+ * Spans are sorted: all-free first, then by overlap count descending, then chronologically.
  */
 export function computeAllFreeSpans(
   blocks: { userId: string; startTime: string; endTime: string }[],
   memberIds: string[],
-  weekStart: Date,
   userTimeZone?: string,
   groupTimeZone?: string
 ): AllFreeSpan[] {
-  if (memberIds.length < 2) return [];
+  if (memberIds.length < 2 || blocks.length === 0) return [];
 
   const tz = userTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const totalMembers = memberIds.length;
   const memberSet = new Set(memberIds);
-  const days = getWeekDaysInTz(weekStart, tz);
   const SLOTS = 48;
   const spans: AllFreeSpan[] = [];
 
-  for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
-    const day = days[dayIdx];
+  // Collect all unique calendar days from blocks (in user timezone)
+  const dayKeys = new Set<string>();
+  for (const block of blocks) {
+    if (!memberSet.has(block.userId)) continue;
+    const start = new Date(block.startTime);
+    const end = new Date(block.endTime);
+    const sp = getDatePartsInTz(start, tz);
+    dayKeys.add(`${sp.year}-${sp.month}-${sp.day}`);
+    const ep = getDatePartsInTz(end, tz);
+    dayKeys.add(`${ep.year}-${ep.month}-${ep.day}`);
+  }
+
+  // Convert to sorted Date objects (midnight in user tz)
+  const days = Array.from(dayKeys)
+    .map((key) => {
+      const [y, m, d] = key.split("-").map(Number);
+      return createDateInTz(y, m, d, 0, 0, tz);
+    })
+    .sort((a, b) => a.getTime() - b.getTime());
+
+  for (const day of days) {
+    const dayParts = getDatePartsInTz(day, tz);
 
     // Build per-slot user sets for this day
     const slotUsers: Set<string>[] = Array.from({ length: SLOTS }, () => new Set());
@@ -214,17 +232,14 @@ export function computeAllFreeSpans(
       const overlapping = count >= 2;
 
       if (overlapping && spanStart === -1) {
-        // Start new span
         spanStart = s;
         spanCount = count;
       } else if (overlapping && count !== spanCount) {
-        // Count changed — close current span, start new one
-        pushSpan(spans, weekStart, dayIdx, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
+        pushSpan(spans, dayParts, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
         spanStart = s;
         spanCount = count;
       } else if (!overlapping && spanStart !== -1) {
-        // Span ended
-        pushSpan(spans, weekStart, dayIdx, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
+        pushSpan(spans, dayParts, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
         spanStart = -1;
         spanCount = 0;
       }
@@ -243,8 +258,7 @@ export function computeAllFreeSpans(
 
 function pushSpan(
   spans: AllFreeSpan[],
-  weekStart: Date,
-  dayIdx: number,
+  dayParts: { year: number; month: number; day: number },
   startSlot: number,
   endSlot: number,
   count: number,
@@ -252,8 +266,8 @@ function pushSpan(
   tz: string,
   groupTimeZone?: string
 ) {
-  const startDate = slotToUtcDate(weekStart, dayIdx, startSlot, tz);
-  const endDate = slotToUtcDate(weekStart, dayIdx, endSlot, tz);
+  const startDate = createDateInTz(dayParts.year, dayParts.month, dayParts.day, Math.floor(startSlot / 2), (startSlot % 2) * 30, tz);
+  const endDate = createDateInTz(dayParts.year, dayParts.month, dayParts.day, Math.floor(endSlot / 2), (endSlot % 2) * 30, tz);
 
   const span: AllFreeSpan = {
     startTime: startDate.toISOString(),
