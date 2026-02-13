@@ -9,6 +9,7 @@ import {
   index,
   integer,
   bigint,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
@@ -26,7 +27,7 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  lastGroupId: text("last_group_id").references(() => groups.id, { onDelete: "set null" }),
+  lastGroupId: text("last_group_id").references((): AnyPgColumn => groups.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

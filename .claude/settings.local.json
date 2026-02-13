@@ -43,7 +43,8 @@
       "WebFetch(domain:gist.github.com)",
       "WebFetch(domain:www.dnd5eapi.co)",
       "Bash(gzip:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

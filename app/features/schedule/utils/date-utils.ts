@@ -147,25 +147,24 @@ export function getMemberColor(index: number): string {
 }
 
 /**
- * An "all free" time span where every group member is available.
+ * A time span where 2+ members overlap. Includes count and whether ALL members are free.
  */
 export interface AllFreeSpan {
   startTime: string; // ISO string
   endTime: string;   // ISO string
   dayLabel: string;  // e.g. "Wed Feb 12" (in user timezone)
   timeLabel: string; // e.g. "2:00 PM – 5:00 PM" (in user timezone)
+  overlapCount: number;   // how many members are free in this span
+  totalMembers: number;   // total group members
+  isAllFree: boolean;     // true when overlapCount === totalMembers
   groupDayLabel?: string;  // e.g. "Wed Feb 12" (in group timezone, if different)
   groupTimeLabel?: string; // e.g. "5:00 PM – 8:00 PM" (in group timezone, if different)
 }
 
 /**
- * Compute contiguous spans where ALL members of a group are available.
- * @param blocks - All availability blocks for the week
- * @param memberIds - All group member user IDs
- * @param weekStart - Monday of the current week
- * @param userTimeZone - User's IANA timezone
- * @param groupTimeZone - Group's IANA timezone (optional)
- * @returns Array of AllFreeSpan
+ * Compute contiguous spans where 2+ members overlap.
+ * Each span tracks how many members are free and whether it's all members.
+ * Spans are sorted: all-free first, then by overlap count descending.
  */
 export function computeAllFreeSpans(
   blocks: { userId: string; startTime: string; endTime: string }[],
@@ -196,8 +195,6 @@ export function computeAllFreeSpans(
 
       // Check if block overlaps this day in user timezone
       if (!isSameDayInTz(start, day, tz)) {
-        // Block might still overlap if it crosses midnight in user tz
-        // Check if end is on this day
         if (!isSameDayInTz(end, day, tz) && end.getTime() !== day.getTime()) continue;
       }
 
@@ -209,40 +206,71 @@ export function computeAllFreeSpans(
       }
     }
 
-    // Find contiguous runs where all members are present
+    // Find contiguous runs where 2+ members overlap with the same count
     let spanStart = -1;
+    let spanCount = 0;
     for (let s = 0; s <= SLOTS; s++) {
-      const allFree = s < SLOTS && slotUsers[s].size >= totalMembers;
-      if (allFree && spanStart === -1) {
+      const count = s < SLOTS ? slotUsers[s].size : 0;
+      const overlapping = count >= 2;
+
+      if (overlapping && spanStart === -1) {
+        // Start new span
         spanStart = s;
-      } else if (!allFree && spanStart !== -1) {
-        // Span ended — create a record
-        const startDate = slotToUtcDate(weekStart, dayIdx, spanStart, tz);
-        const endDate = slotToUtcDate(weekStart, dayIdx, s, tz);
-
-        const dayLabel = formatDayInTz(startDate, tz);
-        const timeLabel = `${formatTimeInTz(startDate, tz)} – ${formatTimeInTz(endDate, tz)}`;
-
-        const span: AllFreeSpan = {
-          startTime: startDate.toISOString(),
-          endTime: endDate.toISOString(),
-          dayLabel,
-          timeLabel,
-        };
-
-        // Add group timezone labels if different
-        if (groupTimeZone && groupTimeZone !== tz) {
-          span.groupDayLabel = formatDayInTz(startDate, groupTimeZone);
-          span.groupTimeLabel = `${formatTimeInTz(startDate, groupTimeZone)} – ${formatTimeInTz(endDate, groupTimeZone)}`;
-        }
-
-        spans.push(span);
+        spanCount = count;
+      } else if (overlapping && count !== spanCount) {
+        // Count changed — close current span, start new one
+        pushSpan(spans, weekStart, dayIdx, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
+        spanStart = s;
+        spanCount = count;
+      } else if (!overlapping && spanStart !== -1) {
+        // Span ended
+        pushSpan(spans, weekStart, dayIdx, spanStart, s, spanCount, totalMembers, tz, groupTimeZone);
         spanStart = -1;
+        spanCount = 0;
       }
     }
   }
 
+  // Sort: all-free first, then by overlap count descending, then chronologically
+  spans.sort((a, b) => {
+    if (a.isAllFree !== b.isAllFree) return a.isAllFree ? -1 : 1;
+    if (a.overlapCount !== b.overlapCount) return b.overlapCount - a.overlapCount;
+    return a.startTime.localeCompare(b.startTime);
+  });
+
   return spans;
+}
+
+function pushSpan(
+  spans: AllFreeSpan[],
+  weekStart: Date,
+  dayIdx: number,
+  startSlot: number,
+  endSlot: number,
+  count: number,
+  totalMembers: number,
+  tz: string,
+  groupTimeZone?: string
+) {
+  const startDate = slotToUtcDate(weekStart, dayIdx, startSlot, tz);
+  const endDate = slotToUtcDate(weekStart, dayIdx, endSlot, tz);
+
+  const span: AllFreeSpan = {
+    startTime: startDate.toISOString(),
+    endTime: endDate.toISOString(),
+    dayLabel: formatDayInTz(startDate, tz),
+    timeLabel: `${formatTimeInTz(startDate, tz)} – ${formatTimeInTz(endDate, tz)}`,
+    overlapCount: count,
+    totalMembers,
+    isAllFree: count >= totalMembers,
+  };
+
+  if (groupTimeZone && groupTimeZone !== tz) {
+    span.groupDayLabel = formatDayInTz(startDate, groupTimeZone);
+    span.groupTimeLabel = `${formatTimeInTz(startDate, groupTimeZone)} – ${formatTimeInTz(endDate, groupTimeZone)}`;
+  }
+
+  spans.push(span);
 }
 
 function formatSlotTime(slot: number): string {
