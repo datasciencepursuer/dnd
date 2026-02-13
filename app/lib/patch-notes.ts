@@ -7,6 +7,37 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.7",
+    date: "2026-02-12",
+    title: "Session Planner & Availability Calendar",
+    changes: [
+      "New weekly availability calendar — click-and-drag to mark when you're free, visible to your whole group",
+      "Touch-hold to create availability blocks on mobile — quick swipes still scroll normally",
+      "Overlapping blocks auto-merge on the server so adjacent or overlapping times become one clean span",
+      "Real-time sync via WebSocket — see other members' availability appear as they add or remove blocks",
+      "Overlap indicators show how many players are free per time slot when 2 or more overlap",
+      "\"All Free\" badge with D20 icon appears when every group member is available in a slot",
+      "All-free time slots listed as records below the members panel with day and time range",
+      "Vote Local or Virtual on each all-free slot — vote counts update in real-time for the whole group",
+      "Mini month calendar in the sidebar for quick week navigation",
+      "Toggle member visibility to show or hide individual members' availability blocks",
+      "Fixed text cursor appearing on non-input elements across the app",
+      "Mobile viewport locked to screen height on all pages to prevent body scroll",
+    ],
+  },
+  {
+    version: "0.2.6",
+    date: "2026-02-12",
+    title: "Group Switcher",
+    changes: [
+      "New group switcher dropdown — quickly switch between Personal Maps and any group from every page",
+      "Personal Maps now appears as an entry in the switcher so navigating between groups and personal feels unified",
+      "Group page header simplified — greeting is now the title, group name shown in the switcher",
+      "Your group role (owner/admin/member) now displays next to the Group Maps heading with color-coded badges",
+      "New Map button moved next to the Group Maps heading for quicker access",
+    ],
+  },
+  {
     version: "0.2.5",
     date: "2026-02-11",
     title: "Monster Compendium",

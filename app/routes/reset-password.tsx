@@ -67,7 +67,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
+    <main className="flex min-h-screen max-lg:h-full max-lg:overflow-auto items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Hero Image */}
         <div className="text-center">

@@ -5,7 +5,7 @@ export function PatchNotesPanel() {
   const [expanded, setExpanded] = useState(false);
   const [versionIndex, setVersionIndex] = useState(0);
 
-  const notes = PATCH_NOTES.slice(0, 2);
+  const notes = PATCH_NOTES;
   const latest = notes[0];
   const current = latest ? (notes[versionIndex] ?? latest) : undefined;
 
@@ -37,12 +37,12 @@ export function PatchNotesPanel() {
           What's New
         </span>
         {notes.length > 1 ? (
-          <span className="flex flex-row-reverse gap-1" onClick={(e) => e.stopPropagation()}>
+          <span className="flex gap-1 overflow-x-auto scrollbar-thin" onClick={(e) => e.stopPropagation()}>
             {notes.map((note, i) => (
               <button
                 key={note.version}
                 onClick={() => setVersionIndex(i)}
-                className={`px-2 py-0.5 text-xs rounded cursor-pointer transition-colors ${
+                className={`px-2 py-0.5 text-xs rounded cursor-pointer whitespace-nowrap transition-colors ${
                   i === versionIndex
                     ? "bg-purple-600 text-white"
                     : "bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"

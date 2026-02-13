@@ -7,6 +7,7 @@ export default [
   route("logout", "routes/logout.tsx"),
   route("maps", "routes/maps.tsx"),
   route("g/:groupId", "routes/g.$groupId.tsx"),
+  route("g/:groupId/schedule", "routes/g.$groupId.schedule.tsx"),
   route("settings", "routes/settings.tsx"),
   route("groups", "routes/groups.tsx"),
   route("groups/:groupId", "routes/groups.$groupId.tsx"),
@@ -33,6 +34,9 @@ export default [
   route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
   route("api/groups/:groupId/meetups", "routes/api.groups.$groupId.meetups.tsx"),
   route("api/groups/:groupId/meetups/:meetupId", "routes/api.groups.$groupId.meetups.$meetupId.tsx"),
+  route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availability.tsx"),
+  route("api/groups/:groupId/availability/:id", "routes/api.groups.$groupId.availability.$id.tsx"),
+  route("api/groups/:groupId/schedule-votes", "routes/api.groups.$groupId.schedule-votes.tsx"),
   route("api/maps/:mapId/chat", "routes/api.maps.$mapId.chat.tsx"),
   route("api/maps/:mapId/chat/batch", "routes/api.maps.$mapId.chat.batch.tsx"),
 ] satisfies RouteConfig;

@@ -243,6 +243,50 @@ export const meetupRsvps = pgTable(
   })
 );
 
+// Group availability blocks table (weekly calendar)
+export const groupAvailabilities = pgTable(
+  "group_availabilities",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    startTime: timestamp("start_time").notNull(),
+    endTime: timestamp("end_time").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    groupIdIdx: index("group_availabilities_group_id_idx").on(table.groupId),
+    groupTimeIdx: index("group_availabilities_group_time_idx").on(table.groupId, table.startTime, table.endTime),
+    userGroupIdx: index("group_availabilities_user_group_idx").on(table.userId, table.groupId),
+  })
+);
+
+// Schedule votes table (Local / Virtual voting on all-free time slots)
+export const groupScheduleVotes = pgTable(
+  "group_schedule_votes",
+  {
+    id: text("id").primaryKey(),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    startTime: timestamp("start_time").notNull(),
+    endTime: timestamp("end_time").notNull(),
+    vote: text("vote").notNull(), // "local" | "virtual"
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    groupIdx: index("group_schedule_votes_group_idx").on(table.groupId),
+    uniqueVote: unique().on(table.groupId, table.userId, table.startTime, table.endTime),
+  })
+);
+
 // Drizzle relations for easier querying
 export const userRelations = relations(user, ({ many }) => ({
   maps: many(maps),
@@ -253,6 +297,8 @@ export const userRelations = relations(user, ({ many }) => ({
   characters: many(characters),
   meetupProposals: many(meetupProposals),
   meetupRsvps: many(meetupRsvps),
+  groupAvailabilities: many(groupAvailabilities),
+  scheduleVotes: many(groupScheduleVotes),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -264,6 +310,8 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   invitations: many(groupInvitations),
   maps: many(maps),
   meetupProposals: many(meetupProposals),
+  availabilities: many(groupAvailabilities),
+  scheduleVotes: many(groupScheduleVotes),
 }));
 
 export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
@@ -320,6 +368,28 @@ export const meetupRsvpsRelations = relations(meetupRsvps, ({ one }) => ({
   }),
   user: one(user, {
     fields: [meetupRsvps.userId],
+    references: [user.id],
+  }),
+}));
+
+export const groupAvailabilitiesRelations = relations(groupAvailabilities, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupAvailabilities.groupId],
+    references: [groups.id],
+  }),
+  user: one(user, {
+    fields: [groupAvailabilities.userId],
+    references: [user.id],
+  }),
+}));
+
+export const groupScheduleVotesRelations = relations(groupScheduleVotes, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupScheduleVotes.groupId],
+    references: [groups.id],
+  }),
+  user: one(user, {
+    fields: [groupScheduleVotes.userId],
     references: [user.id],
   }),
 }));
@@ -439,3 +509,7 @@ export type MeetupRsvp = typeof meetupRsvps.$inferSelect;
 export type NewMeetupRsvp = typeof meetupRsvps.$inferInsert;
 export type MapChatChunk = typeof mapChatChunks.$inferSelect;
 export type NewMapChatChunk = typeof mapChatChunks.$inferInsert;
+export type GroupAvailability = typeof groupAvailabilities.$inferSelect;
+export type NewGroupAvailability = typeof groupAvailabilities.$inferInsert;
+export type GroupScheduleVote = typeof groupScheduleVotes.$inferSelect;
+export type NewGroupScheduleVote = typeof groupScheduleVotes.$inferInsert;

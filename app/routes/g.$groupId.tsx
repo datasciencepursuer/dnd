@@ -451,7 +451,7 @@ export default function GroupMaps() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen max-lg:h-full max-lg:overflow-auto bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
@@ -770,7 +770,9 @@ export default function GroupMaps() {
         <section className="mb-8">
           <div className="flex items-center gap-2 mb-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-              Group Maps
+              <span className="text-gray-400 dark:text-gray-500">Groups</span>
+              <span className="text-gray-300 dark:text-gray-600 mx-1.5">/</span>
+              {groupName} Maps
             </h2>
             <span className={`text-xs px-2 py-0.5 rounded ${
               userRole === "owner"
@@ -781,12 +783,20 @@ export default function GroupMaps() {
             }`}>
               {userRole}
             </span>
-            <button
-              onClick={handleOpenModal}
-              className="ml-auto px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
-            >
-              + New Map
-            </button>
+            <div className="ml-auto flex gap-2">
+              <Link
+                to={`/g/${groupId}/schedule`}
+                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Schedule
+              </Link>
+              <button
+                onClick={handleOpenModal}
+                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              >
+                + New Map
+              </button>
+            </div>
           </div>
           {groupMaps.length === 0 ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">

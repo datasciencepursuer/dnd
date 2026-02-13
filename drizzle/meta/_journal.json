@@ -127,6 +127,20 @@
       "when": 1770950377091,
       "tag": "0017_watery_cobalt_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1770953492319,
+      "tag": "0018_abandoned_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1770957597632,
+      "tag": "0019_right_phil_sheldon",
+      "breakpoints": true
     }
   ]
 }
