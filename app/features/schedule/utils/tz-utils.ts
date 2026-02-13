@@ -63,7 +63,7 @@ export function getDatePartsInTz(date: Date, tz: string): DateParts {
 
 /**
  * Create a UTC Date from wall-clock parts in a given timezone.
- * Uses iterative offset correction (at most 2 rounds).
+ * Handles month/day overflow (e.g. Feb 29 in non-leap year → Mar 1).
  */
 export function createDateInTz(
   year: number,
@@ -73,21 +73,25 @@ export function createDateInTz(
   minute: number,
   tz: string
 ): Date {
-  // Start with a naive UTC guess
-  let guess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+  // Date.UTC handles overflow (e.g. Feb 30 → Mar 2), so normalize first
+  const naive = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
 
-  for (let i = 0; i < 2; i++) {
-    const parts = getDatePartsInTz(guess, tz);
-    const diffMs =
-      (parts.hour - hour) * 3600000 +
-      (parts.minute - minute) * 60000 +
-      (parts.day - day) * 86400000;
+  // Get what the wall clock reads at this UTC instant in tz
+  const parts = getDatePartsInTz(naive, tz);
+  const wallAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0, 0);
 
-    if (diffMs === 0) break;
-    guess = new Date(guess.getTime() - diffMs);
+  // The difference tells us the tz offset — shift to compensate
+  let result = new Date(naive.getTime() - (wallAsUtc - naive.getTime()));
+
+  // Second pass for DST edge cases
+  const check = getDatePartsInTz(result, tz);
+  const checkAsUtc = Date.UTC(check.year, check.month - 1, check.day, check.hour, check.minute, 0, 0);
+  const remaining = checkAsUtc - naive.getTime();
+  if (remaining !== 0) {
+    result = new Date(result.getTime() - remaining);
   }
 
-  return guess;
+  return result;
 }
 
 /** Get Monday midnight in `tz` as a UTC Date for the week containing `date`. */
