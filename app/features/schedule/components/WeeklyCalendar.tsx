@@ -58,8 +58,34 @@ export function WeeklyCalendar({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
   const gutterWidth = isMobile ? GUTTER_WIDTH_MOBILE : GUTTER_WIDTH_DESKTOP;
-  const days = getWeekDays(weekStart);
+  const days = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const today = new Date();
+
+  // Compute the "past" boundary: for today, which slot is "now"?
+  // Days before today are fully past; days after today have no past slots.
+  const isPastDay = useCallback(
+    (dayIndex: number): boolean => {
+      const day = days[dayIndex];
+      if (!day) return false;
+      const d = new Date(day);
+      d.setHours(23, 59, 59, 999);
+      return d < today;
+    },
+    [days, today]
+  );
+
+  const isSlotInPast = useCallback(
+    (dayIndex: number, slot: number): boolean => {
+      const day = days[dayIndex];
+      if (!day) return false;
+      // Slot represents a 30-min window. The slot's END time must be in the past
+      // for it to be considered fully past.
+      const slotEnd = new Date(day);
+      slotEnd.setHours(Math.floor((slot + 1) / 2), ((slot + 1) % 2) * 30, 0, 0);
+      return slotEnd <= today;
+    },
+    [days, today]
+  );
 
   /**
    * Lock the calendar container's scroll position while drag is active.
@@ -154,6 +180,9 @@ export function WeeklyCalendar({
     const endTime = new Date(day);
     endTime.setHours(Math.floor((maxSlot + 1) / 2), ((maxSlot + 1) % 2) * 30, 0, 0);
 
+    // Don't create availability in the past
+    if (startTime < new Date()) return;
+
     // Server handles merge of overlapping blocks — single POST is enough
     try {
       const res = await fetch(`/api/groups/${groupId}/availability`, {
@@ -181,6 +210,9 @@ export function WeeklyCalendar({
       const slot = getSlotFromY(e.clientY);
       if (dayIndex < 0 || slot < 0) return;
 
+      // Don't allow creating availability in the past
+      if (isSlotInPast(dayIndex, slot)) return;
+
       // Check if clicking on an existing block (let that click through)
       const target = e.target as HTMLElement;
       if (target.closest("[data-block-id]")) return;
@@ -202,7 +234,7 @@ export function WeeklyCalendar({
       };
       updatePreview();
     },
-    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview]
+    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview, isSlotInPast]
   );
 
   const handleMouseMove = useCallback(
@@ -249,6 +281,9 @@ export function WeeklyCalendar({
       const slot = getSlotFromY(touch.clientY);
       if (dayIndex < 0 || slot < 0) return;
 
+      // Don't allow creating availability in the past
+      if (isSlotInPast(dayIndex, slot)) return;
+
       // Record finger origin for movement threshold check
       touchOrigin.current = { x: touch.clientX, y: touch.clientY };
 
@@ -275,7 +310,7 @@ export function WeeklyCalendar({
         lockScroll();
       }, TOUCH_HOLD_MS);
     },
-    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview, lockScroll]
+    [getDayFromX, getSlotFromY, createPreviewEl, updatePreview, lockScroll, isSlotInPast]
   );
 
   // Native touchmove / touchend — must be { passive: false } so preventDefault works
@@ -547,12 +582,13 @@ export function WeeklyCalendar({
           {/* Day headers */}
           {days.map((day, i) => {
             const isToday = isSameDay(day, today);
+            const dayPast = isPastDay(i);
             return (
               <div
                 key={i}
                 className={`flex flex-col items-center justify-center border-r border-gray-200 dark:border-gray-700 last:border-r-0 ${
                   isToday ? "bg-blue-50 dark:bg-blue-900/20" : ""
-                }`}
+                } ${dayPast ? "opacity-50" : ""}`}
               >
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   {isMobile ? DAY_LABELS_SINGLE[i] : DAY_LABELS_SHORT[i]}
@@ -600,6 +636,12 @@ export function WeeklyCalendar({
         {/* Day columns */}
         {days.map((day, dayIndex) => {
           const isToday = isSameDay(day, today);
+          const dayFullyPast = isPastDay(dayIndex);
+          // For today, compute which slot the current time falls in
+          const nowSlot = isToday
+            ? today.getHours() * 2 + (today.getMinutes() >= 30 ? 1 : 0)
+            : 0;
+          const pastSlotCount = dayFullyPast ? TOTAL_SLOTS : isToday ? nowSlot : 0;
           return (
             <div
               key={dayIndex}
@@ -622,6 +664,16 @@ export function WeeklyCalendar({
                   />
                 </div>
               ))}
+              {/* Past-time overlay */}
+              {pastSlotCount > 0 && (
+                <div
+                  className="absolute left-0 right-0 bg-gray-200/40 dark:bg-gray-700/40 pointer-events-none z-[2]"
+                  style={{
+                    top: `${BODY_PAD_TOP}px`,
+                    height: `${pastSlotCount * SLOT_HEIGHT}px`,
+                  }}
+                />
+              )}
               {/* Availability blocks */}
               {renderBlocks(dayIndex)}
               {/* Overlap indicators */}

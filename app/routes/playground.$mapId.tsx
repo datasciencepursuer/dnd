@@ -2,7 +2,7 @@ import type { Route } from "./+types/playground.$mapId";
 import { useEffect } from "react";
 import { useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
-import { MapEditor, useMapStore } from "~/features/map-editor";
+import { MapEditor, useMapStore, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
@@ -81,9 +81,13 @@ export default function PlaygroundWithMap() {
   }, [data, loadMapStore]);
 
   const hydrated = useHydrated();
+  const appHeight = useViewportHeight();
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div
+      className="h-[100dvh] flex flex-col bg-gray-50 dark:bg-gray-900"
+      style={{ height: appHeight }}
+    >
       {hydrated ? (
         <MapEditor
           mapId={mapId}

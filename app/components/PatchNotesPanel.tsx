@@ -5,7 +5,7 @@ export function PatchNotesPanel() {
   const [expanded, setExpanded] = useState(false);
   const [versionIndex, setVersionIndex] = useState(0);
 
-  const notes = PATCH_NOTES;
+  const notes = PATCH_NOTES.slice(0, 3);
   const latest = notes[0];
   const current = latest ? (notes[versionIndex] ?? latest) : undefined;
 

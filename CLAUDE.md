@@ -22,6 +22,8 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 
 **No test suite**: There are no tests configured. No test runner, no test files.
 
+**No linting/formatting**: No ESLint, Prettier, or Biome configured. Relies on editor defaults.
+
 ## Architecture
 
 ### Routing
@@ -91,7 +93,10 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/playground/:mapId` - Edit existing map
 - `/groups` - Group list
 - `/groups/:groupId` - Group detail with maps
+- `/g/:groupId` - Group landing page (public-facing)
+- `/g/:groupId/schedule` - Group schedule/availability calendar
 - `/characters` - Character library
+- `/settings` - User settings
 - `/invite/group/:token` - Accept group invitation
 
 **Map API Routes**:
@@ -115,6 +120,9 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/groups/:groupId/tokens` - Group token library
 - `/api/groups/:groupId/meetups` - Group meetup scheduling (GET list, POST create)
 - `/api/groups/:groupId/meetups/:meetupId` - Single meetup operations
+- `/api/groups/:groupId/availability` - Weekly availability blocks (GET, POST)
+- `/api/groups/:groupId/availability/:id` - Single availability block operations
+- `/api/groups/:groupId/schedule-votes` - Local/virtual voting on free time slots
 
 **Character API Routes**:
 - `/api/characters` - Character library CRUD (GET list, POST create)
@@ -125,6 +133,14 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `groupMembers` - Membership with roles (owner/admin/member)
 - `groupInvitations` - Email-based invites with tokens
 - Permission helpers: `app/.server/permissions/group-permissions.ts`
+
+### Schedule & Availability (`app/features/schedule/`)
+Weekly availability calendar for group scheduling.
+- `WeeklyCalendar.tsx` - Main calendar component with drag-to-select time blocks
+- `AllFreeSlots.tsx` - Shows overlapping availability across members with local/virtual voting
+- `MiniMonthCalendar.tsx` - Month navigation
+- Real-time sync via `useScheduleSync.ts` hook
+- Database tables: `groupAvailabilities` (time blocks), `groupScheduleVotes` (local/virtual preferences)
 
 ### Map Presence
 - `mapPresence` - Tracks users currently viewing a map (connectionId-based)

@@ -3,3 +3,4 @@ export { usePartySync } from "./usePartySync";
 export { useImage, preloadImages, clearImageCache } from "./useImage";
 export { useMapSync } from "./useMapSync";
 export { useIsMobile } from "./useIsMobile";
+export { useViewportHeight } from "./useViewportHeight";

@@ -107,6 +107,11 @@ export async function action({ request, params }: Route.ActionArgs) {
     return Response.json({ error: "End time must be after start time" }, { status: 400 });
   }
 
+  // Block creation of availability in the past
+  if (start < new Date()) {
+    return Response.json({ error: "Cannot create availability in the past" }, { status: 400 });
+  }
+
   // Duration validation: 30min to 24h
   const durationMs = end.getTime() - start.getTime();
   const thirtyMin = 30 * 60 * 1000;
