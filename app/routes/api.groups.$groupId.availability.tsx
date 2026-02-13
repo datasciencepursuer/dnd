@@ -107,8 +107,8 @@ export async function action({ request, params }: Route.ActionArgs) {
     return Response.json({ error: "End time must be after start time" }, { status: 400 });
   }
 
-  // Block creation of availability in the past
-  if (start < new Date()) {
+  // Block creation of availability that's entirely in the past
+  if (end <= new Date()) {
     return Response.json({ error: "Cannot create availability in the past" }, { status: 400 });
   }
 

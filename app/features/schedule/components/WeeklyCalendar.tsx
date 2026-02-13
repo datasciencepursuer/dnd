@@ -180,8 +180,8 @@ export function WeeklyCalendar({
     const endTime = new Date(day);
     endTime.setHours(Math.floor((maxSlot + 1) / 2), ((maxSlot + 1) % 2) * 30, 0, 0);
 
-    // Don't create availability in the past
-    if (startTime < new Date()) return;
+    // Don't create availability that's entirely in the past
+    if (endTime <= new Date()) return;
 
     // Server handles merge of overlapping blocks — single POST is enough
     try {
