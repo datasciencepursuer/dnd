@@ -38,19 +38,22 @@ export function PatchNotesPanel() {
         </span>
         {notes.length > 1 ? (
           <span className="flex gap-1 overflow-x-auto scrollbar-thin" onClick={(e) => e.stopPropagation()}>
-            {notes.map((note, i) => (
-              <button
-                key={note.version}
-                onClick={() => setVersionIndex(i)}
-                className={`px-2 py-0.5 text-xs rounded cursor-pointer whitespace-nowrap transition-colors ${
-                  i === versionIndex
-                    ? "bg-purple-600 text-white"
-                    : "bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"
-                }`}
-              >
-                v{note.version}
-              </button>
-            ))}
+            {[...notes].reverse().map((note) => {
+              const i = notes.indexOf(note);
+              return (
+                <button
+                  key={note.version}
+                  onClick={() => setVersionIndex(i)}
+                  className={`px-2 py-0.5 text-xs rounded cursor-pointer whitespace-nowrap transition-colors ${
+                    i === versionIndex
+                      ? "bg-purple-600 text-white"
+                      : "bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"
+                  }`}
+                >
+                  v{note.version}
+                </button>
+              );
+            })}
           </span>
         ) : (
           <span className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
