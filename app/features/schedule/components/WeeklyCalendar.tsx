@@ -434,7 +434,10 @@ export function WeeklyCalendar({
       const end = new Date(block.endTime);
       const startSlot = isSameDayInTz(start, day, userTimezone) ? getSlotInTz(start, userTimezone) : 0;
       const endSlot = isSameDayInTz(end, day, userTimezone) ? getSlotInTz(end, userTimezone) : TOTAL_SLOTS;
-      const slots = Math.max(1, endSlot - startSlot);
+
+      // Skip if block has no visible slots on this day (e.g., end time is exactly midnight)
+      if (endSlot <= startSlot) return null;
+      const slots = endSlot - startSlot;
 
       const color = memberColors.get(block.userId) || "#888";
       const isOwn = block.userId === currentUserId;
