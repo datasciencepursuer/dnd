@@ -18,8 +18,6 @@ export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
 // Upload type enum
 export const uploadTypeEnum = pgEnum("upload_type", ["token", "map"]);
 
-// RSVP status enum
-export const rsvpStatusEnum = pgEnum("rsvp_status", ["available", "unavailable"]);
 
 // better-auth user table
 export const user = pgTable("user", {
@@ -90,6 +88,7 @@ export const groups = pgTable("groups", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  timezone: text("timezone"),
   createdBy: text("created_by")
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
@@ -201,48 +200,6 @@ export const DEFAULT_PERMISSIONS: Record<MapRole, PlayerPermissions> = {
 };
 
 // Meetup proposals table
-export const meetupProposals = pgTable(
-  "meetup_proposals",
-  {
-    id: text("id").primaryKey(),
-    groupId: text("group_id")
-      .notNull()
-      .references(() => groups.id, { onDelete: "cascade" }),
-    proposedBy: text("proposed_by")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    proposedDate: timestamp("proposed_date").notNull(),
-    proposedEndDate: timestamp("proposed_end_date").notNull(),
-    note: text("note"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    groupIdIdx: index("meetup_proposals_group_id_idx").on(table.groupId),
-    groupDateIdx: index("meetup_proposals_group_date_idx").on(table.groupId, table.proposedDate),
-  })
-);
-
-// Meetup RSVPs table
-export const meetupRsvps = pgTable(
-  "meetup_rsvps",
-  {
-    id: text("id").primaryKey(),
-    proposalId: text("proposal_id")
-      .notNull()
-      .references(() => meetupProposals.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    status: rsvpStatusEnum("status").notNull(),
-    attendanceType: text("attendance_type"),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  },
-  (table) => ({
-    uniqueProposalUser: unique().on(table.proposalId, table.userId),
-    proposalIdIdx: index("meetup_rsvps_proposal_id_idx").on(table.proposalId),
-  })
-);
-
 // Group availability blocks table (weekly calendar)
 export const groupAvailabilities = pgTable(
   "group_availabilities",
@@ -295,8 +252,6 @@ export const userRelations = relations(user, ({ many }) => ({
   sentGroupInvitations: many(groupInvitations),
   uploads: many(uploads),
   characters: many(characters),
-  meetupProposals: many(meetupProposals),
-  meetupRsvps: many(meetupRsvps),
   groupAvailabilities: many(groupAvailabilities),
   scheduleVotes: many(groupScheduleVotes),
 }));
@@ -309,7 +264,6 @@ export const groupsRelations = relations(groups, ({ one, many }) => ({
   members: many(groupMembers),
   invitations: many(groupInvitations),
   maps: many(maps),
-  meetupProposals: many(meetupProposals),
   availabilities: many(groupAvailabilities),
   scheduleVotes: many(groupScheduleVotes),
 }));
@@ -349,28 +303,7 @@ export const mapsRelations = relations(maps, ({ one, many }) => ({
 }));
 
 
-export const meetupProposalsRelations = relations(meetupProposals, ({ one, many }) => ({
-  group: one(groups, {
-    fields: [meetupProposals.groupId],
-    references: [groups.id],
-  }),
-  proposer: one(user, {
-    fields: [meetupProposals.proposedBy],
-    references: [user.id],
-  }),
-  rsvps: many(meetupRsvps),
-}));
 
-export const meetupRsvpsRelations = relations(meetupRsvps, ({ one }) => ({
-  proposal: one(meetupProposals, {
-    fields: [meetupRsvps.proposalId],
-    references: [meetupProposals.id],
-  }),
-  user: one(user, {
-    fields: [meetupRsvps.userId],
-    references: [user.id],
-  }),
-}));
 
 export const groupAvailabilitiesRelations = relations(groupAvailabilities, ({ one }) => ({
   group: one(groups, {
@@ -503,10 +436,6 @@ export type NewUpload = typeof uploads.$inferInsert;
 export type UploadType = "token" | "map";
 export type Character = typeof characters.$inferSelect;
 export type NewCharacter = typeof characters.$inferInsert;
-export type MeetupProposal = typeof meetupProposals.$inferSelect;
-export type NewMeetupProposal = typeof meetupProposals.$inferInsert;
-export type MeetupRsvp = typeof meetupRsvps.$inferSelect;
-export type NewMeetupRsvp = typeof meetupRsvps.$inferInsert;
 export type MapChatChunk = typeof mapChatChunks.$inferSelect;
 export type NewMapChatChunk = typeof mapChatChunks.$inferInsert;
 export type GroupAvailability = typeof groupAvailabilities.$inferSelect;

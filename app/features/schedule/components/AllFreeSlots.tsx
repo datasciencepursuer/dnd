@@ -1,4 +1,5 @@
 import type { AllFreeSpan } from "../utils/date-utils";
+import { getTimezoneAbbr } from "../utils/tz-utils";
 
 export interface ScheduleVote {
   id: string;
@@ -15,6 +16,8 @@ interface AllFreeSlotsProps {
   currentUserId: string;
   onVote: (startTime: string, endTime: string, vote: "local" | "virtual") => void;
   isMobile: boolean;
+  userTimezone: string;
+  groupTimezone?: string;
 }
 
 export function AllFreeSlots({
@@ -23,7 +26,11 @@ export function AllFreeSlots({
   currentUserId,
   onVote,
   isMobile,
+  userTimezone,
+  groupTimezone,
 }: AllFreeSlotsProps) {
+  const showGroupTz = groupTimezone && groupTimezone !== userTimezone;
+  const groupTzAbbr = showGroupTz ? getTimezoneAbbr(groupTimezone!) : null;
   if (spans.length === 0) return null;
 
   // Group votes by time range key
@@ -66,10 +73,15 @@ export function AllFreeSlots({
                 <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-300" suppressHydrationWarning>
                   {span.dayLabel}
                 </div>
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 mb-1.5" suppressHydrationWarning>
+                <div className="text-[10px] text-amber-600 dark:text-amber-400" suppressHydrationWarning>
                   {span.timeLabel}
                 </div>
-                <div className="flex gap-1">
+                {showGroupTz && span.groupTimeLabel && (
+                  <div className="text-[9px] text-amber-500/70 dark:text-amber-400/60" suppressHydrationWarning>
+                    {span.groupTimeLabel} ({groupTzAbbr})
+                  </div>
+                )}
+                <div className="flex gap-1 mt-1.5">
                   <VoteButton
                     label="Local"
                     count={counts.local}
@@ -109,9 +121,15 @@ export function AllFreeSlots({
             <div className="text-xs font-semibold text-amber-700 dark:text-amber-300" suppressHydrationWarning>
               {span.dayLabel}
             </div>
-            <div className="text-[11px] text-amber-600 dark:text-amber-400 mb-2" suppressHydrationWarning>
+            <div className="text-[11px] text-amber-600 dark:text-amber-400" suppressHydrationWarning>
               {span.timeLabel}
             </div>
+            {showGroupTz && span.groupTimeLabel && (
+              <div className="text-[10px] text-amber-500/70 dark:text-amber-400/60" suppressHydrationWarning>
+                {span.groupTimeLabel} ({groupTzAbbr})
+              </div>
+            )}
+            <div className="mb-2" />
             <div className="flex gap-1.5">
               <VoteButton
                 label="Local"

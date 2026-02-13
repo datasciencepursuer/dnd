@@ -2,6 +2,7 @@ import type { Route } from "./+types/groups.$groupId";
 import { useState } from "react";
 import { Link, useLoaderData, useNavigate } from "react-router";
 import type { GroupRole } from "~/types/group";
+import { TimezoneSelect } from "~/components/TimezoneSelect";
 
 interface GroupMember {
   id: string;
@@ -27,6 +28,7 @@ interface GroupData {
   id: string;
   name: string;
   description: string | null;
+  timezone: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +108,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       id: group.id,
       name: group.name,
       description: group.description,
+      timezone: group.timezone,
       createdBy: group.createdBy,
       createdAt: group.createdAt.toISOString(),
       updatedAt: group.updatedAt.toISOString(),
@@ -134,6 +137,7 @@ export default function GroupDetail() {
 
   const [editName, setEditName] = useState(group.name);
   const [editDescription, setEditDescription] = useState(group.description || "");
+  const [editTimezone, setEditTimezone] = useState(group.timezone || "");
   const [inviteEmail, setInviteEmail] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
@@ -154,6 +158,7 @@ export default function GroupDetail() {
         body: JSON.stringify({
           name: editName.trim(),
           description: editDescription.trim() || null,
+          ...(editTimezone && { timezone: editTimezone }),
         }),
       });
 
@@ -475,6 +480,19 @@ export default function GroupDetail() {
                     rows={3}
                     className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Group Timezone
+                  </label>
+                  <TimezoneSelect
+                    value={editTimezone}
+                    onChange={setEditTimezone}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Used as the reference timezone for scheduling.
+                  </p>
                 </div>
               </div>
 

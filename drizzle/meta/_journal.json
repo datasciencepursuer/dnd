@@ -141,6 +141,27 @@
       "when": 1770957597632,
       "tag": "0019_right_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1771001560185,
+      "tag": "0020_minor_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1771003561911,
+      "tag": "0021_gorgeous_shiver_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1771005989908,
+      "tag": "0022_safe_master_mold",
+      "breakpoints": true
     }
   ]
 }

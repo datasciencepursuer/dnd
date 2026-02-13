@@ -73,7 +73,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     await requireGroupPermission(groupId, userId, "edit");
 
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, timezone } = body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return Response.json({ error: "Group name is required" }, { status: 400 });
@@ -86,11 +86,24 @@ export async function action({ request, params }: Route.ActionArgs) {
       );
     }
 
+    // Validate timezone if provided
+    if (timezone !== undefined) {
+      if (typeof timezone !== "string" || !timezone) {
+        return Response.json({ error: "Invalid timezone" }, { status: 400 });
+      }
+      try {
+        Intl.DateTimeFormat(undefined, { timeZone: timezone });
+      } catch {
+        return Response.json({ error: "Invalid timezone" }, { status: 400 });
+      }
+    }
+
     await db
       .update(groups)
       .set({
         name: name.trim(),
         description: description?.trim() || null,
+        ...(timezone !== undefined && { timezone }),
         updatedAt: new Date(),
       })
       .where(eq(groups.id, groupId));

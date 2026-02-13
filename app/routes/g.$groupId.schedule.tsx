@@ -13,14 +13,19 @@ import {
   type ScheduleVote,
 } from "~/features/schedule/components/AllFreeSlots";
 import {
-  getWeekStart,
   getNextWeek,
   getPrevWeek,
   getMemberColor,
-  toISODate,
   computeAllFreeSpans,
 } from "~/features/schedule/utils/date-utils";
+import {
+  getWeekStartInTz,
+  toISODateInTz,
+  getTimezoneAbbr,
+  detectBrowserTimezone,
+} from "~/features/schedule/utils/tz-utils";
 import { useScheduleSync } from "~/features/schedule/hooks/useScheduleSync";
+import { TimezoneSelect } from "~/components/TimezoneSelect";
 
 interface Member {
   userId: string;
@@ -35,6 +40,7 @@ interface LoaderData {
   votes: ScheduleVote[];
   currentUserId: string;
   initialWeek: string;
+  groupTimezone: string | null;
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -49,7 +55,7 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { eq, and, gte, lte } = await import("drizzle-orm");
+  const { eq, and, gt, lt } = await import("drizzle-orm");
   const { db } = await import("~/.server/db");
   const {
     groups,
@@ -69,9 +75,21 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   await requireGroupPermission(groupId, userId, "view");
 
-  // Get group name
+  // Clean up stale availabilities (endTime older than 1 day ago)
+  const oneDayAgo = new Date(Date.now() - 86400000);
+  db.delete(groupAvailabilities)
+    .where(
+      and(
+        eq(groupAvailabilities.groupId, groupId),
+        lt(groupAvailabilities.endTime, oneDayAgo)
+      )
+    )
+    .execute()
+    .catch(() => {});
+
+  // Get group name and timezone
   const groupData = await db
-    .select({ name: groups.name })
+    .select({ name: groups.name, timezone: groups.timezone })
     .from(groups)
     .where(eq(groups.id, groupId))
     .limit(1);
@@ -79,6 +97,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   if (groupData.length === 0) {
     throw new Response("Group not found", { status: 404 });
   }
+
+  const groupTimezone = groupData[0].timezone ?? null;
 
   // Get members
   const membersData = await db
@@ -91,11 +111,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .where(eq(groupMembers.groupId, groupId));
 
   // Parse week from search params
+  // The ?week= param is always a Monday date in the user's timezone, stored as YYYY-MM-DD.
+  // On the server we parse it as UTC midnight — the ±1 day buffer on the query handles
+  // any timezone offset discrepancies.
+  const { getWeekStart } = await import("~/features/schedule/utils/date-utils");
   const url = new URL(request.url);
   const weekParam = url.searchParams.get("week");
   let weekStart: Date;
   if (weekParam) {
-    weekStart = new Date(weekParam + "T00:00:00");
+    weekStart = new Date(weekParam + "T00:00:00Z");
     if (isNaN(weekStart.getTime())) {
       weekStart = getWeekStart(new Date());
     }
@@ -103,10 +127,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     weekStart = getWeekStart(new Date());
   }
 
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  // Add ±1 day buffer to catch blocks near week boundaries across timezones
+  const queryStart = new Date(weekStart);
+  queryStart.setUTCDate(queryStart.getUTCDate() - 1);
+  const queryEnd = new Date(weekStart);
+  queryEnd.setUTCDate(queryEnd.getUTCDate() + 8);
 
   // Fetch availability blocks and votes in parallel
+  // Uses overlap logic to handle blocks whose UTC times cross week boundaries
   const [blocks, votes] = await Promise.all([
     db
       .select({
@@ -121,8 +149,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       .where(
         and(
           eq(groupAvailabilities.groupId, groupId),
-          gte(groupAvailabilities.startTime, weekStart),
-          lte(groupAvailabilities.endTime, weekEnd)
+          lt(groupAvailabilities.startTime, queryEnd),
+          gt(groupAvailabilities.endTime, queryStart)
         )
       ),
     db
@@ -139,8 +167,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       .where(
         and(
           eq(groupScheduleVotes.groupId, groupId),
-          gte(groupScheduleVotes.startTime, weekStart),
-          lte(groupScheduleVotes.endTime, weekEnd)
+          lt(groupScheduleVotes.startTime, queryEnd),
+          gt(groupScheduleVotes.endTime, queryStart)
         )
       ),
   ]);
@@ -165,7 +193,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       vote: v.vote as "local" | "virtual",
     })),
     currentUserId: userId,
-    initialWeek: toISODate(weekStart),
+    initialWeek: weekParam || weekStart.toISOString().slice(0, 10),
+    groupTimezone,
   };
 }
 
@@ -178,15 +207,37 @@ export default function GroupSchedule() {
     votes: initialVotes,
     currentUserId,
     initialWeek,
+    groupTimezone,
   } = useLoaderData<LoaderData>();
 
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Current week state
+  // Timezone: auto-detect from device, switchable in-calendar
+  const [viewingTimezone, setViewingTimezone] = useState(
+    () => detectBrowserTimezone() || "UTC"
+  );
+  const userTimezone = viewingTimezone;
+  const [showTzPicker, setShowTzPicker] = useState(false);
+  const tzPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close tz picker on outside click
+  useEffect(() => {
+    if (!showTzPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (tzPickerRef.current && !tzPickerRef.current.contains(e.target as Node)) {
+        setShowTzPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showTzPicker]);
+
+  // Current week state — use timezone-aware week start
   const [weekStart, setWeekStart] = useState(() => {
     const wp = searchParams.get("week") || initialWeek;
-    return new Date(wp + "T00:00:00");
+    const date = new Date(wp + "T00:00:00Z");
+    return isNaN(date.getTime()) ? getWeekStartInTz(new Date(), userTimezone) : date;
   });
 
   const [blocks, setBlocks] = useState<AvailabilityBlock[]>(initialAvailabilities);
@@ -214,9 +265,11 @@ export default function GroupSchedule() {
       computeAllFreeSpans(
         blocks,
         members.map((m) => m.userId),
-        weekStart
+        weekStart,
+        userTimezone,
+        groupTimezone ?? undefined
       ),
-    [blocks, members, weekStart]
+    [blocks, members, weekStart, userTimezone, groupTimezone]
   );
 
   // Fetch blocks for a given week
@@ -224,7 +277,7 @@ export default function GroupSchedule() {
     async (week: Date) => {
       try {
         const res = await fetch(
-          `/api/groups/${groupId}/availability?week=${toISODate(week)}`
+          `/api/groups/${groupId}/availability?week=${toISODateInTz(week, userTimezone)}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -234,7 +287,7 @@ export default function GroupSchedule() {
         // silently fail
       }
     },
-    [groupId]
+    [groupId, userTimezone]
   );
 
   // Fetch votes for a given week
@@ -242,7 +295,7 @@ export default function GroupSchedule() {
     async (week: Date) => {
       try {
         const res = await fetch(
-          `/api/groups/${groupId}/schedule-votes?week=${toISODate(week)}`
+          `/api/groups/${groupId}/schedule-votes?week=${toISODateInTz(week, userTimezone)}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -252,7 +305,7 @@ export default function GroupSchedule() {
         // silently fail
       }
     },
-    [groupId]
+    [groupId, userTimezone]
   );
 
   // WebSocket: broadcast updates and listen for remote changes
@@ -275,12 +328,12 @@ export default function GroupSchedule() {
   const navigateWeek = useCallback(
     (newWeek: Date) => {
       setWeekStart(newWeek);
-      const weekStr = toISODate(newWeek);
+      const weekStr = toISODateInTz(newWeek, userTimezone);
       setSearchParams({ week: weekStr }, { replace: true });
       fetchBlocks(newWeek);
       fetchVotes(newWeek);
     },
-    [setSearchParams, fetchBlocks, fetchVotes]
+    [setSearchParams, fetchBlocks, fetchVotes, userTimezone]
   );
 
   const handlePrevWeek = () => navigateWeek(getPrevWeek(weekStart));
@@ -323,17 +376,27 @@ export default function GroupSchedule() {
     });
   };
 
-  // Week label
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekLabel = `${weekStart.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  })} – ${weekEnd.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })}`;
+  // Week label — use Intl.DateTimeFormat in user timezone
+  const weekLabel = useMemo(() => {
+    const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+    const startFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: userTimezone,
+      month: "short",
+      day: "numeric",
+    }).format(weekStart);
+    const endFmt = new Intl.DateTimeFormat("en-US", {
+      timeZone: userTimezone,
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(weekEnd);
+    return `${startFmt} – ${endFmt}`;
+  }, [weekStart, userTimezone]);
+
+  // Timezone abbreviations for header
+  const userTzAbbr = getTimezoneAbbr(userTimezone);
+  const groupTzAbbr = groupTimezone ? getTimezoneAbbr(groupTimezone) : null;
+  const showGroupTz = groupTzAbbr && groupTimezone !== userTimezone;
 
   return (
     <div className="min-h-screen max-lg:h-full max-lg:overflow-hidden bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -361,6 +424,35 @@ export default function GroupSchedule() {
             <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
               {groupName}
             </h1>
+            <div className="relative" ref={tzPickerRef}>
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400" suppressHydrationWarning>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+                <span>Times shown in your device's timezone</span>
+                <button
+                  onClick={() => setShowTzPicker((v) => !v)}
+                  className="inline-flex items-center gap-0.5 font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer"
+                >
+                  ({userTzAbbr})
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {showGroupTz && <span>· This group operates in {groupTzAbbr}</span>}
+              </div>
+              {showTzPicker && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 w-72">
+                  <TimezoneSelect
+                    value={userTimezone}
+                    onChange={(tz) => {
+                      setViewingTimezone(tz);
+                      setShowTzPicker(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
           {/* Week navigation */}
           <div className="flex items-center gap-2">
@@ -416,6 +508,7 @@ export default function GroupSchedule() {
             <MiniMonthCalendar
               currentWeekStart={weekStart}
               onWeekSelect={handleWeekSelect}
+              userTimezone={userTimezone}
             />
           </div>
           {/* Members horizontal chips */}
@@ -437,6 +530,8 @@ export default function GroupSchedule() {
                 currentUserId={currentUserId}
                 onVote={handleVote}
                 isMobile
+                userTimezone={userTimezone}
+                groupTimezone={groupTimezone ?? undefined}
               />
             </div>
           )}
@@ -452,6 +547,7 @@ export default function GroupSchedule() {
               onBlocksChange={handleBlocksChange}
               isMobile
               totalMembers={members.length}
+              userTimezone={userTimezone}
             />
           </div>
         </div>
@@ -465,6 +561,7 @@ export default function GroupSchedule() {
             <MiniMonthCalendar
               currentWeekStart={weekStart}
               onWeekSelect={handleWeekSelect}
+              userTimezone={userTimezone}
             />
             <MembersList
               members={members}
@@ -480,6 +577,8 @@ export default function GroupSchedule() {
                 currentUserId={currentUserId}
                 onVote={handleVote}
                 isMobile={false}
+                userTimezone={userTimezone}
+                groupTimezone={groupTimezone ?? undefined}
               />
             )}
           </div>
@@ -495,6 +594,7 @@ export default function GroupSchedule() {
               onBlocksChange={handleBlocksChange}
               isMobile={false}
               totalMembers={members.length}
+              userTimezone={userTimezone}
             />
           </div>
         </div>

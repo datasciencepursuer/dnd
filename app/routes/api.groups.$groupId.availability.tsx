@@ -1,7 +1,7 @@
 import type { Route } from "./+types/api.groups.$groupId.availability";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { eq, and, gte, lte } = await import("drizzle-orm");
+  const { eq, and, gt, lt } = await import("drizzle-orm");
   const { db } = await import("~/.server/db");
   const { groupAvailabilities, user } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
@@ -21,24 +21,27 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   let weekStart: Date;
   if (weekParam) {
-    weekStart = new Date(weekParam + "T00:00:00");
+    weekStart = new Date(weekParam + "T00:00:00Z");
     if (isNaN(weekStart.getTime())) {
       return Response.json({ error: "Invalid week parameter" }, { status: 400 });
     }
   } else {
     // Default to current week's Monday
     const now = new Date();
-    const day = now.getDay();
+    const day = now.getUTCDay();
     const diff = day === 0 ? 6 : day - 1;
-    weekStart = new Date(now);
-    weekStart.setHours(0, 0, 0, 0);
-    weekStart.setDate(weekStart.getDate() - diff);
+    weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - diff));
   }
 
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+  // Add ±1 day buffer to catch blocks near week boundaries across timezones
+  const queryStart = new Date(weekStart);
+  queryStart.setUTCDate(queryStart.getUTCDate() - 1);
+  const queryEnd = new Date(weekStart);
+  queryEnd.setUTCDate(queryEnd.getUTCDate() + 8);
 
   // Fetch all availability blocks for this group that overlap with the week
+  // Uses overlap logic (startTime < queryEnd AND endTime > queryStart) to handle
+  // blocks whose UTC times cross the week boundary due to timezone offsets.
   const blocks = await db
     .select({
       id: groupAvailabilities.id,
@@ -53,8 +56,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .where(
       and(
         eq(groupAvailabilities.groupId, groupId),
-        gte(groupAvailabilities.startTime, weekStart),
-        lte(groupAvailabilities.endTime, weekEnd)
+        lt(groupAvailabilities.startTime, queryEnd),
+        gt(groupAvailabilities.endTime, queryStart)
       )
     );
 

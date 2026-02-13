@@ -1,5 +1,12 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
-import { getWeekDays, isSameDay, DAY_LABELS_SHORT, DAY_LABELS_SINGLE } from "../utils/date-utils";
+import { DAY_LABELS_SHORT, DAY_LABELS_SINGLE } from "../utils/date-utils";
+import {
+  getWeekDaysInTz,
+  isSameDayInTz,
+  getSlotInTz,
+  slotToUtcDate,
+  getDatePartsInTz,
+} from "../utils/tz-utils";
 
 export interface AvailabilityBlock {
   id: string;
@@ -19,6 +26,7 @@ interface WeeklyCalendarProps {
   onBlocksChange: () => void;
   isMobile: boolean;
   totalMembers: number;
+  userTimezone: string;
 }
 
 const SLOT_HEIGHT = 28; // px per 30-min slot
@@ -41,6 +49,7 @@ export function WeeklyCalendar({
   onBlocksChange,
   isMobile,
   totalMembers,
+  userTimezone,
 }: WeeklyCalendarProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -58,33 +67,48 @@ export function WeeklyCalendar({
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
 
   const gutterWidth = isMobile ? GUTTER_WIDTH_MOBILE : GUTTER_WIDTH_DESKTOP;
-  const days = useMemo(() => getWeekDays(weekStart), [weekStart]);
+  const days = useMemo(() => getWeekDaysInTz(weekStart, userTimezone), [weekStart, userTimezone]);
   const today = new Date();
 
-  // Compute the "past" boundary: for today, which slot is "now"?
-  // Days before today are fully past; days after today have no past slots.
+  // Compute the "past" boundary using timezone-aware logic.
+  const nowParts = useMemo(() => getDatePartsInTz(today, userTimezone), [today, userTimezone]);
+
   const isPastDay = useCallback(
     (dayIndex: number): boolean => {
       const day = days[dayIndex];
       if (!day) return false;
-      const d = new Date(day);
-      d.setHours(23, 59, 59, 999);
-      return d < today;
+      const dayParts = getDatePartsInTz(day, userTimezone);
+      // Compare calendar dates in user timezone
+      if (dayParts.year < nowParts.year) return true;
+      if (dayParts.year > nowParts.year) return false;
+      if (dayParts.month < nowParts.month) return true;
+      if (dayParts.month > nowParts.month) return false;
+      return dayParts.day < nowParts.day;
     },
-    [days, today]
+    [days, nowParts, userTimezone]
   );
 
   const isSlotInPast = useCallback(
     (dayIndex: number, slot: number): boolean => {
       const day = days[dayIndex];
       if (!day) return false;
-      // Slot represents a 30-min window. The slot's END time must be in the past
-      // for it to be considered fully past.
-      const slotEnd = new Date(day);
-      slotEnd.setHours(Math.floor((slot + 1) / 2), ((slot + 1) % 2) * 30, 0, 0);
-      return slotEnd <= today;
+      const dayParts = getDatePartsInTz(day, userTimezone);
+      // Day before today -> all slots past
+      if (dayParts.year < nowParts.year) return true;
+      if (dayParts.year === nowParts.year && dayParts.month < nowParts.month) return true;
+      if (dayParts.year === nowParts.year && dayParts.month === nowParts.month && dayParts.day < nowParts.day) return true;
+      // Day after today -> no slots past
+      if (dayParts.year > nowParts.year) return false;
+      if (dayParts.month > nowParts.month) return false;
+      if (dayParts.day > nowParts.day) return false;
+      // Same day: slot's end must be <= now
+      const slotEndHour = Math.floor((slot + 1) / 2);
+      const slotEndMin = ((slot + 1) % 2) * 30;
+      const nowMinutes = nowParts.hour * 60 + nowParts.minute;
+      const slotEndMinutes = slotEndHour * 60 + slotEndMin;
+      return slotEndMinutes <= nowMinutes;
     },
-    [days, today]
+    [days, nowParts, userTimezone]
   );
 
   /**
@@ -174,11 +198,9 @@ export function WeeklyCalendar({
     const minSlot = Math.min(drag.startSlot, drag.currentSlot);
     const maxSlot = Math.max(drag.startSlot, drag.currentSlot);
 
-    const day = days[drag.dayIndex];
-    const startTime = new Date(day);
-    startTime.setHours(Math.floor(minSlot / 2), (minSlot % 2) * 30, 0, 0);
-    const endTime = new Date(day);
-    endTime.setHours(Math.floor((maxSlot + 1) / 2), ((maxSlot + 1) % 2) * 30, 0, 0);
+    // Convert day+slot to UTC using timezone-aware function
+    const startTime = slotToUtcDate(weekStart, drag.dayIndex, minSlot, userTimezone);
+    const endTime = slotToUtcDate(weekStart, drag.dayIndex, maxSlot + 1, userTimezone);
 
     // Don't create availability that's entirely in the past
     if (endTime <= new Date()) return;
@@ -199,7 +221,7 @@ export function WeeklyCalendar({
     } catch {
       // silently fail
     }
-  }, [days, groupId, onBlocksChange]);
+  }, [weekStart, groupId, onBlocksChange, userTimezone]);
 
   // Mouse handlers for desktop drag-to-create
   const handleMouseDown = useCallback(
@@ -402,14 +424,16 @@ export function WeeklyCalendar({
     const day = days[dayIndex];
     const dayBlocks = blocks.filter((b) => {
       const start = new Date(b.startTime);
-      return isSameDay(start, day) && visibleMembers.has(b.userId);
+      const end = new Date(b.endTime);
+      // Block is on this day if start OR end falls on the day in user timezone
+      return (isSameDayInTz(start, day, userTimezone) || isSameDayInTz(end, day, userTimezone)) && visibleMembers.has(b.userId);
     });
 
     return dayBlocks.map((block) => {
       const start = new Date(block.startTime);
       const end = new Date(block.endTime);
-      const startSlot = start.getHours() * 2 + Math.floor(start.getMinutes() / 30);
-      const endSlot = end.getHours() * 2 + Math.floor(end.getMinutes() / 30);
+      const startSlot = isSameDayInTz(start, day, userTimezone) ? getSlotInTz(start, userTimezone) : 0;
+      const endSlot = isSameDayInTz(end, day, userTimezone) ? getSlotInTz(end, userTimezone) : TOTAL_SLOTS;
       const slots = Math.max(1, endSlot - startSlot);
 
       const color = memberColors.get(block.userId) || "#888";
@@ -479,10 +503,11 @@ export function WeeklyCalendar({
       const end = new Date(block.endTime);
 
       for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
-        if (!isSameDay(start, days[dayIdx])) continue;
+        const day = days[dayIdx];
+        if (!isSameDayInTz(start, day, userTimezone) && !isSameDayInTz(end, day, userTimezone)) continue;
 
-        const startSlot = start.getHours() * 2 + Math.floor(start.getMinutes() / 30);
-        const endSlot = end.getHours() * 2 + Math.floor(end.getMinutes() / 30);
+        const startSlot = isSameDayInTz(start, day, userTimezone) ? getSlotInTz(start, userTimezone) : 0;
+        const endSlot = isSameDayInTz(end, day, userTimezone) ? getSlotInTz(end, userTimezone) : TOTAL_SLOTS;
 
         for (let s = startSlot; s < endSlot && s < TOTAL_SLOTS; s++) {
           sets[dayIdx][s].add(block.userId);
@@ -492,7 +517,7 @@ export function WeeklyCalendar({
 
     // Flatten to counts
     return sets.map((day) => day.map((s) => s.size));
-  }, [blocks, visibleMembers, days]);
+  }, [blocks, visibleMembers, days, userTimezone]);
 
   // Render overlap indicators for a day column
   const renderOverlaps = (dayIndex: number) => {
@@ -581,7 +606,7 @@ export function WeeklyCalendar({
           <div className="border-r border-gray-200 dark:border-gray-700" />
           {/* Day headers */}
           {days.map((day, i) => {
-            const isToday = isSameDay(day, today);
+            const isToday = isSameDayInTz(day, today, userTimezone);
             const dayPast = isPastDay(i);
             return (
               <div
@@ -601,7 +626,7 @@ export function WeeklyCalendar({
                   }`}
                   suppressHydrationWarning
                 >
-                  {day.getDate()}
+                  {getDatePartsInTz(day, userTimezone).day}
                 </span>
               </div>
             );
@@ -635,11 +660,11 @@ export function WeeklyCalendar({
 
         {/* Day columns */}
         {days.map((day, dayIndex) => {
-          const isToday = isSameDay(day, today);
+          const isToday = isSameDayInTz(day, today, userTimezone);
           const dayFullyPast = isPastDay(dayIndex);
-          // For today, compute which slot the current time falls in
+          // For today, compute which slot the current time falls in (in user timezone)
           const nowSlot = isToday
-            ? today.getHours() * 2 + (today.getMinutes() >= 30 ? 1 : 0)
+            ? nowParts.hour * 2 + (nowParts.minute >= 30 ? 1 : 0)
             : 0;
           const pastSlotCount = dayFullyPast ? TOTAL_SLOTS : isToday ? nowSlot : 0;
           return (

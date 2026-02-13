@@ -1,23 +1,29 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   getMonthGrid,
-  getWeekStart,
-  isSameWeek,
-  isSameDay,
   DAY_LABELS_SINGLE,
 } from "../utils/date-utils";
+import {
+  getWeekStartInTz,
+  isSameWeekInTz,
+  isSameDayInTz,
+  getDatePartsInTz,
+} from "../utils/tz-utils";
 
 interface MiniMonthCalendarProps {
   currentWeekStart: Date;
   onWeekSelect: (weekStart: Date) => void;
+  userTimezone: string;
 }
 
 export function MiniMonthCalendar({
   currentWeekStart,
   onWeekSelect,
+  userTimezone,
 }: MiniMonthCalendarProps) {
-  const [viewYear, setViewYear] = useState(currentWeekStart.getFullYear());
-  const [viewMonth, setViewMonth] = useState(currentWeekStart.getMonth());
+  const currentParts = useMemo(() => getDatePartsInTz(currentWeekStart, userTimezone), [currentWeekStart, userTimezone]);
+  const [viewYear, setViewYear] = useState(currentParts.year);
+  const [viewMonth, setViewMonth] = useState(currentParts.month - 1); // getMonthGrid uses 0-based
 
   const today = new Date();
   const grid = getMonthGrid(viewYear, viewMonth);
@@ -46,7 +52,7 @@ export function MiniMonthCalendar({
   };
 
   const handleDayClick = (date: Date) => {
-    onWeekSelect(getWeekStart(date));
+    onWeekSelect(getWeekStartInTz(date, userTimezone));
   };
 
   return (
@@ -110,7 +116,7 @@ export function MiniMonthCalendar({
       {/* Day grid */}
       <div className="space-y-0.5">
         {grid.map((week, rowIdx) => {
-          const weekIsSelected = isSameWeek(week[0].date, currentWeekStart);
+          const weekIsSelected = isSameWeekInTz(week[0].date, currentWeekStart, userTimezone);
           return (
             <div
               key={rowIdx}
@@ -121,7 +127,7 @@ export function MiniMonthCalendar({
               }`}
             >
               {week.map((cell, colIdx) => {
-                const isToday = isSameDay(cell.date, today);
+                const isToday = isSameDayInTz(cell.date, today, userTimezone);
                 return (
                   <button
                     key={colIdx}

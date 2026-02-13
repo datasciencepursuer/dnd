@@ -1,3 +1,12 @@
+import {
+  getWeekDaysInTz,
+  isSameDayInTz,
+  getSlotInTz,
+  slotToUtcDate,
+  formatTimeInTz,
+  formatDayInTz,
+} from "./tz-utils";
+
 /**
  * Get the Monday of the week containing the given date.
  */
@@ -143,8 +152,10 @@ export function getMemberColor(index: number): string {
 export interface AllFreeSpan {
   startTime: string; // ISO string
   endTime: string;   // ISO string
-  dayLabel: string;  // e.g. "Wed Feb 12"
-  timeLabel: string; // e.g. "2:00 PM – 5:00 PM"
+  dayLabel: string;  // e.g. "Wed Feb 12" (in user timezone)
+  timeLabel: string; // e.g. "2:00 PM – 5:00 PM" (in user timezone)
+  groupDayLabel?: string;  // e.g. "Wed Feb 12" (in group timezone, if different)
+  groupTimeLabel?: string; // e.g. "5:00 PM – 8:00 PM" (in group timezone, if different)
 }
 
 /**
@@ -152,18 +163,23 @@ export interface AllFreeSpan {
  * @param blocks - All availability blocks for the week
  * @param memberIds - All group member user IDs
  * @param weekStart - Monday of the current week
+ * @param userTimeZone - User's IANA timezone
+ * @param groupTimeZone - Group's IANA timezone (optional)
  * @returns Array of AllFreeSpan
  */
 export function computeAllFreeSpans(
   blocks: { userId: string; startTime: string; endTime: string }[],
   memberIds: string[],
-  weekStart: Date
+  weekStart: Date,
+  userTimeZone?: string,
+  groupTimeZone?: string
 ): AllFreeSpan[] {
   if (memberIds.length < 2) return [];
 
+  const tz = userTimeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const totalMembers = memberIds.length;
   const memberSet = new Set(memberIds);
-  const days = getWeekDays(weekStart);
+  const days = getWeekDaysInTz(weekStart, tz);
   const SLOTS = 48;
   const spans: AllFreeSpan[] = [];
 
@@ -176,11 +192,17 @@ export function computeAllFreeSpans(
     for (const block of blocks) {
       if (!memberSet.has(block.userId)) continue;
       const start = new Date(block.startTime);
-      if (!isSameDay(start, day)) continue;
-
       const end = new Date(block.endTime);
-      const startSlot = start.getHours() * 2 + Math.floor(start.getMinutes() / 30);
-      const endSlot = end.getHours() * 2 + Math.floor(end.getMinutes() / 30);
+
+      // Check if block overlaps this day in user timezone
+      if (!isSameDayInTz(start, day, tz)) {
+        // Block might still overlap if it crosses midnight in user tz
+        // Check if end is on this day
+        if (!isSameDayInTz(end, day, tz) && end.getTime() !== day.getTime()) continue;
+      }
+
+      const startSlot = isSameDayInTz(start, day, tz) ? getSlotInTz(start, tz) : 0;
+      const endSlot = isSameDayInTz(end, day, tz) ? getSlotInTz(end, tz) : SLOTS;
 
       for (let s = startSlot; s < endSlot && s < SLOTS; s++) {
         slotUsers[s].add(block.userId);
@@ -195,24 +217,26 @@ export function computeAllFreeSpans(
         spanStart = s;
       } else if (!allFree && spanStart !== -1) {
         // Span ended — create a record
-        const startDate = new Date(day);
-        startDate.setHours(Math.floor(spanStart / 2), (spanStart % 2) * 30, 0, 0);
-        const endDate = new Date(day);
-        endDate.setHours(Math.floor(s / 2), (s % 2) * 30, 0, 0);
+        const startDate = slotToUtcDate(weekStart, dayIdx, spanStart, tz);
+        const endDate = slotToUtcDate(weekStart, dayIdx, s, tz);
 
-        const dayLabel = day.toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-        const timeLabel = `${formatSlotTime(spanStart)} – ${formatSlotTime(s)}`;
+        const dayLabel = formatDayInTz(startDate, tz);
+        const timeLabel = `${formatTimeInTz(startDate, tz)} – ${formatTimeInTz(endDate, tz)}`;
 
-        spans.push({
+        const span: AllFreeSpan = {
           startTime: startDate.toISOString(),
           endTime: endDate.toISOString(),
           dayLabel,
           timeLabel,
-        });
+        };
+
+        // Add group timezone labels if different
+        if (groupTimeZone && groupTimeZone !== tz) {
+          span.groupDayLabel = formatDayInTz(startDate, groupTimeZone);
+          span.groupTimeLabel = `${formatTimeInTz(startDate, groupTimeZone)} – ${formatTimeInTz(endDate, groupTimeZone)}`;
+        }
+
+        spans.push(span);
         spanStart = -1;
       }
     }
