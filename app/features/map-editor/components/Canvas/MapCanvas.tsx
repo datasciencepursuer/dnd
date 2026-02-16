@@ -4,14 +4,15 @@ import { useShallow } from "zustand/react/shallow";
 import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { AuraLayer } from "./AuraLayer";
-import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay } from "./TokenLayer";
+import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay, DragOverlay, SelectedTokenControls } from "./TokenLayer";
+import type { DragState } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { FogLayer } from "./FogLayer";
 import { PingLayer } from "./PingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
 import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
-import type { FreehandPath, GridPosition, Ping } from "../../types";
+import type { FreehandPath, GridPosition, Ping, Token } from "../../types";
 
 interface MapCanvasProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
@@ -71,6 +72,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   // zoom/pan, which is unnecessary since Konva already has the correct position.
 
   const setViewport = useMapStore((s) => s.setViewport);
+  const flipToken = useMapStore((s) => s.flipToken);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
   const paintFogInRange = useMapStore((s) => s.paintFogInRange);
@@ -89,6 +91,17 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   // Hovered token state (lifted from TokenLayer)
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
+
+  // Drag overlay state (lifted from TokenLayer so we can render above fog)
+  const [dragOverlay, setDragOverlay] = useState<{ dragState: DragState; token: Token } | null>(null);
+  const handleDragChange = useCallback((dragState: DragState | null, token: Token | null) => {
+    setDragOverlay(dragState && token ? { dragState, token } : null);
+  }, []);
+
+  const handleFlipToken = useCallback((tokenId: string) => {
+    flipToken(tokenId);
+    onTokenFlip?.(tokenId);
+  }, [flipToken, onTokenFlip]);
 
   const handleTokenHoverStart = useCallback((tokenId: string) => {
     setHoveredTokenId(tokenId);
@@ -124,6 +137,23 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   // Stable ref for freehand to use in mouseUp without causing re-renders
   const freehandRef = useRef(freehand);
   freehandRef.current = freehand;
+
+  // Auto-scroll callback — moves the viewport by (dx, dy) screen pixels
+  const handleAutoScroll = useCallback((dx: number, dy: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const newX = stage.x() + dx;
+    const newY = stage.y() + dy;
+    stage.x(newX);
+    stage.y(newY);
+    stage.batchDraw();
+    viewportRef.current = { x: newX, y: newY, scale: stage.scaleX() };
+    // Debounce store update for persistence
+    if (viewportTimeoutRef.current) clearTimeout(viewportTimeoutRef.current);
+    viewportTimeoutRef.current = setTimeout(() => {
+      setViewport(newX, newY, stage.scaleX());
+    }, 150);
+  }, [setViewport]);
 
   // Wrapper that removes a freehand path locally and broadcasts the removal
   const handleErasePath = useCallback((pathId: string) => {
@@ -793,7 +823,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               onHoverStart={handleTokenHoverStart}
               onHoverEnd={handleTokenHoverEnd}
               onTokenMoved={onTokenMoved}
-              onTokenFlip={onTokenFlip}
+              onAutoScroll={handleAutoScroll}
+              onDragChange={handleDragChange}
             />
           </Group>
         </Layer>
@@ -837,6 +868,22 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               dash={[5, 5]}
             />
           )}
+          {/* Token drag overlay — rendered above fog/pings so line and ghost are always visible */}
+          {dragOverlay && (
+            <DragOverlay
+              dragState={dragOverlay.dragState}
+              token={dragOverlay.token}
+              cellSize={cellSize}
+            />
+          )}
+        </Layer>
+        <Layer name="controls">
+          <SelectedTokenControls
+            tokens={tokens}
+            cellSize={cellSize}
+            onFlip={handleFlipToken}
+            draggingTokenId={dragOverlay?.dragState?.tokenId ?? null}
+          />
         </Layer>
       </Stage>
     </div>

@@ -7,6 +7,14 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.8",
+    date: "2026-02-16",
+    title: "AI DM Assistant",
+    changes: [
+      "New AI DM assistant powered by Gemini — helps the Dungeon Master narrate combat, resolve monster turns, and adjudicate rules during encounters",
+    ],
+  },
+  {
     version: "0.2.7",
     date: "2026-02-12",
     title: "Session Planner & Availability Calendar",

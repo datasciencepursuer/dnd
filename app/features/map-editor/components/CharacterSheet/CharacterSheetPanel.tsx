@@ -4,7 +4,7 @@ import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
 import { Combobox } from "./Combobox";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, getEffectivePassivePerception, ensureSkills, ensureSpeed, calculateProficiencyBonus } from "../../utils/character-utils";
-import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/dnd-srd";
+import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/character-options";
 import { useIsMobile } from "../../hooks/useIsMobile";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
@@ -34,6 +34,7 @@ const CONDITIONS: Condition[] = [
   "Stunned",
   "Unconscious",
   "Exhaustion",
+  "Dead",
 ];
 
 // Reusable numeric input that allows empty while typing, validates on blur

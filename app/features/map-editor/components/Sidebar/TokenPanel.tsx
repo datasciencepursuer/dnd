@@ -23,6 +23,9 @@ interface TokenPanelProps {
   currentTurnIndex?: number;
   onNextTurn?: () => void;
   onPrevTurn?: () => void;
+  // AI Battle Engine props
+  aiBattleEngine?: boolean;
+  onAiBattleEngineChange?: (enabled: boolean) => void;
 }
 
 export function TokenPanel({
@@ -38,6 +41,8 @@ export function TokenPanel({
   currentTurnIndex = 0,
   onNextTurn,
   onPrevTurn,
+  aiBattleEngine = false,
+  onAiBattleEngineChange,
 }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
@@ -70,6 +75,7 @@ export function TokenPanel({
   const canEditToken = useEditorStore((s) => s.canEditToken);
   const canDeleteToken = useEditorStore((s) => s.canDeleteToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
@@ -339,12 +345,36 @@ export function TokenPanel({
           {/* Combat header with turn controls */}
           {isInCombat && initiativeOrder ? (
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z"/>
-                </svg>
-                Turn Order
-              </h4>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6.92 5H5l5.5 5.5.71-.71L6.92 5zm12.08 0h-1.92l-4.29 4.29.71.71L19 5zM12 9.17L5.83 15.34 4.42 13.93 10.59 7.76l.71.71L5.83 13.93l1.41 1.41L12 10.59l4.76 4.75 1.41-1.41L12.71 8.46l.71-.71 5.46 5.46-1.41 1.42L12 9.17zM3 19v2h18v-2H3z"/>
+                  </svg>
+                  Turn Order
+                </h4>
+                {isDungeonMaster() && onAiBattleEngineChange && (
+                  <label
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold cursor-pointer select-none transition-colors ${
+                      aiBattleEngine
+                        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+                    }`}
+                    title="AI Battle Engine: auto-run AI on next turn"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={aiBattleEngine}
+                      onChange={(e) => onAiBattleEngineChange(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13 7H7v6h6V7z" />
+                      <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd" />
+                    </svg>
+                    AI
+                  </label>
+                )}
+              </div>
               {isDungeonMaster() && onNextTurn && onPrevTurn && (
                 <div className="flex items-center gap-1">
                   <button
@@ -500,12 +530,12 @@ export function TokenPanel({
                       (locked)
                     </span>
                   )}
-                  {!isInCombat && isDungeonMaster() && !token.visible && (
+                  {!isInCombat && isDungeonMaster() && !isPlayingLocally && !token.visible && (
                     <span className="text-xs text-yellow-500 dark:text-yellow-400" title="Token is set to hidden - not visible to players">
                       (hidden)
                     </span>
                   )}
-                  {!isInCombat && isDungeonMaster() && token.visible && isTokenUnderFog(token, fogSet) && (
+                  {!isInCombat && isDungeonMaster() && !isPlayingLocally && token.visible && isTokenUnderFog(token, fogSet) && (
                     <span className="text-xs text-purple-500 dark:text-purple-400" title="Token is under fog of war - hidden from players">
                       (fogged)
                     </span>

@@ -171,7 +171,14 @@ export type Condition =
   | "Restrained"
   | "Stunned"
   | "Unconscious"
-  | "Exhaustion";
+  | "Exhaustion"
+  | "Dead";
+
+export const VALID_CONDITIONS: readonly Condition[] = [
+  "Healthy", "Blinded", "Charmed", "Deafened", "Frightened", "Grappled",
+  "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned",
+  "Prone", "Restrained", "Stunned", "Unconscious", "Exhaustion", "Dead",
+] as const;
 
 // Spell entry
 export interface Spell {
@@ -201,6 +208,9 @@ export interface Equipment {
 export interface CharacterSheet {
   // Version tracking for sync
   lastModified?: number; // Unix timestamp for version checking
+
+  // SRD monster origin (set when placed from compendium, used for AI DM enrichment)
+  srdMonsterIndex?: string;
 
   // Basic info
   background: string | null;
@@ -444,11 +454,21 @@ export interface InitiativeEntry {
   groupTokenIds?: string[];
 }
 
+// Distance between two tokens (precomputed, closest-edge D&D 5e rule)
+export interface DistanceEntry {
+  tokenIdA: string;
+  tokenIdB: string;
+  feet: number;
+}
+
 // Combat State
 export interface CombatState {
   isInCombat: boolean;
   initiativeOrder: InitiativeEntry[];
   currentTurnIndex: number;
+  distances: DistanceEntry[];
+  /** ISO timestamp of when the current turn started — used to scope dice rolls for AI context */
+  turnStartedAt?: string;
 }
 
 // Complete Map

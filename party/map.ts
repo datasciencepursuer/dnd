@@ -168,6 +168,11 @@ interface ChatMessageMsg {
   userId: string;
 }
 
+interface ChatClearMsg {
+  type: "chat-clear";
+  userId: string;
+}
+
 // Server-generated messages
 interface PresenceMessage {
   type: "presence";
@@ -198,7 +203,8 @@ type ClientMessage =
   | CombatEndMessage
   | DiceRollMessage
   | TokenStatsMessage
-  | ChatMessageMsg;
+  | ChatMessageMsg
+  | ChatClearMsg;
 
 // Track connected users
 interface ConnectedUser {
@@ -269,6 +275,13 @@ export default class MapPartyServer implements Party.Server {
   onMessage(message: string, sender: Party.Connection) {
     try {
       const data: ClientMessage = JSON.parse(message);
+
+      // Clear chat: wipe server buffer and broadcast to all clients
+      if (data.type === "chat-clear") {
+        this.chatMessages = [];
+        this.room.broadcast(message, [sender.id]);
+        return;
+      }
 
       // Buffer chat messages for history on reconnect
       if (data.type === "chat-message") {

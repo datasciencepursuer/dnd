@@ -4,6 +4,7 @@ import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPat
 import { createNewMap } from "../constants";
 import { createDefaultCharacterSheet } from "../utils/character-utils";
 import { normalizeGridRange } from "../utils/grid-utils";
+import { computeDistanceMatrix } from "../utils/distance-utils";
 
 // Timeout for dirty tokens - after this time, server updates will overwrite local changes
 const DIRTY_TOKEN_STALE_MS = 10000; // 10 seconds
@@ -95,7 +96,7 @@ export const useMapStore = create<MapState>()(
           ...map,
           // Ensure new fields have defaults for older maps
           monsterGroups: map.monsterGroups || [],
-          combat: map.combat ?? null,
+          combat: map.combat ? { ...map.combat, distances: map.combat.distances ?? [] } : null,
           tokens: map.tokens.map((t) => ({
             ...t,
             monsterGroupId: t.monsterGroupId ?? null,
@@ -112,7 +113,7 @@ export const useMapStore = create<MapState>()(
           const normalizedServerMap = {
             ...serverMap,
             monsterGroups: serverMap.monsterGroups || [],
-            combat: serverMap.combat ?? null,
+            combat: serverMap.combat ? { ...serverMap.combat, distances: serverMap.combat.distances ?? [] } : null,
             tokens: serverMap.tokens.map((t) => ({
               ...t,
               monsterGroupId: t.monsterGroupId ?? null,
@@ -267,12 +268,17 @@ export const useMapStore = create<MapState>()(
           if (!state.map) return state;
           const newDirtyTokens = new Set(state.dirtyTokens).add(id);
           const newDirtyTimestamps = new Map(state.dirtyTimestamps).set(id, Date.now());
+          const newTokens = state.map.tokens.map((t) =>
+            t.id === id ? { ...t, position } : t
+          );
+          const combat = state.map.combat;
           return {
             map: {
               ...state.map,
-              tokens: state.map.tokens.map((t) =>
-                t.id === id ? { ...t, position } : t
-              ),
+              tokens: newTokens,
+              combat: combat?.isInCombat
+                ? { ...combat, distances: computeDistanceMatrix(combat.initiativeOrder, newTokens) }
+                : combat,
               updatedAt: new Date().toISOString(),
             },
             dirtyTokens: newDirtyTokens,
@@ -850,6 +856,8 @@ export const useMapStore = create<MapState>()(
                 isInCombat: true,
                 initiativeOrder,
                 currentTurnIndex: 0,
+                distances: computeDistanceMatrix(initiativeOrder, state.map.tokens),
+                turnStartedAt: new Date().toISOString(),
               },
               updatedAt: new Date().toISOString(),
             },
@@ -877,6 +885,7 @@ export const useMapStore = create<MapState>()(
               combat: {
                 ...state.map.combat,
                 currentTurnIndex: index,
+                turnStartedAt: new Date().toISOString(),
               },
               updatedAt: new Date().toISOString(),
             },

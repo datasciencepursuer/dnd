@@ -5,6 +5,7 @@ import { PresenceList } from "./PresenceList";
 import { CombatPanel } from "./CombatPanel";
 import { useEditorStore } from "../../store";
 import type { Token, InitiativeEntry } from "../../types";
+import type { ChatMessageData } from "../../store/chat-store";
 
 type ActivePanel = "none" | "editMap" | "createUnit";
 
@@ -28,6 +29,15 @@ interface SidebarProps {
   currentTurnIndex?: number;
   onNextTurn?: () => void;
   onPrevTurn?: () => void;
+  // AI DM props
+  aiLoading?: boolean;
+  onAiPrompt?: (prompt: string) => void;
+  // AI Battle Engine props
+  aiBattleEngine?: boolean;
+  onAiBattleEngineChange?: (enabled: boolean) => void;
+  // Props for TurnPromptBuilder in CombatPanel
+  userId?: string | null;
+  onSendMessage?: (chatMessage: ChatMessageData) => void;
 }
 
 export function Sidebar({
@@ -48,6 +58,12 @@ export function Sidebar({
   currentTurnIndex = 0,
   onNextTurn,
   onPrevTurn,
+  aiLoading = false,
+  onAiPrompt,
+  aiBattleEngine = false,
+  onAiBattleEngineChange,
+  userId = null,
+  onSendMessage,
 }: SidebarProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("none");
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -135,6 +151,8 @@ export function Sidebar({
             currentTurnIndex={currentTurnIndex}
             onNextTurn={onNextTurn}
             onPrevTurn={onPrevTurn}
+            aiBattleEngine={aiBattleEngine}
+            onAiBattleEngineChange={onAiBattleEngineChange}
           />
         )}
 
@@ -152,6 +170,8 @@ export function Sidebar({
             currentTurnIndex={currentTurnIndex}
             onNextTurn={onNextTurn}
             onPrevTurn={onPrevTurn}
+            aiBattleEngine={aiBattleEngine}
+            onAiBattleEngineChange={onAiBattleEngineChange}
           />
         )}
       </div>
@@ -165,6 +185,13 @@ export function Sidebar({
         isDM={isDungeonMaster()}
         pendingRequest={pendingCombatRequest}
         currentUserName={currentUserName}
+        aiLoading={aiLoading}
+        aiBattleEngine={aiBattleEngine}
+        onAiBattleEngineChange={onAiBattleEngineChange}
+        onAiPrompt={onAiPrompt}
+        mapId={mapId}
+        userId={userId || undefined}
+        onSendMessage={onSendMessage}
       />
 
       {/* Players Online */}

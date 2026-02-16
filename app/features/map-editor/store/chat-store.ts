@@ -6,6 +6,8 @@ export interface DiceRollData {
   modifier: number;   // +/- modifier
   rolls: number[];    // individual roll results
   total: number;      // final total
+  /** "h" = keep highest (advantage), "l" = keep lowest (disadvantage) */
+  keep?: "h" | "l";
   tokenName?: string;
   tokenColor?: string;
 }
@@ -20,6 +22,8 @@ export interface ChatMessageData {
   createdAt: string;
   metadata?: {
     diceRoll?: DiceRollData;
+    aiResponse?: boolean;
+    playerIntent?: boolean;
   } | null;
   recipientId?: string | null;
   recipientName?: string | null;
@@ -70,7 +74,14 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   setMessages: (msgs) => {
-    set({ messages: msgs.slice(-MAX_MESSAGES), isLoaded: true });
+    const sliced = msgs.slice(-MAX_MESSAGES);
+    set({
+      messages: sliced,
+      isLoaded: true,
+      unreadCount: sliced.length === 0 ? 0 : get().unreadCount,
+      // Clear pending persistence when chat is wiped to prevent stale re-flush
+      ...(sliced.length === 0 ? { pendingPersist: [] } : {}),
+    });
   },
 
   appendHistory: (msgs) => {
@@ -110,28 +121,46 @@ export const useChatStore = create<ChatState & ChatActions>((set, get) => ({
 
 /**
  * Parse dice notation like "1d20+3", "2d6-1", "d8", "4d6"
+ * Supports keep-highest/lowest: "2d20h+5" (advantage), "2d20l+5" (disadvantage)
  * Returns null if the notation is invalid.
  */
-export function parseDiceNotation(notation: string): { count: number; sides: number; modifier: number } | null {
-  const match = notation.trim().match(/^(\d*)d(\d+)([+-]\d+)?$/i);
+export function parseDiceNotation(notation: string): { count: number; sides: number; modifier: number; keep?: "h" | "l" } | null {
+  const match = notation.trim().match(/^(\d*)d(\d+)(h|l)?([+-]\d+)?$/i);
   if (!match) return null;
 
   const count = match[1] ? parseInt(match[1]) : 1;
   const sides = parseInt(match[2]);
-  const modifier = match[3] ? parseInt(match[3]) : 0;
+  const keep = match[3] ? (match[3].toLowerCase() as "h" | "l") : undefined;
+  const modifier = match[4] ? parseInt(match[4]) : 0;
 
   if (count < 1 || count > 99 || sides < 2 || sides > 100) return null;
+  // keep only makes sense with 2+ dice
+  if (keep && count < 2) return null;
 
-  return { count, sides, modifier };
+  return { count, sides, modifier, keep };
 }
 
 /**
  * Execute dice rolls and return results.
+ * When keep is "h" or "l", total = highest/lowest single die + modifier.
  */
-export function rollDice(count: number, sides: number, modifier: number): { rolls: number[]; total: number } {
+export function rollDice(
+  count: number,
+  sides: number,
+  modifier: number,
+  keep?: "h" | "l"
+): { rolls: number[]; total: number } {
   const rolls: number[] = [];
   for (let i = 0; i < count; i++) {
     rolls.push(Math.floor(Math.random() * sides) + 1);
+  }
+  if (keep === "h") {
+    const total = Math.max(...rolls) + modifier;
+    return { rolls, total };
+  }
+  if (keep === "l") {
+    const total = Math.min(...rolls) + modifier;
+    return { rolls, total };
   }
   const total = rolls.reduce((a, b) => a + b, 0) + modifier;
   return { rolls, total };

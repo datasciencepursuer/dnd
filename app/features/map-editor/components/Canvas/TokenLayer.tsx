@@ -4,6 +4,7 @@ import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
 import { getHpPercentage, getHpBarColor } from "../../utils/character-utils";
+import { gridMovementDistance } from "../../utils/distance-utils";
 
 // Helper to determine if a color is light (needs dark text/stroke for contrast)
 function isLightColor(color: string): boolean {
@@ -20,7 +21,37 @@ function isLightColor(color: string): boolean {
   return luminance > 0.7;
 }
 
-interface DragState {
+// Auto-scroll constants and helper
+const AUTO_SCROLL_EDGE_ZONE = 60;
+const AUTO_SCROLL_MAX_SPEED = 8;
+
+function computeScrollVelocity(clientX: number, clientY: number, containerRect: DOMRect): { vx: number; vy: number } {
+  let vx = 0;
+  let vy = 0;
+
+  const distLeft = clientX - containerRect.left;
+  const distRight = containerRect.right - clientX;
+  const distTop = clientY - containerRect.top;
+  const distBottom = containerRect.bottom - clientY;
+
+  // Clamp factor to [0, 1] — when cursor is outside the container (negative dist),
+  // factor exceeds 1 so we clamp to max speed for continued scrolling out of bounds
+  if (distLeft < AUTO_SCROLL_EDGE_ZONE) {
+    vx = AUTO_SCROLL_MAX_SPEED * Math.min(1, 1 - distLeft / AUTO_SCROLL_EDGE_ZONE);
+  } else if (distRight < AUTO_SCROLL_EDGE_ZONE) {
+    vx = -AUTO_SCROLL_MAX_SPEED * Math.min(1, 1 - distRight / AUTO_SCROLL_EDGE_ZONE);
+  }
+
+  if (distTop < AUTO_SCROLL_EDGE_ZONE) {
+    vy = AUTO_SCROLL_MAX_SPEED * Math.min(1, 1 - distTop / AUTO_SCROLL_EDGE_ZONE);
+  } else if (distBottom < AUTO_SCROLL_EDGE_ZONE) {
+    vy = -AUTO_SCROLL_MAX_SPEED * Math.min(1, 1 - distBottom / AUTO_SCROLL_EDGE_ZONE);
+  }
+
+  return { vx, vy };
+}
+
+export interface DragState {
   tokenId: string;
   startX: number;
   startY: number;
@@ -33,7 +64,6 @@ interface TokenItemProps {
   cellSize: number;
   isSelected: boolean;
   isHovered: boolean;
-  isEditable: boolean;
   isMovable: boolean;
   isDM: boolean;
   selectedTool: string;
@@ -41,7 +71,6 @@ interface TokenItemProps {
   isLockedMouseDown: boolean;
   forceHidden: boolean;
   onMouseDown: (tokenId: string, e: any) => void;
-  onFlip: (tokenId: string) => void;
   onSelect: (tokenId: string) => void;
   onHoverStart: (tokenId: string) => void;
   onHoverEnd: () => void;
@@ -53,7 +82,6 @@ const TokenItem = memo(function TokenItem({
   cellSize,
   isSelected,
   isHovered,
-  isEditable,
   isMovable,
   isDM,
   selectedTool,
@@ -61,7 +89,6 @@ const TokenItem = memo(function TokenItem({
   isLockedMouseDown,
   forceHidden,
   onMouseDown,
-  onFlip,
   onSelect,
   onHoverStart,
   onHoverEnd,
@@ -93,17 +120,6 @@ const TokenItem = memo(function TokenItem({
     }
   }
 
-  const handleFlipClick = (e: any) => {
-    if (!isEditable) return;
-    e.cancelBubble = true;
-    onFlip(token.id);
-  };
-
-  const handleFlipMouseDown = (e: any) => {
-    // Prevent drag from starting when clicking flip button
-    e.cancelBubble = true;
-  };
-
   const handleClick = (e: any) => {
     // Allow selection in select mode and draw mode (for color picking)
     if (selectedTool !== "select" && selectedTool !== "draw") return;
@@ -131,11 +147,6 @@ const TokenItem = memo(function TokenItem({
     onDoubleClick(token.id);
   };
 
-  // Flip button size and position
-  const flipBtnSize = Math.min(20, maxSize / 3);
-  const flipBtnX = imgWidth / 2 + 4;
-  const flipBtnY = -imgHeight / 2 - 4;
-
   // Check if this is an image token (even if image hasn't loaded yet)
   const hasImageUrl = !!token.imageUrl;
 
@@ -145,8 +156,11 @@ const TokenItem = memo(function TokenItem({
   // Character sheet display calculations
   const sheet = token.characterSheet;
   // Show HP/AC only on hover (not selection). Hide for monster tokens unless DM.
+  // In Local Play mode, DM sees player perspective (no monster stats).
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const isMonster = token.layer === "monster";
-  const showStats = isHovered && !isDragging && sheet && !(isMonster && !isDM);
+  const effectiveDM = isDM && !isPlayingLocally;
+  const showStats = isHovered && !isDragging && sheet && !(isMonster && !effectiveDM);
   const hpPercent = sheet ? getHpPercentage(sheet.hpCurrent, sheet.hpMax) : 0;
   const hpBarColor = sheet ? getHpBarColor(hpPercent) : "#22c55e";
 
@@ -207,30 +221,6 @@ const TokenItem = memo(function TokenItem({
               offsetY={imgHeight / 2}
               scaleX={token.flipped ? -1 : 1}
             />
-          )}
-          {isSelected && !isDragging && isEditable && (
-            <Group
-              x={flipBtnX}
-              y={flipBtnY}
-              onMouseDown={handleFlipMouseDown}
-              onTouchStart={handleFlipMouseDown}
-              onClick={handleFlipClick}
-              onTap={handleFlipClick}
-            >
-              <Circle
-                radius={flipBtnSize / 2}
-                fill={token.color}
-                stroke="#ffffff"
-                strokeWidth={2}
-              />
-              <Text
-                text="⇄"
-                fontSize={flipBtnSize * 0.7}
-                fill="#ffffff"
-                offsetX={flipBtnSize * 0.25}
-                offsetY={flipBtnSize * 0.35}
-              />
-            </Group>
           )}
         </>
       ) : (
@@ -467,13 +457,13 @@ function TokenGhost({
 
 // Drag overlay — renders path line, distance label, and ghost during drag
 // Isolated so drag position updates don't re-render TokenItems
-interface DragOverlayProps {
+export interface DragOverlayProps {
   dragState: DragState;
   token: Token;
   cellSize: number;
 }
 
-function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
+export function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
   const offset = (token.size * cellSize) / 2;
 
   // Get snapped destination for ghost
@@ -487,10 +477,8 @@ function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
   const startRow = Math.round((dragState.startY - offset) / cellSize);
 
   // Calculate distance using Pythagorean theorem for diagonal movement
-  const deltaCol = Math.abs(col - startCol);
-  const deltaRow = Math.abs(row - startRow);
-  const distanceInCells = Math.sqrt(deltaCol * deltaCol + deltaRow * deltaRow);
-  const distanceInFeet = Math.round(distanceInCells * 5 * 10) / 10;
+  const rawFeet = gridMovementDistance(startCol, startRow, col, row);
+  const distanceInFeet = Math.round(rawFeet * 10) / 10;
 
   // Position the label at the midpoint of the line
   const midX = (dragState.startX + snappedX) / 2;
@@ -555,16 +543,15 @@ interface TokenLayerProps {
   onHoverStart: (tokenId: string) => void;
   onHoverEnd: () => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
-  onTokenFlip?: (tokenId: string) => void;
+  onAutoScroll?: (dx: number, dy: number) => void;
+  onDragChange?: (dragState: DragState | null, token: Token | null) => void;
 }
 
-export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onTokenFlip }: TokenLayerProps) {
+export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onAutoScroll, onDragChange }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
-  const flipToken = useMapStore((s) => s.flipToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
-  const canEditToken = useEditorStore((s) => s.canEditToken);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
@@ -575,14 +562,15 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const draggingTokenRef = useRef<Token | null>(null);
   const isDraggingRef = useRef(false);
   const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
+  const autoScrollRafRef = useRef<number | null>(null);
+  const scrollVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
+  const lastClientPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // Stable refs — keep callbacks stable so React.memo on TokenItem actually works.
   // Without these, every token/tool/cellSize change recreates callbacks,
   // which defeats memo on ALL TokenItems.
   const onTokenMovedRef = useRef(onTokenMoved);
   onTokenMovedRef.current = onTokenMoved;
-  const onTokenFlipRef = useRef(onTokenFlip);
-  onTokenFlipRef.current = onTokenFlip;
   const moveTokenRef = useRef(moveToken);
   moveTokenRef.current = moveToken;
   const canMoveTokenRef = useRef(canMoveToken);
@@ -595,19 +583,57 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   cellSizeRef.current = cellSize;
   const isPanningRef = useRef(isPanning);
   isPanningRef.current = isPanning;
-  const flipTokenRef = useRef(flipToken);
-  flipTokenRef.current = flipToken;
   const openCharacterSheetRef = useRef(openCharacterSheet);
   openCharacterSheetRef.current = openCharacterSheet;
+  const onAutoScrollRef = useRef(onAutoScroll);
+  onAutoScrollRef.current = onAutoScroll;
+  const onDragChangeRef = useRef(onDragChange);
+  onDragChangeRef.current = onDragChange;
 
   // Handle mouse/touch move during drag - use refs to avoid effect re-running on every move
   useEffect(() => {
+    const autoScrollLoop = () => {
+      if (!isDraggingRef.current) {
+        autoScrollRafRef.current = null;
+        return;
+      }
+
+      const { vx, vy } = scrollVelocityRef.current;
+      if (vx !== 0 || vy !== 0) {
+        onAutoScrollRef.current?.(vx, vy);
+
+        // Recalculate world position from last client coords since viewport shifted
+        const stage = stageRef.current;
+        if (stage && lastClientPosRef.current) {
+          const container = stage.container();
+          const rect = container.getBoundingClientRect();
+          const scale = stage.scaleX();
+          const stageX = stage.x();
+          const stageY = stage.y();
+
+          const mouseX = (lastClientPosRef.current.x - rect.left - stageX) / scale;
+          const mouseY = (lastClientPosRef.current.y - rect.top - stageY) / scale;
+
+          dragPositionRef.current = { x: mouseX, y: mouseY };
+          setDragState((prev) => prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null);
+        }
+      }
+
+      autoScrollRafRef.current = requestAnimationFrame(autoScrollLoop);
+    };
+
     const updateDragPosition = (clientX: number, clientY: number) => {
       if (!isDraggingRef.current || !stageRef.current) return;
+
+      // Store client position for auto-scroll recalculation
+      lastClientPosRef.current = { x: clientX, y: clientY };
 
       const stage = stageRef.current;
       const container = stage.container();
       const rect = container.getBoundingClientRect();
+
+      // Compute and store scroll velocity
+      scrollVelocityRef.current = computeScrollVelocity(clientX, clientY, rect);
 
       const scale = stage.scaleX();
       const stageX = stage.x();
@@ -621,6 +647,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       setDragState((prev) =>
         prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null
       );
+
+      // Start auto-scroll loop if not already running
+      if (autoScrollRafRef.current === null) {
+        autoScrollRafRef.current = requestAnimationFrame(autoScrollLoop);
+      }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -637,6 +668,14 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     const handleMouseUp = () => {
       // Clear touch-triggered hover
       onHoverEndPropRef.current();
+
+      // Cancel auto-scroll
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
+      scrollVelocityRef.current = { vx: 0, vy: 0 };
+      lastClientPosRef.current = null;
 
       if (!isDraggingRef.current) return;
 
@@ -677,6 +716,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleMouseUp);
+      // Cancel any pending auto-scroll
+      if (autoScrollRafRef.current !== null) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = null;
+      }
     };
   }, [stageRef]); // Only stageRef — everything else via refs
 
@@ -733,14 +777,6 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       setSelectedElements([token.id]);
     },
     [setSelectedElements] // setSelectedElements is stable from zustand
-  );
-
-  const handleFlip = useCallback(
-    (tokenId: string) => {
-      flipTokenRef.current(tokenId);
-      onTokenFlipRef.current?.(tokenId);
-    },
-    []
   );
 
   const handleSelect = useCallback(
@@ -803,17 +839,13 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     }
   }, [stageRef]);
 
+  // Notify parent of drag state changes so overlay can be rendered in a higher layer
+  useEffect(() => {
+    onDragChangeRef.current?.(dragState, draggingTokenRef.current);
+  }, [dragState]);
+
   return (
     <>
-      {/* Drag overlay - isolated from token list rendering */}
-      {dragState && draggingTokenRef.current && (
-        <DragOverlay
-          dragState={dragState}
-          token={draggingTokenRef.current}
-          cellSize={cellSize}
-        />
-      )}
-
       {/* Sort tokens: movable (non-locked) above locked, then selected/hovered on top */}
       {[...tokens].sort((a, b) => {
         const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
@@ -826,7 +858,6 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
       }).map((token) => {
         if (!token.visible) return null;
 
-        const isEditable = canEditToken(token.ownerId);
         const isMovable = canMoveToken(token.ownerId);
 
         return (
@@ -836,7 +867,6 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
             cellSize={cellSize}
             isSelected={selectedIds.includes(token.id)}
             isHovered={hoveredTokenId === token.id}
-            isEditable={isEditable}
             isMovable={isMovable}
             isDM={isDungeonMaster()}
             selectedTool={selectedTool}
@@ -844,7 +874,6 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
             isLockedMouseDown={lockedMouseDownId === token.id}
             forceHidden={nonFoggedTokenIds.has(token.id)}
             onMouseDown={handleMouseDown}
-            onFlip={handleFlip}
             onSelect={handleSelect}
             onHoverStart={handleHoverStart}
             onHoverEnd={handleHoverEnd}
@@ -912,6 +941,114 @@ export const SelectedTokenOverlay = memo(function SelectedTokenOverlay({ tokens,
   );
 });
 
+// Flip button for a single token — rendered in the controls layer above fog
+const FlipButtonOverlay = memo(function FlipButtonOverlay({
+  token,
+  cellSize,
+  onFlip,
+}: {
+  token: Token;
+  cellSize: number;
+  onFlip: (tokenId: string) => void;
+}) {
+  const image = useImage(token.imageUrl);
+
+  const offset = (token.size * cellSize) / 2;
+  const x = token.position.col * cellSize + offset;
+  const y = token.position.row * cellSize + offset;
+  const maxSize = token.size * cellSize - 2;
+
+  let imgWidth = maxSize;
+  let imgHeight = maxSize;
+  if (image) {
+    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    if (aspectRatio > 1) {
+      imgHeight = maxSize / aspectRatio;
+    } else {
+      imgWidth = maxSize * aspectRatio;
+    }
+  }
+
+  const flipBtnSize = Math.min(16, maxSize / 3);
+  const flipBtnX = imgWidth / 2 + 4;
+  const flipBtnY = -imgHeight / 2 - 4;
+
+  const handleFlipClick = (e: any) => {
+    e.cancelBubble = true;
+    onFlip(token.id);
+  };
+
+  const handleFlipMouseDown = (e: any) => {
+    e.cancelBubble = true;
+  };
+
+  return (
+    <Group x={x} y={y} rotation={token.rotation}>
+      <Group
+        x={flipBtnX}
+        y={flipBtnY}
+        onMouseDown={handleFlipMouseDown}
+        onTouchStart={handleFlipMouseDown}
+        onClick={handleFlipClick}
+        onTap={handleFlipClick}
+      >
+        <Circle
+          radius={flipBtnSize / 2}
+          fill={token.color}
+          stroke="#ffffff"
+          strokeWidth={2}
+        />
+        <Text
+          text="⇄"
+          fontSize={flipBtnSize * 0.7}
+          fill="#ffffff"
+          offsetX={flipBtnSize * 0.25}
+          offsetY={flipBtnSize * 0.35}
+        />
+      </Group>
+    </Group>
+  );
+});
+
+// Interactive controls overlay — renders flip buttons above fog layer
+interface SelectedTokenControlsProps {
+  tokens: Token[];
+  cellSize: number;
+  onFlip: (tokenId: string) => void;
+  draggingTokenId: string | null;
+}
+
+export const SelectedTokenControls = memo(function SelectedTokenControls({
+  tokens,
+  cellSize,
+  onFlip,
+  draggingTokenId,
+}: SelectedTokenControlsProps) {
+  const selectedIds = useEditorStore((s) => s.selectedElementIds);
+  const canEditToken = useEditorStore((s) => s.canEditToken);
+
+  return (
+    <>
+      {tokens
+        .filter(
+          (token) =>
+            token.imageUrl &&
+            selectedIds.includes(token.id) &&
+            token.id !== draggingTokenId &&
+            canEditToken(token.ownerId)
+        )
+        .map((token) => (
+          <FlipButtonOverlay
+            key={`flip-ctrl-${token.id}`}
+            token={token}
+            cellSize={cellSize}
+            onFlip={onFlip}
+          />
+        ))}
+    </>
+  );
+});
+
 // Visual-only token rendered in the overlay layer (above fog)
 interface OverlayTokenItemProps {
   token: Token;
@@ -949,8 +1086,10 @@ const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM,
 
   // Character sheet display calculations (only on hover)
   const sheet = token.characterSheet;
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const isMonster = token.layer === "monster";
-  const showStats = isHovered && sheet && !(isMonster && !isDM);
+  const effectiveDM = isDM && !isPlayingLocally;
+  const showStats = isHovered && sheet && !(isMonster && !effectiveDM);
   const hpPercent = sheet ? getHpPercentage(sheet.hpCurrent, sheet.hpMax) : 0;
   const hpBarColor = sheet ? getHpBarColor(hpPercent) : "#22c55e";
 

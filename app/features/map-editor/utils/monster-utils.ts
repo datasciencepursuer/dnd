@@ -366,6 +366,7 @@ export function monsterToCharacterSheet(monster: SrdMonster): CharacterSheet {
     }
   }
 
+  sheet.srdMonsterIndex = monster.index;
   sheet.lastModified = Date.now();
   return sheet;
 }

@@ -165,6 +165,11 @@ interface ChatHistoryMsg {
   messages: ChatMessageData[];
 }
 
+interface ChatClearMsg {
+  type: "chat-clear";
+  userId: string;
+}
+
 type ServerMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
@@ -187,7 +192,8 @@ type ServerMessage =
   | DiceRollMessage
   | TokenStatsMessage
   | ChatMessageMsg
-  | ChatHistoryMsg;
+  | ChatHistoryMsg
+  | ChatClearMsg;
 
 // PartyKit host from environment variable
 // In development: defaults to localhost
@@ -413,6 +419,10 @@ export function usePartySync({
 
           case "chat-history":
             useChatStore.getState().appendHistory(message.messages);
+            break;
+
+          case "chat-clear":
+            useChatStore.getState().setMessages([]);
             break;
         }
       } catch (error) {
@@ -735,6 +745,15 @@ export function usePartySync({
     [isSocketReady, socket, userId]
   );
 
+  // Broadcast chat clear to other clients (DM already cleared locally)
+  const broadcastChatClear = useCallback(() => {
+    if (!isSocketReady() || !userId) return;
+    socket!.send(JSON.stringify({
+      type: "chat-clear",
+      userId,
+    }));
+  }, [isSocketReady, socket, userId]);
+
   // Clear combat request (for DM to dismiss without responding)
   const clearCombatRequest = useCallback(() => {
     setCombatRequest(null);
@@ -760,6 +779,7 @@ export function usePartySync({
     broadcastCombatResponse,
     broadcastCombatEnd,
     broadcastChatMessage,
+    broadcastChatClear,
     clearCombatRequest,
     activePings,
     combatRequest,

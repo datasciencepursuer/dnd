@@ -42,13 +42,14 @@ Drizzle ORM with Neon PostgreSQL serverless.
 - Config: `drizzle.config.ts`
 
 ### Authentication
-Uses better-auth for email/password authentication.
+Uses better-auth for email/password + Google OAuth authentication.
 - Server config: `app/.server/auth/auth.server.ts`
 - Client: `app/lib/auth-client.ts` (exports `signIn`, `signUp`, `signOut`, `useSession`)
 - API routes: `/api/auth/*` handled by `app/routes/api.auth.$.tsx`
 - Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders (throws redirect to `/login` if unauthenticated)
 - Schema: Auth tables (user, session, account, verification) in `app/.server/db/schema.ts`
 - Rate limiting: 3 signups per IP per 12 hours
+- Google OAuth with account linking (`trustedProviders: ["google"]`)
 
 ### Required Environment Variables
 - `BETTER_AUTH_SECRET` - Generate with: `openssl rand -base64 32`
@@ -57,6 +58,8 @@ Uses better-auth for email/password authentication.
 - `UPLOADTHING_TOKEN` - UploadThing API token for image uploads
 - `RESEND_API_KEY` - Resend API key for sending emails (verification, password reset)
 - `VITE_PARTYKIT_HOST` - PartyKit host (defaults to `127.0.0.1:1999` in dev)
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (optional, enables social login)
+- `GEMINI_API_KEY` - Google Gemini API key (optional, enables AI DM assistant)
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
@@ -78,7 +81,7 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `GridSettings` - Grid config (type: square/hex, cellSize, dimensions)
 - `EditorTool` - Tool enum (select, pan, draw, erase, token, wall, area, text, fog-reveal, fog-hide, ping)
 - `CharacterSheet` - Full D&D 5e character sheet (abilities, skills, weapons, spells, equipment, death saves)
-- `CombatState` - Initiative order and turn tracking
+- `CombatState` - Initiative order, turn tracking, and precomputed `distances: DistanceEntry[]`
 - `MonsterGroup` - Groups monsters for shared initiative
 - `PlayerPermissions` - Granular permissions for token/map operations
 - `EditorContext` - Current user's permission context
@@ -106,6 +109,7 @@ Canvas-based map editor using Konva.js (`react-konva`).
 - `/api/maps/:mapId/tokens/:tokenId/move` - Token movement
 - `/api/maps/:mapId/chat` - Chat history (GET) and single message (POST, max 500 chars)
 - `/api/maps/:mapId/chat/batch` - Batch chat persistence (POST, called by `useChatPersistence`)
+- `/api/maps/:mapId/ai` - AI DM combat assistant (POST, DM-only, requires active combat)
 - `/api/uploadthing` - Image upload endpoint
 - `/api/uploadthing/files` - File operations
 - `/api/uploads` - Upload management
@@ -152,7 +156,7 @@ WebSocket-based real-time sync using PartyKit (`party/map.ts`).
 - Client hooks: `useMapSync.ts` (HTTP sync), `usePartySync.ts` (WebSocket)
 - Message types use a discriminated union pattern (e.g., `token-move`, `token-update`, `fog-paint`, `fog-erase`, `map-sync`)
 - Syncs: token operations, fog painting, pings, drawings, combat, dice rolls, chat messages, token stats, DM transfer, and presence
-- Chat: real-time via WebSocket, persisted to DB in JSONB chunks (`mapChatChunks` table). `useChatPersistence` hook flushes pending messages every 30 seconds (skips if no new messages). Also flushes on disconnect, unmount, and beforeunload via `navigator.sendBeacon`.
+- Chat: real-time via WebSocket, persisted to DB in JSONB chunks (`mapChatChunks` table). `useChatPersistence` hook flushes pending messages every 30 seconds (skips if no new messages). Also flushes on disconnect, unmount, and beforeunload via `navigator.sendBeacon`. Whisper messages routed server-side to only sender + recipient connections.
 - Auto-save: 1-2 second debounce after changes
 - Dirty token tracking: Prevents server updates from overwriting local optimistic updates during 10-second staleness window
 - Broadcasts exclude sender (they already have the update)
@@ -180,6 +184,36 @@ Uses UploadThing for image uploads (token images, map backgrounds).
 - `PlayerPermissions` interface defines granular permissions (create/edit/delete/move tokens)
 - Permission checks via `editor-store.ts`: `isDungeonMaster()`, `canEditToken()`, `canMoveToken()`
 - Server-side permission checks: `app/.server/permissions/map-permissions.ts` and `group-permissions.ts`
+
+### AI DM Assistant (`app/.server/ai/`)
+Google Gemini-powered combat narration and rules adjudication. DM-only feature.
+- `gemini.ts` - Gemini 2.5 Flash integration, serializes full combat context (initiative, distances, HP, conditions, abilities, recent chat)
+- `srd-lookup.ts` - SRD monster data lookup with caching from `app/features/map-editor/data/srd-monsters.json`
+- `enrich-combat-context.ts` - Matches character abilities to SRD descriptions for richer AI context
+- AI never rolls dice for player characters, only monsters/NPCs
+- AI never discloses exact monster/NPC HP, max HP, or AC numbers — uses descriptive hints ("badly wounded", "heavily armored") instead. Conditions (e.g. Poisoned, Stunned, Prone) are always OK to reveal
+- Enforces D&D 5e action economy (movement, action, bonus action, reaction)
+- Max prompt: 500 characters, temperature: 0.8, max output: 8192 tokens
+
+### Monster Compendium
+- SRD monster browser in `MonsterCompendium.tsx` with 350+ monsters from `data/srd-monsters.json`
+- Filter by Challenge Rating, monster type, and text search
+- Override monster stats (HP, AC, abilities) before creating tokens
+- `monsterToCharacterSheet()` auto-generates character sheets from SRD data
+- `mapMonsterTokenSize()` maps monster size category to grid cell size
+
+### Distance Calculation (`utils/distance-utils.ts`)
+D&D 5e closest-edge distance system for combat.
+- `computeDistanceMatrix()` - Builds pairwise distance matrix for all combatants (expands monster groups)
+- `cellGapDistance()` - Measures gap between token footprint edges
+- `gridMovementDistance()` - Center-to-center movement tracking for drag operations
+- Distances stored in `CombatState.distances` as `DistanceEntry[]`
+
+### Chat System
+- Real-time via WebSocket, persisted to DB in JSONB chunks
+- Whisper system: `recipientId`/`recipientName` fields for private messages, routed server-side to only sender + recipient connections
+- Chat metadata flags: `aiResponse` (AI DM responses), `playerIntent` (player action declarations), `diceRoll` (dice roll results)
+- Dice notation parser and roller built into chat store
 
 ### Patch Notes
 - Version tracking and changelog in `app/lib/patch-notes.ts`

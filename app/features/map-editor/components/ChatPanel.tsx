@@ -21,8 +21,11 @@ interface ChatPanelProps {
   userName: string;
   isDM: boolean;
   onSendMessage: (chatMessage: ChatMessageData) => void;
+  onClearChat?: () => void;
   variant?: "sidebar" | "panel";
   mapOwnerId?: string;
+  aiLoading?: boolean;
+  onAiPrompt?: (prompt: string) => void;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -37,23 +40,57 @@ function formatRelativeTime(dateStr: string): string {
 }
 
 function formatNotation(dr: DiceRollData): string {
+  const keepStr = dr.keep ?? "";
   const mod = dr.modifier > 0 ? `+${dr.modifier}` : dr.modifier < 0 ? `${dr.modifier}` : "";
-  return `${dr.count}${dr.dice}${mod}`;
+  return `${dr.count}${dr.dice}${keepStr}${mod}`;
 }
 
 function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; messageText: string }) {
-  const showBreakdown = diceRoll.rolls.length > 1 || diceRoll.modifier !== 0;
+  const { rolls, modifier, total, keep } = diceRoll;
+  const hasMultiple = rolls.length > 1;
+  const hasMod = modifier !== 0;
+  const modStr = modifier > 0 ? `+${modifier}` : `${modifier}`;
+
+  // Determine which die was kept for advantage/disadvantage display
+  const keptValue = keep === "h" ? Math.max(...rolls) : keep === "l" ? Math.min(...rolls) : null;
+
+  let breakdownNode: React.ReactNode = null;
+  if (keep && hasMultiple) {
+    // Advantage/disadvantage: show each die, strikethrough dropped, bold kept
+    const parts = rolls.map((r, i) => {
+      const isKept = r === keptValue;
+      // If multiple dice share the kept value, only mark the first one
+      const firstKeptIdx = rolls.indexOf(keptValue!);
+      const shouldHighlight = isKept && i === firstKeptIdx;
+      const shouldStrike = !shouldHighlight;
+      return (
+        <span key={i}>
+          {i > 0 && <span className="text-gray-300 dark:text-gray-600">{" · "}</span>}
+          <span className={shouldStrike ? "line-through opacity-50" : "font-semibold"}>
+            {r}{hasMod && <>{modStr}={r + modifier}</>}
+          </span>
+        </span>
+      );
+    });
+    breakdownNode = <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{parts}</span>;
+  } else if (hasMultiple && hasMod) {
+    const parts = rolls.map((r, i) => {
+      const sub = r + modifier;
+      return <span key={i}>{i > 0 && <span className="text-gray-300 dark:text-gray-600">{" · "}</span>}{r}{modStr}={sub}</span>;
+    });
+    breakdownNode = <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{parts}</span>;
+  } else if (hasMultiple) {
+    breakdownNode = <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">[{rolls.join(", ")}]</span>;
+  } else if (hasMod) {
+    breakdownNode = <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">{rolls[0]}{modStr}</span>;
+  }
 
   return (
     <div className="flex items-baseline gap-1.5 flex-wrap">
       <span className="text-base text-gray-600 dark:text-gray-300">{messageText}</span>
       <span className="text-gray-400 dark:text-gray-500">&rarr;</span>
-      <span className="text-base font-bold text-gray-900 dark:text-white">{diceRoll.total}</span>
-      {showBreakdown && (
-        <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-          [{diceRoll.rolls.join(", ")}]{diceRoll.modifier !== 0 ? (diceRoll.modifier > 0 ? ` + ${diceRoll.modifier}` : ` - ${Math.abs(diceRoll.modifier)}`) : ""}
-        </span>
-      )}
+      <span className="text-base font-bold text-gray-900 dark:text-white">{total}</span>
+      {breakdownNode}
       {diceRoll.tokenName && (
         <>
           <span className="text-gray-300 dark:text-gray-600">|</span>
@@ -67,11 +104,12 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
   );
 }
 
-export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, variant = "sidebar", mapOwnerId }: ChatPanelProps) {
+export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClearChat, variant = "sidebar", mapOwnerId, aiLoading = false, onAiPrompt }: ChatPanelProps) {
   const messages = useChatStore((s) => s.messages);
   const isLoaded = useChatStore((s) => s.isLoaded);
   const setMessages = useChatStore((s) => s.setMessages);
   const [input, setInput] = useState("");
+  const [clearing, setClearing] = useState(false);
   const [showDice, setShowDice] = useState(false);
   const [diceCount, setDiceCount] = useState(1);
   const [diceModifier, setDiceModifier] = useState(0);
@@ -79,6 +117,11 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Input history (last 3 sent messages)
+  const inputHistoryRef = useRef<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const savedInputRef = useRef("");
 
   // Whisper state
   const [whisperTarget, setWhisperTarget] = useState<{ id: string; name: string } | null>(null);
@@ -228,6 +271,22 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
       return;
     }
 
+    // Push to input history (keep last 3, no consecutive duplicates)
+    const history = inputHistoryRef.current;
+    if (history[0] !== trimmed) {
+      inputHistoryRef.current = [trimmed, ...history].slice(0, 3);
+    }
+    historyIndexRef.current = -1;
+    savedInputRef.current = "";
+
+    // Check for /ai command (AI DM combat assistant)
+    const aiMatch = trimmed.match(/^\/ai\s+(.+)$/i);
+    if (aiMatch) {
+      setInput("");
+      onAiPrompt?.(aiMatch[1].trim());
+      return;
+    }
+
     // Check for /dmw command (whisper message to DM)
     const dmWhisperMatch = trimmed.match(/^\/dmw\s+(.+)$/i);
     if (dmWhisperMatch) {
@@ -245,8 +304,9 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
       const notation = dmRollMatch[1].trim();
       const parsed = parseDiceNotation(notation);
       if (parsed) {
-        const { rolls, total } = rollDice(parsed.count, parsed.sides, parsed.modifier);
+        const { rolls, total } = rollDice(parsed.count, parsed.sides, parsed.modifier, parsed.keep);
         const diceName = `d${parsed.sides}`;
+        const keepStr = parsed.keep ?? "";
         const mod = parsed.modifier > 0 ? `+${parsed.modifier}` : parsed.modifier < 0 ? `${parsed.modifier}` : "";
         const diceRoll: DiceRollData = {
           dice: diceName,
@@ -254,6 +314,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
           modifier: parsed.modifier,
           rolls,
           total,
+          keep: parsed.keep,
           tokenName: selectedToken?.name,
           tokenColor: selectedToken?.color,
         };
@@ -262,10 +323,10 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
           ? { id: userId, name: userName }
           : dmUser;
         if (dmTarget) {
-          createAndSendMessage(`Secret roll ${parsed.count}${diceName}${mod}`, diceRoll, dmTarget);
+          createAndSendMessage(`Secret roll ${parsed.count}${diceName}${keepStr}${mod}`, diceRoll, dmTarget);
         } else {
           // DM not online - fall back to regular roll
-          createAndSendMessage(`Rolling ${parsed.count}${diceName}${mod}`, diceRoll);
+          createAndSendMessage(`Rolling ${parsed.count}${diceName}${keepStr}${mod}`, diceRoll);
         }
         setInput("");
         return;
@@ -278,8 +339,9 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
       const notation = rollMatch[1].trim();
       const parsed = parseDiceNotation(notation);
       if (parsed) {
-        const { rolls, total } = rollDice(parsed.count, parsed.sides, parsed.modifier);
+        const { rolls, total } = rollDice(parsed.count, parsed.sides, parsed.modifier, parsed.keep);
         const diceName = `d${parsed.sides}`;
+        const keepStr = parsed.keep ?? "";
         const mod = parsed.modifier > 0 ? `+${parsed.modifier}` : parsed.modifier < 0 ? `${parsed.modifier}` : "";
         const diceRoll: DiceRollData = {
           dice: diceName,
@@ -287,10 +349,11 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
           modifier: parsed.modifier,
           rolls,
           total,
+          keep: parsed.keep,
           tokenName: selectedToken?.name,
           tokenColor: selectedToken?.color,
         };
-        createAndSendMessage(`Rolling ${parsed.count}${diceName}${mod}`, diceRoll);
+        createAndSendMessage(`Rolling ${parsed.count}${diceName}${keepStr}${mod}`, diceRoll);
         setInput("");
         return;
       }
@@ -330,6 +393,27 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
         setInput("");
         return;
       }
+    }
+
+    // Input history navigation (ArrowUp/ArrowDown)
+    if (e.key === "ArrowUp" && !showWhisperList) {
+      const history = inputHistoryRef.current;
+      if (history.length === 0) return;
+      e.preventDefault();
+      if (historyIndexRef.current === -1) {
+        savedInputRef.current = input;
+      }
+      const nextIdx = Math.min(historyIndexRef.current + 1, history.length - 1);
+      historyIndexRef.current = nextIdx;
+      setInput(history[nextIdx]);
+      return;
+    }
+    if (e.key === "ArrowDown" && !showWhisperList && historyIndexRef.current >= 0) {
+      e.preventDefault();
+      const nextIdx = historyIndexRef.current - 1;
+      historyIndexRef.current = nextIdx;
+      setInput(nextIdx < 0 ? savedInputRef.current : inputHistoryRef.current[nextIdx]);
+      return;
     }
 
     // Clear whisper target with Escape
@@ -391,6 +475,37 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
         </button>
       )}
 
+      {/* Chat header with clear button - DM only */}
+      {isDM && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
+          <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Chat</span>
+          {messages.length > 0 && (
+            <button
+              onClick={() => {
+                if (clearing) return;
+                setClearing(true);
+                fetch(`/api/maps/${mapId}/chat`, { method: "DELETE" })
+                  .then((res) => {
+                    if (res.ok) {
+                      setMessages([]);
+                      onClearChat?.();
+                    }
+                  })
+                  .finally(() => setClearing(false));
+              }}
+              disabled={clearing}
+              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors rounded"
+              title="Clear all chat history for this map"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {clearing ? "Clearing..." : "Clear Chat"}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Messages */}
       <div
         ref={scrollContainerRef}
@@ -406,7 +521,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
               No messages yet
             </span>
             <span className="text-xs text-gray-300 dark:text-gray-600">
-              /r roll | /dr /dmw secret to DM
+              /r roll | /dr /dmw secret | /ai combat
             </span>
           </div>
         )}
@@ -415,43 +530,63 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
           const isMsgDM = msg.role === "dm";
           const diceRoll = msg.metadata?.diceRoll;
           const isWhisper = !!msg.recipientId;
+          const isAI = !!msg.metadata?.aiResponse;
+          const isIntent = !!msg.metadata?.playerIntent;
 
           return (
             <div
               key={msg.id}
-              className={`flex ${isSelf ? "justify-end" : "justify-start"}`}
+              className={`flex ${isSelf && !isAI && !isIntent ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-[92%] rounded-md px-2.5 py-1 ${
-                  isWhisper
-                    ? isSelf
-                      ? "bg-purple-100 dark:bg-purple-900/30 border border-purple-200/60 dark:border-purple-800/30"
-                      : "bg-purple-50 dark:bg-purple-900/20 border border-purple-200/40 dark:border-purple-800/20"
-                    : diceRoll
-                      ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/30"
-                      : isMsgDM
+                  isIntent
+                    ? "bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300/60 dark:border-yellow-700/40"
+                    : isAI
+                      ? "bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200/60 dark:border-emerald-800/30"
+                      : isWhisper
                         ? isSelf
-                          ? "bg-amber-100 dark:bg-amber-900/30"
-                          : "bg-amber-50 dark:bg-amber-900/20"
-                        : isSelf
-                          ? "bg-blue-100 dark:bg-blue-900/30"
-                          : "bg-blue-50 dark:bg-blue-900/20"
+                          ? "bg-purple-100 dark:bg-purple-900/30 border border-purple-200/60 dark:border-purple-800/30"
+                          : "bg-purple-50 dark:bg-purple-900/20 border border-purple-200/40 dark:border-purple-800/20"
+                        : diceRoll
+                          ? "bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200/60 dark:border-indigo-800/30"
+                          : isMsgDM
+                            ? isSelf
+                              ? "bg-amber-100 dark:bg-amber-900/30"
+                              : "bg-amber-50 dark:bg-amber-900/20"
+                            : isSelf
+                              ? "bg-blue-100 dark:bg-blue-900/30"
+                              : "bg-blue-50 dark:bg-blue-900/20"
                 }`}
               >
                 {/* Inline header: name, badge, whisper label, time */}
                 <div className="flex items-center gap-1.5">
                   <span
                     className={`text-xs font-semibold ${
-                      isWhisper
-                        ? "text-purple-700 dark:text-purple-400"
-                        : isMsgDM
-                          ? "text-amber-700 dark:text-amber-400"
-                          : "text-blue-700 dark:text-blue-400"
+                      isIntent
+                        ? "text-yellow-700 dark:text-yellow-400"
+                        : isAI
+                          ? "text-emerald-700 dark:text-emerald-400"
+                          : isWhisper
+                            ? "text-purple-700 dark:text-purple-400"
+                            : isMsgDM
+                              ? "text-amber-700 dark:text-amber-400"
+                              : "text-blue-700 dark:text-blue-400"
                     }`}
                   >
                     {isSelf ? "You" : msg.userName}
                   </span>
-                  {isMsgDM && (
+                  {isIntent && (
+                    <span className="text-[10px] font-bold px-1 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200 leading-tight">
+                      ACTION
+                    </span>
+                  )}
+                  {isAI && (
+                    <span className="text-[10px] font-bold px-1 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 leading-tight">
+                      AI DM
+                    </span>
+                  )}
+                  {isMsgDM && !isAI && !isIntent && (
                     <span className="text-[10px] font-bold px-1 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 leading-tight">
                       DM
                     </span>
@@ -475,9 +610,11 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
                   <DiceRollMessage diceRoll={diceRoll} messageText={msg.message} />
                 ) : (
                   <p className={`text-base whitespace-pre-wrap break-words ${
-                    isWhisper
-                      ? "text-purple-800 dark:text-purple-200 italic"
-                      : "text-gray-800 dark:text-gray-200"
+                    isAI
+                      ? "text-emerald-900 dark:text-emerald-100"
+                      : isWhisper
+                        ? "text-purple-800 dark:text-purple-200 italic"
+                        : "text-gray-800 dark:text-gray-200"
                   }`}>
                     {msg.message}
                   </p>
@@ -590,6 +727,15 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, varian
 
       {/* Input */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+        {/* AI loading indicator */}
+        {aiLoading && (
+          <div className="flex items-center gap-1.5 mb-1.5 px-1">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-200 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 animate-pulse">
+              AI DM thinking...
+            </span>
+          </div>
+        )}
+
         {/* Whisper target indicator */}
         {whisperTarget && (
           <div className="flex items-center gap-1.5 mb-1.5 px-1">

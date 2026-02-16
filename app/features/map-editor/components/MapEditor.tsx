@@ -6,12 +6,15 @@ import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
 import { InitiativeSetupModal } from "./InitiativeSetupModal";
 import { MobileSidebarRail } from "./Mobile";
-import { useMapStore, useEditorStore } from "../store";
+import { useMapStore, useEditorStore, useChatStore } from "../store";
 import { useMapSync, useIsMobile } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
 import { useChatPersistence } from "../hooks/useChatPersistence";
+import type { ChatMessageData } from "../store/chat-store";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
-import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet } from "../types";
+import { filterMessagesForAI } from "../utils/ai-context-utils";
+import { VALID_CONDITIONS } from "../types";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -91,6 +94,7 @@ export function MapEditor({
     broadcastCombatResponse,
     broadcastCombatEnd,
     broadcastChatMessage,
+    broadcastChatClear,
     clearCombatRequest,
     activePings,
     combatRequest,
@@ -102,6 +106,203 @@ export function MapEditor({
   });
 
   useChatPersistence(mapId);
+
+  // AI Battle Engine toggle state
+  const [aiBattleEngine, setAiBattleEngine] = useState(false);
+
+  // AI DM prompt state (shared between ChatPanel and CombatPanel)
+  const [aiLoading, setAiLoading] = useState(false);
+  const aiCooldownRef = useRef<number | null>(null);
+
+  const sendAiPrompt = useCallback((aiPrompt: string) => {
+    if (!isDungeonMaster()) {
+      const errMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        mapId: mapId || "",
+        userId: userId || "",
+        userName: "System",
+        message: "Only the Dungeon Master can use /ai.",
+        role: "dm",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        recipientId: userId || "",
+        recipientName: userName || "",
+      };
+      useChatStore.getState().addMessage(errMsg);
+      return;
+    }
+
+    const combat = useMapStore.getState().map?.combat;
+    if (!combat?.isInCombat) {
+      const errMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        mapId: mapId || "",
+        userId: userId || "",
+        userName: "System",
+        message: "Combat must be active to use the AI DM.",
+        role: "dm",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        recipientId: userId || "",
+        recipientName: userName || "",
+      };
+      useChatStore.getState().addMessage(errMsg);
+      return;
+    }
+
+    if (aiPrompt.length > 500) {
+      const errMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        mapId: mapId || "",
+        userId: userId || "",
+        userName: "System",
+        message: "AI prompt too long (max 500 characters).",
+        role: "dm",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        recipientId: userId || "",
+        recipientName: userName || "",
+      };
+      useChatStore.getState().addMessage(errMsg);
+      return;
+    }
+
+    // Cooldown check (5 seconds)
+    const now = Date.now();
+    if (aiCooldownRef.current && now - aiCooldownRef.current < 5000) {
+      const errMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        mapId: mapId || "",
+        userId: userId || "",
+        userName: "System",
+        message: "Please wait a few seconds before using /ai again.",
+        role: "dm",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        recipientId: userId || "",
+        recipientName: userName || "",
+      };
+      useChatStore.getState().addMessage(errMsg);
+      return;
+    }
+
+    setAiLoading(true);
+    aiCooldownRef.current = now;
+
+    // Collect combat context — filter stale dice rolls from previous turns
+    const mapState = useMapStore.getState().map!;
+    const allRecent = useChatStore
+      .getState()
+      .messages.filter((m) => !m.recipientId)
+      .slice(-15);
+    const recentMessages = filterMessagesForAI(allRecent, mapState.combat?.turnStartedAt);
+
+    const combatContext = {
+      combat: mapState.combat!,
+      tokens: mapState.tokens,
+      grid: mapState.grid,
+      monsterGroups: mapState.monsterGroups,
+      recentMessages,
+    };
+
+    fetch(`/api/maps/${mapId}/ai`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: aiPrompt, combatContext }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.error) {
+          const errMsg: ChatMessageData = {
+            id: crypto.randomUUID(),
+            mapId: mapId || "",
+            userId: userId || "",
+            userName: "System",
+            message: data.error,
+            role: "dm",
+            createdAt: new Date().toISOString(),
+            metadata: null,
+            recipientId: userId || "",
+            recipientName: userName || "",
+          };
+          useChatStore.getState().addMessage(errMsg);
+        } else {
+          const aiMsg: ChatMessageData = {
+            id: crypto.randomUUID(),
+            mapId: mapId || "",
+            userId: userId || "",
+            userName: userName || "DM",
+            message: data.response,
+            role: "dm",
+            createdAt: new Date().toISOString(),
+            metadata: { aiResponse: true },
+            recipientId: null,
+            recipientName: null,
+          };
+          broadcastChatMessage(aiMsg);
+
+          // Apply HP/condition updates from AI
+          const updates = data.updates as { tokenName: string; hpCurrent?: number; condition?: string }[] | undefined;
+          if (updates && updates.length > 0) {
+            const currentMap = useMapStore.getState().map;
+            if (currentMap) {
+              for (const u of updates) {
+                const token = currentMap.tokens.find((t) => t.name === u.tokenName);
+                if (!token || !token.characterSheet) continue;
+                const cs = token.characterSheet;
+                const sheetUpdates: Partial<CharacterSheet> = {};
+                // Only apply HP if it actually changed (guards against AI re-applying old damage)
+                if (u.hpCurrent !== undefined) {
+                  const clamped = Math.max(0, Math.min(u.hpCurrent, cs.hpMax));
+                  if (clamped !== cs.hpCurrent) sheetUpdates.hpCurrent = clamped;
+                }
+                if (u.condition !== undefined && VALID_CONDITIONS.includes(u.condition as Condition) && u.condition !== cs.condition) {
+                  sheetUpdates.condition = u.condition as Condition;
+                }
+                if (Object.keys(sheetUpdates).length === 0) continue;
+
+                updateCharacterSheet(token.id, sheetUpdates);
+
+                // Broadcast stats change to other clients
+                const stats: Record<string, number | string> = {};
+                if (sheetUpdates.hpCurrent !== undefined) stats.hpCurrent = sheetUpdates.hpCurrent;
+                if (sheetUpdates.condition !== undefined) stats.condition = sheetUpdates.condition;
+                broadcastTokenStats(token.id, stats);
+
+                // Sync to character library for linked characters
+                if (token.characterId) {
+                  const updatedSheet = { ...cs, ...sheetUpdates };
+                  fetch(`/api/characters/${token.characterId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ characterSheet: updatedSheet }),
+                  }).catch(() => { /* silent — map sync is primary, library sync is best-effort */ });
+                }
+              }
+              syncDebounced(1000);
+            }
+          }
+        }
+      })
+      .catch(() => {
+        const errMsg: ChatMessageData = {
+          id: crypto.randomUUID(),
+          mapId: mapId || "",
+          userId: userId || "",
+          userName: "System",
+          message: "Failed to reach the AI DM. Please try again.",
+          role: "dm",
+          createdAt: new Date().toISOString(),
+          metadata: null,
+          recipientId: userId || "",
+          recipientName: userName || "",
+        };
+        useChatStore.getState().addMessage(errMsg);
+      })
+      .finally(() => {
+        setAiLoading(false);
+      });
+  }, [mapId, userId, userName, isDungeonMaster, broadcastChatMessage, updateCharacterSheet, broadcastTokenStats, syncDebounced]);
 
   // Combined handler: broadcast via WebSocket + persist to DB
   const handleTokenMoved = useCallback(
@@ -331,8 +532,15 @@ export function MapEditor({
       setDraftInitiativeEntries([]);
       // Clear the combat request if one exists
       clearCombatRequest();
+      // AI Battle Engine: only auto-fire on monster/NPC first turn
+      if (aiBattleEngine) {
+        const firstEntry = entries[0];
+        if (firstEntry && firstEntry.layer !== "character") {
+          sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.");
+        }
+      }
     },
-    [broadcastCombatResponse, clearCombatRequest, syncDebounced]
+    [broadcastCombatResponse, clearCombatRequest, syncDebounced, aiBattleEngine, sendAiPrompt]
   );
 
   // Handler for ending combat - broadcast + persist
@@ -364,12 +572,27 @@ export function MapEditor({
   // Turn navigation handlers
   const handleNextTurn = useCallback(() => {
     if (!initiativeOrder) return;
-    const nextIndex = currentTurnIndex < initiativeOrder.length - 1 ? currentTurnIndex + 1 : 0;
+    const isWrapping = currentTurnIndex >= initiativeOrder.length - 1;
+    const nextIndex = isWrapping ? 0 : currentTurnIndex + 1;
     setCombatTurnIndex(nextIndex);
     syncDebounced(500);
     const currentMap = useMapStore.getState().map;
     if (currentMap) broadcastMapSync(currentMap);
-  }, [initiativeOrder, currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync]);
+    // AI Battle Engine
+    if (aiBattleEngine) {
+      const entry = initiativeOrder[nextIndex];
+      if (isWrapping) {
+        // New round — always trigger AI to continue combat
+        sendAiPrompt(
+          entry && entry.layer !== "character"
+            ? "New round. Run this creature's turn. Decide movement, action, and bonus action."
+            : "New round begins. Summarize the state of combat briefly."
+        );
+      } else if (entry && entry.layer !== "character") {
+        sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.");
+      }
+    }
+  }, [initiativeOrder, currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync, aiBattleEngine, sendAiPrompt]);
 
   const handlePrevTurn = useCallback(() => {
     if (currentTurnIndex > 0) {
@@ -500,17 +723,31 @@ export function MapEditor({
     setEditorContext(userId, permission, customPermissions);
   }, [userId, permission, customPermissions, setEditorContext]);
 
-  // Auto-select the only movable token for players with a single unit
+  // Auto-select and center on a token when first opening a map
+  const hasAutoSelectedRef = useRef(false);
   useEffect(() => {
-    if (!map?.tokens || isDungeonMaster()) return;
-    const { selectedElementIds } = useEditorStore.getState();
-    if (selectedElementIds.length > 0) return;
+    if (!map?.tokens || map.tokens.length === 0 || hasAutoSelectedRef.current) return;
+    // Wait for canvas to be ready (dimensions > 0)
+    const { width, height } = getCanvasDimensions();
+    if (width === 0 || height === 0) return;
 
-    const movable = map.tokens.filter((t) => t.visible && canMoveToken(t.ownerId));
-    if (movable.length === 1) {
-      setSelectedElements([movable[0].id]);
+    hasAutoSelectedRef.current = true;
+
+    // For players: prefer their own movable token
+    // For DM: pick the first token in the list
+    let target: Token | undefined;
+    if (!isDungeonMaster()) {
+      target = map.tokens.find((t) => t.visible && canMoveToken(t.ownerId));
     }
-  }, [map?.tokens, isDungeonMaster, canMoveToken, setSelectedElements]);
+    // Fallback: first visible token
+    if (!target) {
+      target = map.tokens.find((t) => t.visible);
+    }
+
+    if (target) {
+      handleSelectAndCenter(target);
+    }
+  }, [map?.tokens, isDungeonMaster, canMoveToken, getCanvasDimensions, handleSelectAndCenter]);
 
   // Track which tokens we've already fetched sheets for (to avoid duplicate fetches)
   const fetchedTokenSheetsRef = useRef<Set<string>>(new Set());
@@ -699,8 +936,13 @@ export function MapEditor({
             userName={userName}
             userId={userId}
             onSendChatMessage={broadcastChatMessage}
+            onClearChat={broadcastChatClear}
             isDM={isDungeonMaster()}
             mapOwnerId={mapOwnerId || userId || ""}
+            aiLoading={aiLoading}
+            onAiPrompt={sendAiPrompt}
+            aiBattleEngine={aiBattleEngine}
+            onAiBattleEngineChange={setAiBattleEngine}
           />
         ) : (
           <Sidebar
@@ -721,6 +963,12 @@ export function MapEditor({
             currentTurnIndex={currentTurnIndex}
             onNextTurn={handleNextTurn}
             onPrevTurn={handlePrevTurn}
+            aiLoading={aiLoading}
+            onAiPrompt={sendAiPrompt}
+            aiBattleEngine={aiBattleEngine}
+            onAiBattleEngineChange={setAiBattleEngine}
+            userId={userId}
+            onSendMessage={broadcastChatMessage}
           />
         )}
         <Suspense
@@ -750,7 +998,10 @@ export function MapEditor({
             userName={userName || "Anonymous"}
             isDM={isDungeonMaster()}
             onSendMessage={broadcastChatMessage}
+            onClearChat={broadcastChatClear}
             mapOwnerId={mapOwnerId || userId || ""}
+            aiLoading={aiLoading}
+            onAiPrompt={sendAiPrompt}
           />
         )}
       </div>

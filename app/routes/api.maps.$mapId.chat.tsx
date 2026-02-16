@@ -50,6 +50,17 @@ export async function loader({ request, params }: RouteArgs) {
 }
 
 export async function action({ request, params }: RouteArgs) {
+  if (request.method === "DELETE") {
+    const session = await requireAuth(request);
+    const mapId = params.mapId;
+    const access = await requireMapPermission(mapId, session.user.id, "edit");
+    if (!access.isDungeonMaster) {
+      return Response.json({ error: "Only the DM can clear chat" }, { status: 403 });
+    }
+    await db.delete(mapChatChunks).where(eq(mapChatChunks.mapId, mapId));
+    return Response.json({ success: true });
+  }
+
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
@@ -72,7 +83,8 @@ export async function action({ request, params }: RouteArgs) {
     return Response.json({ error: "Message is required" }, { status: 400 });
   }
 
-  if (message.length > 500) {
+  const isAiResponse = !!(metadata as Record<string, unknown>)?.aiResponse;
+  if (!isAiResponse && message.length > 500) {
     return Response.json({ error: "Message too long (max 500 characters)" }, { status: 400 });
   }
 

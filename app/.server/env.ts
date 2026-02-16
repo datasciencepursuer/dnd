@@ -28,4 +28,7 @@ export const env = {
   get GOOGLE_CLIENT_SECRET() {
     return getEnvVar("GOOGLE_CLIENT_SECRET");
   },
+  get GEMINI_API_KEY() {
+    return process.env.GEMINI_API_KEY || null;
+  },
 };

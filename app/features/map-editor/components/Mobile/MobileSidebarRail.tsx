@@ -31,8 +31,14 @@ interface MobileSidebarRailProps {
   userName?: string | null;
   userId?: string | null;
   onSendChatMessage?: (chatMessage: ChatMessageData) => void;
+  onClearChat?: () => void;
   isDM?: boolean;
   mapOwnerId?: string;
+  aiLoading?: boolean;
+  onAiPrompt?: (prompt: string) => void;
+  // AI Battle Engine props
+  aiBattleEngine?: boolean;
+  onAiBattleEngineChange?: (enabled: boolean) => void;
 }
 
 // Ordered by frequency of use: most accessed → least accessed
@@ -99,8 +105,13 @@ export function MobileSidebarRail({
   userName,
   userId,
   onSendChatMessage,
+  onClearChat,
   isDM = false,
   mapOwnerId,
+  aiLoading = false,
+  onAiPrompt,
+  aiBattleEngine = false,
+  onAiBattleEngineChange,
 }: MobileSidebarRailProps) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const [chatOpen, setChatOverlay] = useState(false);
@@ -200,6 +211,13 @@ export function MobileSidebarRail({
                   isDM={isDungeonMaster()}
                   pendingRequest={pendingCombatRequest}
                   currentUserName={currentUserName}
+                  aiLoading={aiLoading}
+                  onAiPrompt={onAiPrompt}
+                  aiBattleEngine={aiBattleEngine}
+                  onAiBattleEngineChange={onAiBattleEngineChange}
+                  mapId={mapId}
+                  userId={userId || undefined}
+                  onSendMessage={onSendChatMessage}
                 />
                 {/* Token list (sorted by initiative when in combat) */}
                 <TokenPanel
@@ -214,6 +232,8 @@ export function MobileSidebarRail({
                   currentTurnIndex={currentTurnIndex}
                   onNextTurn={onNextTurn}
                   onPrevTurn={onPrevTurn}
+                  aiBattleEngine={aiBattleEngine}
+                  onAiBattleEngineChange={onAiBattleEngineChange}
                 />
               </div>
             )}
@@ -282,8 +302,11 @@ export function MobileSidebarRail({
               userName={userName || "Anonymous"}
               isDM={isDM}
               onSendMessage={onSendChatMessage}
+              onClearChat={onClearChat}
               variant="panel"
               mapOwnerId={mapOwnerId || userId || ""}
+              aiLoading={aiLoading}
+              onAiPrompt={onAiPrompt}
             />
           </div>
         </div>

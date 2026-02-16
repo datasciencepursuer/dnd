@@ -37,4 +37,5 @@ route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availabili
   route("api/groups/:groupId/schedule-votes", "routes/api.groups.$groupId.schedule-votes.tsx"),
   route("api/maps/:mapId/chat", "routes/api.maps.$mapId.chat.tsx"),
   route("api/maps/:mapId/chat/batch", "routes/api.maps.$mapId.chat.batch.tsx"),
+  route("api/maps/:mapId/ai", "routes/api.maps.$mapId.ai.tsx"),
 ] satisfies RouteConfig;
