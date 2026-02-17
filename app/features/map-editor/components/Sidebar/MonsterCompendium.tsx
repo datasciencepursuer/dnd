@@ -93,6 +93,7 @@ export function MonsterCompendium({ onTokenCreate, onMapChanged }: MonsterCompen
   const createMonsterGroup = useMapStore((s) => s.createMonsterGroup);
   const userId = useEditorStore((s) => s.userId);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const getViewportCenterCell = useEditorStore((s) => s.getViewportCenterCell);
 
   // Lazy-load monster data
   useEffect(() => {
@@ -198,8 +199,7 @@ export function MonsterCompendium({ onTokenCreate, onMapChanged }: MonsterCompen
     ).length;
 
     const tokens: Token[] = [];
-    const centerCol = Math.floor(map.grid.width / 2);
-    const centerRow = Math.floor(map.grid.height / 2);
+    const center = getViewportCenterCell(map.viewport, map.grid.cellSize);
 
     for (let i = 0; i < quantity; i++) {
       const num = existingCount + i;
@@ -212,8 +212,8 @@ export function MonsterCompendium({ onTokenCreate, onMapChanged }: MonsterCompen
         color,
         size,
         position: {
-          col: centerCol + (i % 5) * size,
-          row: centerRow + Math.floor(i / 5) * size,
+          col: center.col + (i % 5) * size,
+          row: center.row + Math.floor(i / 5) * size,
         },
         rotation: 0,
         flipped: false,

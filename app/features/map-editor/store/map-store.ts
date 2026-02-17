@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { temporal } from "zundo";
-import type { DnDMap, Token, GridPosition, GridSettings, Background, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup, InitiativeEntry } from "../types";
-import { createNewMap } from "../constants";
+import type { DnDMap, Token, GridPosition, GridSettings, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup, InitiativeEntry, WallSegment, AreaShape, MapScene } from "../types";
+import { createNewMap, createBlankScene, MAX_SCENES } from "../constants";
 import { createDefaultCharacterSheet } from "../utils/character-utils";
 import { normalizeGridRange } from "../utils/grid-utils";
 import { computeDistanceMatrix } from "../utils/distance-utils";
+import { packActiveScene, unpackSceneIntoMap } from "../utils/scene-utils";
 
 // Timeout for dirty tokens - after this time, server updates will overwrite local changes
 const DIRTY_TOKEN_STALE_MS = 10000; // 10 seconds
@@ -55,6 +56,16 @@ interface MapState {
   eraseFogInRange: (startCol: number, startRow: number, endCol: number, endRow: number, eraserId: string, isDM: boolean) => void;
   clearAllFog: () => void;
 
+  // Wall actions
+  addWall: (wall: WallSegment) => void;
+  updateWall: (id: string, updates: Partial<WallSegment>) => void;
+  removeWall: (id: string) => void;
+
+  // Area actions
+  addArea: (area: AreaShape) => void;
+  updateArea: (id: string, updates: Partial<AreaShape>) => void;
+  removeArea: (id: string) => void;
+
   // Drawing actions
   addFreehandPath: (path: FreehandPath) => void;
   removeFreehandPath: (id: string) => void;
@@ -82,6 +93,13 @@ interface MapState {
 
   // Token duplication
   duplicateToken: (tokenId: string, options?: { sameGroup?: boolean }) => Token | null;
+
+  // Scene actions
+  switchScene: (sceneId: string) => void;
+  createScene: (name: string) => void;
+  duplicateScene: (sceneId: string) => void;
+  deleteScene: (sceneId: string) => void;
+  renameScene: (sceneId: string, newName: string) => void;
 }
 
 export const useMapStore = create<MapState>()(
@@ -101,6 +119,10 @@ export const useMapStore = create<MapState>()(
             ...t,
             monsterGroupId: t.monsterGroupId ?? null,
           })),
+          // Scene backward compat
+          activeSceneId: map.activeSceneId || crypto.randomUUID(),
+          activeSceneName: map.activeSceneName || "Scene 1",
+          scenes: map.scenes || [],
         },
         dirtyTokens: new Set(),
         dirtyTimestamps: new Map()
@@ -118,6 +140,10 @@ export const useMapStore = create<MapState>()(
               ...t,
               monsterGroupId: t.monsterGroupId ?? null,
             })),
+            // Scene backward compat
+            activeSceneId: serverMap.activeSceneId || crypto.randomUUID(),
+            activeSceneName: serverMap.activeSceneName || "Scene 1",
+            scenes: serverMap.scenes || [],
           };
 
           if (!state.map) return { map: normalizedServerMap };
@@ -584,6 +610,84 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
+      // Wall actions
+      addWall: (wall) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              walls: [...state.map.walls, wall],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      updateWall: (id, updates) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              walls: state.map.walls.map((w) =>
+                w.id === id ? { ...w, ...updates } : w
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      removeWall: (id) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              walls: state.map.walls.filter((w) => w.id !== id),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      // Area actions
+      addArea: (area) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              areas: [...state.map.areas, area],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      updateArea: (id, updates) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              areas: state.map.areas.map((a) =>
+                a.id === id ? { ...a, ...updates } : a
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      removeArea: (id) =>
+        set((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              areas: state.map.areas.filter((a) => a.id !== id),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
       addFreehandPath: (path) =>
         set((state) => {
           if (!state.map) return state;
@@ -963,6 +1067,165 @@ export const useMapStore = create<MapState>()(
 
         return newToken;
       },
+
+      // Scene actions
+      switchScene: (sceneId) =>
+        set((state) => {
+          if (!state.map) return state;
+          if (sceneId === state.map.activeSceneId) return state;
+          const targetIndex = state.map.scenes.findIndex((s) => s.id === sceneId);
+          if (targetIndex === -1) return state;
+
+          const target = state.map.scenes[targetIndex];
+          const packed = packActiveScene(state.map);
+          const newScenes = [...state.map.scenes];
+          newScenes.splice(targetIndex, 1); // remove target from inactive
+          newScenes.push(packed); // push current active into inactive
+
+          const switched = unpackSceneIntoMap(
+            { ...state.map, scenes: newScenes },
+            target
+          );
+          // Preserve zoom scale but reset position
+          switched.viewport = { x: 0, y: 0, scale: state.map.viewport.scale };
+
+          return {
+            map: switched,
+            dirtyTokens: new Set<string>(),
+            dirtyTimestamps: new Map<string, number>(),
+          };
+        }),
+
+      createScene: (name) =>
+        set((state) => {
+          if (!state.map) return state;
+          const totalScenes = 1 + state.map.scenes.length;
+          if (totalScenes >= MAX_SCENES) return state;
+
+          // Pack current active into inactive
+          const packed = packActiveScene(state.map);
+          const newScenes = [...state.map.scenes, packed];
+
+          // Create a blank scene and make it active
+          const blank = createBlankScene(name);
+          const switched = unpackSceneIntoMap(
+            { ...state.map, scenes: newScenes },
+            blank
+          );
+          switched.viewport = { x: 0, y: 0, scale: state.map.viewport.scale };
+
+          return {
+            map: switched,
+            dirtyTokens: new Set<string>(),
+            dirtyTimestamps: new Map<string, number>(),
+          };
+        }),
+
+      duplicateScene: (sceneId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const totalScenes = 1 + state.map.scenes.length;
+          if (totalScenes >= MAX_SCENES) return state;
+
+          // Find the source scene (could be active or inactive)
+          let source: MapScene;
+          if (sceneId === state.map.activeSceneId) {
+            source = packActiveScene(state.map);
+          } else {
+            const found = state.map.scenes.find((s) => s.id === sceneId);
+            if (!found) return state;
+            source = found;
+          }
+
+          // Deep copy with new IDs
+          const dup: MapScene = {
+            ...structuredClone(source),
+            id: crypto.randomUUID(),
+            name: `${source.name} (Copy)`,
+            tokens: source.tokens.map((t) => ({ ...structuredClone(t), id: crypto.randomUUID() })),
+            walls: source.walls.map((w) => ({ ...structuredClone(w), id: crypto.randomUUID() })),
+            areas: source.areas.map((a) => ({ ...structuredClone(a), id: crypto.randomUUID() })),
+            labels: source.labels.map((l) => ({ ...structuredClone(l), id: crypto.randomUUID() })),
+            freehand: source.freehand.map((f) => ({ ...structuredClone(f), id: crypto.randomUUID() })),
+            monsterGroups: source.monsterGroups.map((g) => ({ ...structuredClone(g), id: crypto.randomUUID() })),
+          };
+
+          // Remap monsterGroupId references in tokens
+          const groupIdMap = new Map<string, string>();
+          source.monsterGroups.forEach((old, i) => {
+            groupIdMap.set(old.id, dup.monsterGroups[i].id);
+          });
+          dup.tokens = dup.tokens.map((t) => ({
+            ...t,
+            monsterGroupId: t.monsterGroupId ? groupIdMap.get(t.monsterGroupId) ?? null : null,
+          }));
+
+          return {
+            map: {
+              ...state.map,
+              scenes: [...state.map.scenes, dup],
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      deleteScene: (sceneId) =>
+        set((state) => {
+          if (!state.map) return state;
+          const totalScenes = 1 + state.map.scenes.length;
+          if (totalScenes <= 1) return state; // can't delete the only scene
+
+          if (sceneId === state.map.activeSceneId) {
+            // Deleting the active scene: switch to first inactive, then remove
+            const target = state.map.scenes[0];
+            const newScenes = state.map.scenes.slice(1);
+            const switched = unpackSceneIntoMap(
+              { ...state.map, scenes: newScenes },
+              target
+            );
+            switched.viewport = { x: 0, y: 0, scale: state.map.viewport.scale };
+
+            return {
+              map: switched,
+              dirtyTokens: new Set<string>(),
+              dirtyTimestamps: new Map<string, number>(),
+            };
+          }
+
+          // Deleting an inactive scene
+          return {
+            map: {
+              ...state.map,
+              scenes: state.map.scenes.filter((s) => s.id !== sceneId),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
+
+      renameScene: (sceneId, newName) =>
+        set((state) => {
+          if (!state.map) return state;
+
+          if (sceneId === state.map.activeSceneId) {
+            return {
+              map: {
+                ...state.map,
+                activeSceneName: newName,
+                updatedAt: new Date().toISOString(),
+              },
+            };
+          }
+
+          return {
+            map: {
+              ...state.map,
+              scenes: state.map.scenes.map((s) =>
+                s.id === sceneId ? { ...s, name: newName } : s
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        }),
     }),
     {
       // Only track fog, drawing, and token operations in undo history

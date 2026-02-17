@@ -7,6 +7,21 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.2.9",
+    date: "2026-02-17",
+    title: "Scenes & AI Combat Improvements",
+    changes: [
+      "New scene system — create multiple scenes per map and switch between them to organize encounters, rooms, and story beats",
+      "Walls and terrain areas — draw walls, doors, pillars, and terrain zones (difficult terrain, water, lava, pits, darkness) that affect combat tactics",
+      "AI DM now respects walls and line of sight — ranged attacks and spells are blocked by walls, and cover bonuses are applied automatically",
+      "Distance annotations show cover status between combatants (½ cover, ¾ cover, or blocked by wall)",
+      "Quick-fill chips on your turn — tap Action, Bonus, Attack, Cast, Disengage, or Hide to speed up action declarations",
+      "AI no longer suggests bonus actions or reactions to players — resolve only what you declare",
+      "Automatic AI prompts (Continue, monster turns, new rounds) no longer clutter the chat",
+      "Killing blows skip weapon property effects (Vex, Topple, etc.) — death-triggered monster abilities like Death Burst still fire",
+    ],
+  },
+  {
     version: "0.2.8",
     date: "2026-02-16",
     title: "AI DM Assistant",

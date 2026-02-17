@@ -1,10 +1,11 @@
 import usePartySocket from "partysocket/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMapStore } from "../store/map-store";
+import { useEditorStore } from "../store/editor-store";
 import { usePresenceStore } from "../store/presence-store";
 import { useChatStore } from "../store/chat-store";
 import type { ChatMessageData } from "../store/chat-store";
-import type { DnDMap, GridPosition, Token, Ping, InitiativeEntry, RollResult, Condition } from "../types";
+import type { DnDMap, GridPosition, Token, Ping, InitiativeEntry, RollResult, Condition, WallSegment, AreaShape } from "../types";
 
 // Message types matching the server
 interface TokenMoveMessage {
@@ -170,6 +171,30 @@ interface ChatClearMsg {
   userId: string;
 }
 
+interface WallAddMessage {
+  type: "wall-add";
+  wall: WallSegment;
+  userId: string;
+}
+
+interface WallRemoveMessage {
+  type: "wall-remove";
+  wallId: string;
+  userId: string;
+}
+
+interface AreaAddMessage {
+  type: "area-add";
+  area: AreaShape;
+  userId: string;
+}
+
+interface AreaRemoveMessage {
+  type: "area-remove";
+  areaId: string;
+  userId: string;
+}
+
 type ServerMessage =
   | TokenMoveMessage
   | TokenUpdateMessage
@@ -193,7 +218,11 @@ type ServerMessage =
   | TokenStatsMessage
   | ChatMessageMsg
   | ChatHistoryMsg
-  | ChatClearMsg;
+  | ChatClearMsg
+  | WallAddMessage
+  | WallRemoveMessage
+  | AreaAddMessage
+  | AreaRemoveMessage;
 
 // PartyKit host from environment variable
 // In development: defaults to localhost
@@ -224,6 +253,10 @@ export function usePartySync({
   const eraseFogInRange = useMapStore((s) => s.eraseFogInRange);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
+  const addWall = useMapStore((s) => s.addWall);
+  const removeWall = useMapStore((s) => s.removeWall);
+  const addArea = useMapStore((s) => s.addArea);
+  const removeArea = useMapStore((s) => s.removeArea);
   const setUsers = usePresenceStore((s) => s.setUsers);
   const setConnected = usePresenceStore((s) => s.setConnected);
   const setError = usePresenceStore((s) => s.setError);
@@ -285,6 +318,11 @@ export function usePartySync({
         switch (message.type) {
           case "token-move":
             if (message.userId !== userId) {
+              // Record old position for smooth animation on receiving client
+              const movingToken = useMapStore.getState().map?.tokens.find((t) => t.id === message.tokenId);
+              if (movingToken && (movingToken.position.col !== message.position.col || movingToken.position.row !== message.position.row)) {
+                useEditorStore.getState().addPendingAnimation(message.tokenId, movingToken.position.col, movingToken.position.row);
+              }
               moveToken(message.tokenId, message.position);
             }
             break;
@@ -423,6 +461,30 @@ export function usePartySync({
 
           case "chat-clear":
             useChatStore.getState().setMessages([]);
+            break;
+
+          case "wall-add":
+            if (message.userId !== userId) {
+              addWall(message.wall);
+            }
+            break;
+
+          case "wall-remove":
+            if (message.userId !== userId) {
+              removeWall(message.wallId);
+            }
+            break;
+
+          case "area-add":
+            if (message.userId !== userId) {
+              addArea(message.area);
+            }
+            break;
+
+          case "area-remove":
+            if (message.userId !== userId) {
+              removeArea(message.areaId);
+            }
             break;
         }
       } catch (error) {
@@ -672,6 +734,58 @@ export function usePartySync({
     [isSocketReady, socket, userId]
   );
 
+  // Broadcast wall add to other clients
+  const broadcastWallAdd = useCallback(
+    (wall: WallSegment) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "wall-add",
+        wall,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast wall remove to other clients
+  const broadcastWallRemove = useCallback(
+    (wallId: string) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "wall-remove",
+        wallId,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast area add to other clients
+  const broadcastAreaAdd = useCallback(
+    (area: AreaShape) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "area-add",
+        area,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
+  // Broadcast area remove to other clients
+  const broadcastAreaRemove = useCallback(
+    (areaId: string) => {
+      if (!isSocketReady() || !userId) return;
+      socket!.send(JSON.stringify({
+        type: "area-remove",
+        areaId,
+        userId,
+      }));
+    },
+    [isSocketReady, socket, userId]
+  );
+
   // Broadcast DM transfer to all clients (triggers page reload)
   const broadcastDmTransfer = useCallback(
     (newDmId: string) => {
@@ -780,6 +894,10 @@ export function usePartySync({
     broadcastCombatEnd,
     broadcastChatMessage,
     broadcastChatClear,
+    broadcastWallAdd,
+    broadcastWallRemove,
+    broadcastAreaAdd,
+    broadcastAreaRemove,
     clearCombatRequest,
     activePings,
     combatRequest,

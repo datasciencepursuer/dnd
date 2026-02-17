@@ -12,6 +12,8 @@ import type {
   Token,
   GridSettings,
   MonsterGroup,
+  WallSegment,
+  AreaShape,
 } from "~/features/map-editor/types";
 import type { ChatMessageData } from "~/features/map-editor/store/chat-store";
 import type { AbilityDescription } from "~/.server/ai/enrich-combat-context";
@@ -56,6 +58,8 @@ export async function action({ request, params }: RouteArgs) {
       grid: GridSettings;
       monsterGroups: MonsterGroup[];
       recentMessages: ChatMessageData[];
+      walls: WallSegment[];
+      areas: AreaShape[];
     };
   };
 

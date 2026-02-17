@@ -38,4 +38,5 @@ route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availabili
   route("api/maps/:mapId/chat", "routes/api.maps.$mapId.chat.tsx"),
   route("api/maps/:mapId/chat/batch", "routes/api.maps.$mapId.chat.batch.tsx"),
   route("api/maps/:mapId/ai", "routes/api.maps.$mapId.ai.tsx"),
+  route("api/maps/:mapId/ai-draw", "routes/api.maps.$mapId.ai-draw.tsx"),
 ] satisfies RouteConfig;

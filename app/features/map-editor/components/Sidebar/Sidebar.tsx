@@ -1,11 +1,46 @@
 import { useState } from "react";
 import { BackgroundPanel } from "./BackgroundPanel";
 import { TokenPanel } from "./TokenPanel";
+import { WallAreaPanel } from "./WallAreaPanel";
+import { SceneSelector } from "./SceneSelector";
 import { PresenceList } from "./PresenceList";
 import { CombatPanel } from "./CombatPanel";
-import { useEditorStore } from "../../store";
-import type { Token, InitiativeEntry } from "../../types";
+import { useEditorStore, useMapStore } from "../../store";
+import type { Token, InitiativeEntry, WallSegment, AreaShape, EditorTool, WallType, TerrainType } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
+
+const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
+  { id: "fog", label: "Fog", icon: "🌫", shortcut: "4", hint: "Drag to paint fog" },
+  { id: "wall", label: "Wall", icon: "🧱", shortcut: "5", hint: "Click to place wall points, double-click to finish" },
+  { id: "area", label: "Area", icon: "🗺", shortcut: "6", hint: "Click and drag to create terrain area" },
+];
+
+const WALL_TYPE_OPTIONS: { value: WallType; label: string }[] = [
+  { value: "wall", label: "Wall" },
+  { value: "half-wall", label: "Half Wall" },
+  { value: "window", label: "Window" },
+  { value: "arrow-slit", label: "Arrow Slit" },
+  { value: "door-closed", label: "Door (Closed)" },
+  { value: "door-open", label: "Door (Open)" },
+  { value: "door-locked", label: "Door (Locked)" },
+  { value: "pillar", label: "Pillar" },
+  { value: "fence", label: "Fence" },
+];
+
+const TERRAIN_TYPE_OPTIONS: { value: TerrainType; label: string }[] = [
+  { value: "difficult", label: "Difficult" },
+  { value: "water-shallow", label: "Shallow Water" },
+  { value: "water-deep", label: "Deep Water" },
+  { value: "ice", label: "Ice" },
+  { value: "lava", label: "Lava" },
+  { value: "pit", label: "Pit" },
+  { value: "chasm", label: "Chasm" },
+  { value: "elevated", label: "Elevated" },
+  { value: "vegetation", label: "Vegetation" },
+  { value: "darkness", label: "Darkness" },
+  { value: "trap", label: "Trap" },
+  { value: "normal", label: "Normal" },
+];
 
 type ActivePanel = "none" | "editMap" | "createUnit";
 
@@ -35,9 +70,21 @@ interface SidebarProps {
   // AI Battle Engine props
   aiBattleEngine?: boolean;
   onAiBattleEngineChange?: (enabled: boolean) => void;
-  // Props for TurnPromptBuilder in CombatPanel
   userId?: string | null;
   onSendMessage?: (chatMessage: ChatMessageData) => void;
+  // Wall/area selection props
+  selectedWallId?: string | null;
+  selectedAreaId?: string | null;
+  onUpdateWall?: (id: string, updates: Partial<WallSegment>) => void;
+  onDeleteWall?: (id: string) => void;
+  onUpdateArea?: (id: string, updates: Partial<AreaShape>) => void;
+  onDeleteArea?: (id: string) => void;
+  // Scene props (DM only)
+  onSwitchScene?: (sceneId: string) => void;
+  onCreateScene?: (name: string) => void;
+  onDeleteScene?: (sceneId: string) => void;
+  onRenameScene?: (sceneId: string, newName: string) => void;
+  onDuplicateScene?: (sceneId: string) => void;
 }
 
 export function Sidebar({
@@ -64,14 +111,47 @@ export function Sidebar({
   onAiBattleEngineChange,
   userId = null,
   onSendMessage,
+  selectedWallId = null,
+  selectedAreaId = null,
+  onUpdateWall,
+  onDeleteWall,
+  onUpdateArea,
+  onDeleteArea,
+  onSwitchScene,
+  onCreateScene,
+  onDeleteScene,
+  onRenameScene,
+  onDuplicateScene,
 }: SidebarProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("none");
   const canEditMap = useEditorStore((s) => s.canEditMap);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
+  const setBuildMode = useEditorStore((s) => s.setBuildMode);
+  const selectedTool = useEditorStore((s) => s.selectedTool);
+  const setTool = useEditorStore((s) => s.setTool);
+  const currentWallType = useEditorStore((s) => s.currentWallType);
+  const setWallType = useEditorStore((s) => s.setWallType);
+  const currentTerrainType = useEditorStore((s) => s.currentTerrainType);
+  const setTerrainType = useEditorStore((s) => s.setTerrainType);
+
+  // Lookup selected wall/area from map store
+  const walls = useMapStore((s) => s.map?.walls ?? []);
+  const areas = useMapStore((s) => s.map?.areas ?? []);
+  const selectedWall = selectedWallId ? walls.find((w) => w.id === selectedWallId) ?? null : null;
+  const selectedArea = selectedAreaId ? areas.find((a) => a.id === selectedAreaId) ?? null : null;
 
   const togglePanel = (panel: ActivePanel) => {
-    setActivePanel(activePanel === panel ? "none" : panel);
+    const newPanel = activePanel === panel ? "none" : panel;
+    setActivePanel(newPanel);
+    setBuildMode(newPanel === "editMap");
+  };
+
+  const handleSetupEnvironment = () => {
+    setActivePanel("editMap");
+    setBuildMode(true);
+    setTool("wall");
   };
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -104,6 +184,16 @@ export function Sidebar({
           <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
         </svg>
       </button>
+      {/* Scene Selector - DM only, hidden in local play */}
+      {isDungeonMaster() && !isPlayingLocally && onSwitchScene && onCreateScene && onDeleteScene && onRenameScene && onDuplicateScene && (
+        <SceneSelector
+          onSwitchScene={onSwitchScene}
+          onCreateScene={onCreateScene}
+          onDeleteScene={onDeleteScene}
+          onRenameScene={onRenameScene}
+          onDuplicateScene={onDuplicateScene}
+        />
+      )}
       {/* Action Buttons */}
       <div className="p-3 space-y-2 border-b border-gray-200 dark:border-gray-700">
         {/* Edit Map - DM only */}
@@ -136,7 +226,62 @@ export function Sidebar({
 
       {/* Collapsible Panels / Units List */}
       <div className="flex-1 overflow-y-auto">
-        {canEditMap() && activePanel === "editMap" && <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />}
+        {canEditMap() && activePanel === "editMap" && (
+          <>
+            <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />
+            {/* DM Tools: Fog, Wall, Area */}
+            <div className="px-3 py-2 space-y-2 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tools</h3>
+              <div className="grid grid-cols-3 gap-1.5">
+                {mapEditTools.map((tool) => (
+                  <button
+                    key={tool.id}
+                    onClick={() => setTool(tool.id)}
+                    className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded text-xs font-medium transition-colors cursor-pointer ${
+                      selectedTool === tool.id
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                    }`}
+                    title={tool.hint || `${tool.label} (${tool.shortcut})`}
+                  >
+                    <span className="text-base">{tool.icon}</span>
+                    <span>{tool.label}</span>
+                  </button>
+                ))}
+              </div>
+              {/* Wall type selector */}
+              {selectedTool === "wall" && (
+                <div className="pt-1">
+                  <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Wall Type</label>
+                  <select
+                    value={currentWallType}
+                    onChange={(e) => setWallType(e.target.value as WallType)}
+                    className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  >
+                    {WALL_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Terrain type selector */}
+              {selectedTool === "area" && (
+                <div className="pt-1">
+                  <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Terrain Type</label>
+                  <select
+                    value={currentTerrainType}
+                    onChange={(e) => setTerrainType(e.target.value as TerrainType)}
+                    className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                  >
+                    {TERRAIN_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </>
+        )}
         {canCreateToken() && activePanel === "createUnit" && (
           <TokenPanel
             onEditToken={onEditToken}
@@ -153,6 +298,18 @@ export function Sidebar({
             onPrevTurn={onPrevTurn}
             aiBattleEngine={aiBattleEngine}
             onAiBattleEngineChange={onAiBattleEngineChange}
+          />
+        )}
+
+        {/* Wall/Area Properties Panel */}
+        {(selectedWall || selectedArea) && (
+          <WallAreaPanel
+            selectedWall={selectedWall}
+            selectedArea={selectedArea}
+            onUpdateWall={onUpdateWall}
+            onDeleteWall={onDeleteWall}
+            onUpdateArea={onUpdateArea}
+            onDeleteArea={onDeleteArea}
           />
         )}
 
@@ -189,9 +346,7 @@ export function Sidebar({
         aiBattleEngine={aiBattleEngine}
         onAiBattleEngineChange={onAiBattleEngineChange}
         onAiPrompt={onAiPrompt}
-        mapId={mapId}
-        userId={userId || undefined}
-        onSendMessage={onSendMessage}
+        onSetupEnvironment={handleSetupEnvironment}
       />
 
       {/* Players Online */}

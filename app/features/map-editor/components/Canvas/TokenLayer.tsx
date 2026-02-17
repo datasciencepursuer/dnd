@@ -1,10 +1,12 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
-import { useState, useRef, useCallback, useEffect, memo } from "react";
+import Konva from "konva";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, memo } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
 import { getHpPercentage, getHpBarColor } from "../../utils/character-utils";
-import { gridMovementDistance } from "../../utils/distance-utils";
+import { gridMovementDistance, computeDragMovementInfo } from "../../utils/distance-utils";
+import type { WallSegment, AreaShape } from "../../types";
 
 // Helper to determine if a color is light (needs dark text/stroke for contrast)
 function isLightColor(color: string): boolean {
@@ -95,12 +97,36 @@ const TokenItem = memo(function TokenItem({
   onDoubleClick,
 }: TokenItemProps) {
   const image = useImage(token.imageUrl);
+  const groupRef = useRef<Konva.Group>(null);
 
   const offset = (token.size * cellSize) / 2;
   const x = token.position.col * cellSize + offset;
   const y = token.position.row * cellSize + offset;
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2; // Fill most of the cell
+
+  // AI combat move animation
+  const pendingAnim = useEditorStore((s) => s.pendingAnimations[token.id]);
+  useLayoutEffect(() => {
+    if (!pendingAnim || !groupRef.current) return;
+    const node = groupRef.current;
+    const fromX = pendingAnim.fromCol * cellSize + offset;
+    const fromY = pendingAnim.fromRow * cellSize + offset;
+    // Override React's rendered position to old position
+    node.x(fromX);
+    node.y(fromY);
+    node.getLayer()?.batchDraw();
+    // Tween to the new (correct) position
+    node.to({
+      x,
+      y,
+      duration: 0.45,
+      easing: Konva.Easings.EaseOut,
+      onFinish: () => {
+        useEditorStore.getState().clearPendingAnimation(token.id);
+      },
+    });
+  }, [pendingAnim, x, y, cellSize, offset, token.id]);
 
   // Hover highlight color - use token color for movable, gray for locked
   const hoverStroke = isMovable ? token.color : "#9ca3af";
@@ -184,6 +210,7 @@ const TokenItem = memo(function TokenItem({
 
   return (
     <Group
+      ref={groupRef}
       x={x}
       y={y}
       rotation={token.rotation}
@@ -237,7 +264,7 @@ const TokenItem = memo(function TokenItem({
           <Text
             text={token.name.charAt(0).toUpperCase()}
             fontSize={radius}
-            fill="#ffffff"
+            fill={isLight ? "#000000" : "#ffffff"}
             align="center"
             verticalAlign="middle"
             offsetX={radius / 3}
@@ -443,7 +470,7 @@ function TokenGhost({
           <Text
             text={token.name.charAt(0).toUpperCase()}
             fontSize={radius}
-            fill="#ffffff"
+            fill={isLightColor(token.color) ? "#000000" : "#ffffff"}
             align="center"
             verticalAlign="middle"
             offsetX={radius / 3}
@@ -461,9 +488,11 @@ export interface DragOverlayProps {
   dragState: DragState;
   token: Token;
   cellSize: number;
+  walls: WallSegment[];
+  areas: AreaShape[];
 }
 
-export function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
+export function DragOverlay({ dragState, token, cellSize, walls, areas }: DragOverlayProps) {
   const offset = (token.size * cellSize) / 2;
 
   // Get snapped destination for ghost
@@ -476,25 +505,41 @@ export function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
   const startCol = Math.round((dragState.startX - offset) / cellSize);
   const startRow = Math.round((dragState.startY - offset) / cellSize);
 
-  // Calculate distance using Pythagorean theorem for diagonal movement
-  const rawFeet = gridMovementDistance(startCol, startRow, col, row);
-  const distanceInFeet = Math.round(rawFeet * 10) / 10;
+  // Compute terrain-aware movement info
+  const moveInfo = computeDragMovementInfo(
+    startCol, startRow, col, row, token.size, walls, areas,
+  );
+  const distanceInFeet = Math.round(moveInfo.totalFeet * 10) / 10;
+
+  // Walk speed: character sheet walk speed or default 30ft
+  const walkSpeed = token.characterSheet?.speed.walk ?? 30;
+  const isOverSpeed = distanceInFeet > walkSpeed;
+  const lineColor = distanceInFeet === 0 ? token.color : isOverSpeed ? "#ef4444" : "#22c55e";
+
+  // Build display text with terrain indicators
+  const feetText = Number.isInteger(distanceInFeet)
+    ? `${distanceInFeet}ft`
+    : `${distanceInFeet.toFixed(1)}ft`;
+  const indicators: string[] = [feetText];
+  if (moveInfo.crossedWallIds.length > 0) indicators.push("Wall");
+  if (moveInfo.hasImpassable) indicators.push("Impassable");
+  else if (moveInfo.hasDifficultTerrain) indicators.push("Difficult");
+  const displayText = indicators.join(" | ");
 
   // Position the label at the midpoint of the line
   const midX = (dragState.startX + snappedX) / 2;
   const midY = (dragState.startY + snappedY) / 2;
 
-  // Format: show decimal only if not a whole number
-  const displayText = Number.isInteger(distanceInFeet)
-    ? `${distanceInFeet}ft`
-    : `${distanceInFeet.toFixed(1)}ft`;
-  const labelWidth = Math.max(40, displayText.length * 9 + 8);
+  const labelWidth = Math.max(40, displayText.length * 8 + 12);
+
+  // Warning color for wall/terrain indicators
+  const hasWarning = moveInfo.crossedWallIds.length > 0 || moveInfo.hasImpassable;
 
   return (
     <>
       <Line
         points={[dragState.startX, dragState.startY, snappedX, snappedY]}
-        stroke={token.color}
+        stroke={lineColor}
         strokeWidth={3}
         dash={[10, 5]}
         lineCap="round"
@@ -508,14 +553,16 @@ export function DragOverlay({ dragState, token, cellSize }: DragOverlayProps) {
             offsetY={12}
             width={labelWidth}
             height={24}
-            fill="rgba(0, 0, 0, 0.8)"
+            fill="rgba(0, 0, 0, 0.85)"
             cornerRadius={4}
+            stroke={hasWarning ? "#ef4444" : undefined}
+            strokeWidth={hasWarning ? 1.5 : 0}
           />
           <Text
             text={displayText}
-            fontSize={14}
+            fontSize={13}
             fontStyle="bold"
-            fill="white"
+            fill={lineColor}
             align="center"
             width={labelWidth}
             offsetX={labelWidth / 2}
@@ -692,6 +739,10 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
         // Only move if user can move this token
         if (canMoveTokenRef.current(token.ownerId)) {
+          // Animate from old position to new (skip if token didn't move)
+          if (col !== token.position.col || row !== token.position.row) {
+            useEditorStore.getState().addPendingAnimation(token.id, token.position.col, token.position.row);
+          }
           moveTokenRef.current(token.id, { col, row });
           // Trigger immediate sync for real-time updates
           onTokenMovedRef.current?.(token.id, { col, row });
@@ -973,6 +1024,10 @@ const FlipButtonOverlay = memo(function FlipButtonOverlay({
   const flipBtnX = imgWidth / 2 + 4;
   const flipBtnY = -imgHeight / 2 - 4;
 
+  const isLight = isLightColor(token.color);
+  const btnTextColor = isLight ? "#000000" : "#ffffff";
+  const btnStrokeColor = isLight ? "#374151" : "#ffffff";
+
   const handleFlipClick = (e: any) => {
     e.cancelBubble = true;
     onFlip(token.id);
@@ -995,13 +1050,13 @@ const FlipButtonOverlay = memo(function FlipButtonOverlay({
         <Circle
           radius={flipBtnSize / 2}
           fill={token.color}
-          stroke="#ffffff"
+          stroke={btnStrokeColor}
           strokeWidth={2}
         />
         <Text
           text="⇄"
           fontSize={flipBtnSize * 0.7}
-          fill="#ffffff"
+          fill={btnTextColor}
           offsetX={flipBtnSize * 0.25}
           offsetY={flipBtnSize * 0.35}
         />
@@ -1059,12 +1114,34 @@ interface OverlayTokenItemProps {
 
 const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM, isHovered }: OverlayTokenItemProps) {
   const image = useImage(token.imageUrl);
+  const groupRef = useRef<Konva.Group>(null);
 
   const offset = (token.size * cellSize) / 2;
   const x = token.position.col * cellSize + offset;
   const y = token.position.row * cellSize + offset;
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2;
+
+  // AI combat move animation
+  const pendingAnim = useEditorStore((s) => s.pendingAnimations[token.id]);
+  useLayoutEffect(() => {
+    if (!pendingAnim || !groupRef.current) return;
+    const node = groupRef.current;
+    const fromX = pendingAnim.fromCol * cellSize + offset;
+    const fromY = pendingAnim.fromRow * cellSize + offset;
+    node.x(fromX);
+    node.y(fromY);
+    node.getLayer()?.batchDraw();
+    node.to({
+      x,
+      y,
+      duration: 0.45,
+      easing: Konva.Easings.EaseOut,
+      onFinish: () => {
+        useEditorStore.getState().clearPendingAnimation(token.id);
+      },
+    });
+  }, [pendingAnim, x, y, cellSize, offset, token.id]);
 
   const hasImageUrl = !!token.imageUrl;
 
@@ -1113,6 +1190,7 @@ const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM,
 
   return (
     <Group
+      ref={groupRef}
       x={x}
       y={y}
       rotation={token.rotation}
@@ -1157,7 +1235,7 @@ const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM,
           <Text
             text={token.name.charAt(0).toUpperCase()}
             fontSize={radius}
-            fill="#ffffff"
+            fill={isLight ? "#000000" : "#ffffff"}
             align="center"
             verticalAlign="middle"
             offsetX={radius / 3}

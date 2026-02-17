@@ -1,4 +1,4 @@
-import type { GridSettings, DnDMap, FogOfWar } from "./types";
+import type { GridSettings, DnDMap, FogOfWar, MapScene } from "./types";
 
 export const DEFAULT_GRID: GridSettings = {
   type: "square",
@@ -44,6 +44,9 @@ export const GRID_COLORS = [
   "#22c55e",
 ];
 
+/** Standard D&D 5e: each grid cell = 5 feet */
+export const FEET_PER_CELL = 5;
+
 export const ZOOM_REFERENCE = 2.2185;
 export const MIN_ZOOM = 0.55;
 export const MAX_ZOOM = 6.66;
@@ -83,5 +86,26 @@ export function createNewMap(options: CreateMapOptions | string): DnDMap {
     monsterGroups: [],
     combat: null,
     viewport: { ...DEFAULT_VIEWPORT },
+    activeSceneId: crypto.randomUUID(),
+    activeSceneName: "Scene 1",
+    scenes: [],
+  };
+}
+
+export const MAX_SCENES = 10;
+
+export function createBlankScene(name: string): MapScene {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    grid: { ...DEFAULT_GRID },
+    background: null,
+    tokens: [],
+    walls: [],
+    areas: [],
+    labels: [],
+    freehand: [],
+    fogOfWar: { ...DEFAULT_FOG },
+    monsterGroups: [],
   };
 }

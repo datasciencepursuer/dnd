@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { BackgroundPanel } from "../Sidebar/BackgroundPanel";
 import { TokenPanel } from "../Sidebar/TokenPanel";
+import { SceneSelector } from "../Sidebar/SceneSelector";
 import { PresenceList } from "../Sidebar/PresenceList";
 import { CombatPanel } from "../Sidebar/CombatPanel";
 import { ChatPanel } from "../ChatPanel";
@@ -8,7 +9,7 @@ import { useEditorStore, useChatStore } from "../../store";
 import type { Token, InitiativeEntry } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
 
-type PanelId = "units" | "create" | "editMap" | "players";
+type PanelId = "units" | "create" | "editMap" | "players" | "scenes";
 
 interface MobileSidebarRailProps {
   mapId?: string;
@@ -39,6 +40,12 @@ interface MobileSidebarRailProps {
   // AI Battle Engine props
   aiBattleEngine?: boolean;
   onAiBattleEngineChange?: (enabled: boolean) => void;
+  // Scene props (DM only)
+  onSwitchScene?: (sceneId: string) => void;
+  onCreateScene?: (name: string) => void;
+  onDeleteScene?: (sceneId: string) => void;
+  onRenameScene?: (sceneId: string, newName: string) => void;
+  onDuplicateScene?: (sceneId: string) => void;
 }
 
 // Ordered by frequency of use: most accessed → least accessed
@@ -59,6 +66,18 @@ const railButtons: { id: PanelId; label: string; icon: React.ReactNode; conditio
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
         <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+      </svg>
+    ),
+  },
+  {
+    id: "scenes",
+    label: "Scenes",
+    condition: "canEditMap",
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <path d="M2 4.25A2.25 2.25 0 014.25 2h6.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-6.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h6.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-6.5A2.25 2.25 0 012 15.75V4.25z" />
+        <path d="M7.25 2A2.25 2.25 0 019.5 4.25v11.5A2.25 2.25 0 017.25 18h2.5A2.25 2.25 0 0012 15.75V4.25A2.25 2.25 0 009.75 2h-2.5z" />
+        <path d="M12.25 2A2.25 2.25 0 0114.5 4.25v11.5A2.25 2.25 0 0112.25 18h3.5A2.25 2.25 0 0018 15.75V4.25A2.25 2.25 0 0015.75 2h-3.5z" />
       </svg>
     ),
   },
@@ -112,12 +131,20 @@ export function MobileSidebarRail({
   onAiPrompt,
   aiBattleEngine = false,
   onAiBattleEngineChange,
+  onSwitchScene,
+  onCreateScene,
+  onDeleteScene,
+  onRenameScene,
+  onDuplicateScene,
 }: MobileSidebarRailProps) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const [chatOpen, setChatOverlay] = useState(false);
   const canEditMap = useEditorStore((s) => s.canEditMap);
   const canCreateToken = useEditorStore((s) => s.canCreateToken);
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
+  const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
+  const setBuildMode = useEditorStore((s) => s.setBuildMode);
+  const setTool = useEditorStore((s) => s.setTool);
   const unreadCount = useChatStore((s) => s.unreadCount);
   const setChatOpen = useChatStore((s) => s.setOpen);
 
@@ -133,6 +160,14 @@ export function MobileSidebarRail({
     setActivePanel(activePanel === id ? null : id);
   };
 
+  const handleSetupEnvironment = () => {
+    setChatOverlay(false);
+    setChatOpen(false);
+    setActivePanel("editMap");
+    setBuildMode(true);
+    setTool("wall");
+  };
+
   const toggleChat = () => {
     const next = !chatOpen;
     setChatOverlay(next);
@@ -144,6 +179,8 @@ export function MobileSidebarRail({
     if (btn.condition === "canCreateToken") return canCreateToken();
     if (btn.condition === "canEditMap") return canEditMap();
     if (btn.condition === "hasMapId") return !!mapId;
+    // Hide scenes button in local play mode
+    if (btn.id === "scenes" && isPlayingLocally) return false;
     return true;
   });
 
@@ -215,9 +252,7 @@ export function MobileSidebarRail({
                   onAiPrompt={onAiPrompt}
                   aiBattleEngine={aiBattleEngine}
                   onAiBattleEngineChange={onAiBattleEngineChange}
-                  mapId={mapId}
-                  userId={userId || undefined}
-                  onSendMessage={onSendChatMessage}
+                  onSetupEnvironment={handleSetupEnvironment}
                 />
                 {/* Token list (sorted by initiative when in combat) */}
                 <TokenPanel
@@ -247,6 +282,17 @@ export function MobileSidebarRail({
                   onTokenCreate={onTokenCreate}
                   onMapChanged={onMapChanged}
                   onSelectAndCenter={onSelectAndCenter}
+                />
+              </div>
+            )}
+            {activePanel === "scenes" && canEditMap() && !isPlayingLocally && onSwitchScene && onCreateScene && onDeleteScene && onRenameScene && onDuplicateScene && (
+              <div className="h-full overflow-y-auto">
+                <SceneSelector
+                  onSwitchScene={onSwitchScene}
+                  onCreateScene={onCreateScene}
+                  onDeleteScene={onDeleteScene}
+                  onRenameScene={onRenameScene}
+                  onDuplicateScene={onDuplicateScene}
                 />
               </div>
             )}
@@ -307,6 +353,7 @@ export function MobileSidebarRail({
               mapOwnerId={mapOwnerId || userId || ""}
               aiLoading={aiLoading}
               onAiPrompt={onAiPrompt}
+              aiBattleEngine={aiBattleEngine}
             />
           </div>
         </div>

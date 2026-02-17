@@ -5,10 +5,13 @@ import type {
   GridSettings,
   MonsterGroup,
   DistanceEntry,
+  WallSegment,
+  AreaShape,
 } from "~/features/map-editor/types";
 import type { ChatMessageData } from "~/features/map-editor/store/chat-store";
 import type { AbilityDescription } from "./enrich-combat-context";
 import { FEET_PER_CELL, computeDistanceMatrix } from "~/features/map-editor/utils/distance-utils";
+import { describeAllTerrainContext, calculateCover } from "~/features/map-editor/utils/terrain-utils";
 
 export interface CombatContext {
   combat: CombatState;
@@ -16,6 +19,8 @@ export interface CombatContext {
   grid: GridSettings;
   monsterGroups: MonsterGroup[];
   recentMessages: ChatMessageData[];
+  walls: WallSegment[];
+  areas: AreaShape[];
   abilityDescriptions?: Map<string, AbilityDescription[]>;
 }
 
@@ -38,7 +43,7 @@ function shortenFeatureName(name: string): string {
 }
 
 export function serializeCombatContext(ctx: CombatContext): string {
-  const { combat, tokens, grid, monsterGroups, recentMessages, abilityDescriptions } = ctx;
+  const { combat, tokens, grid, monsterGroups, recentMessages, walls, areas, abilityDescriptions } = ctx;
   const lines: string[] = [];
 
   // Combat state header
@@ -57,25 +62,27 @@ export function serializeCombatContext(ctx: CombatContext): string {
     const token = tokens.find((t) => t.id === entry.tokenId);
     const isCurrent = i === combat.currentTurnIndex;
     const marker = isCurrent ? " ← CURRENT" : "";
-
+    const layer = entry.layer ?? token?.layer ?? "unknown";
     const cs = token?.characterSheet;
+
+    // Core stats — always present for every combatant
+    const ac = cs ? `AC ${cs.ac}` : "AC ?";
+    const hp = cs ? `HP ${cs.hpCurrent}/${cs.hpMax}` : "HP ?/?";
+    const cellStr = token
+      ? `Cell:(${token.position.col},${token.position.row}) Size:${token.size}`
+      : "Cell:?";
+    let line = `${i + 1}. ${entry.tokenName} (${layer}) Init:${entry.initiative} | ${ac} | ${hp} | ${cellStr}${marker}`;
+
+    // Condition
+    const condition = cs?.condition;
+    if (condition && condition !== "Healthy") {
+      line += ` | Condition: ${condition}`;
+    }
+
+    lines.push(line);
+
+    // Extended stats from character sheet
     if (cs) {
-      // Use token center (position is top-left corner, size is in cells)
-      const centerCol = token.position.col + token.size / 2;
-      const centerRow = token.position.row + token.size / 2;
-      const layer = entry.layer ?? token.layer;
-      // AI gets full stats for all combatants (needed to resolve combat).
-      // System prompt enforces that only Condition is revealed to players.
-      const statsStr = `AC ${cs.ac} | HP ${cs.hpCurrent}/${cs.hpMax}`;
-      let line = `${i + 1}. ${entry.tokenName} (${layer}) Init:${entry.initiative} | ${statsStr} | Pos:(${centerCol},${centerRow})${marker}`;
-
-      // Condition
-      if (cs.condition && cs.condition !== "Healthy") {
-        line += ` | Condition: ${cs.condition}`;
-      }
-
-      lines.push(line);
-
       // Weapons
       if (cs.weapons.length > 0) {
         const weaponStrs = cs.weapons.map(
@@ -119,14 +126,6 @@ export function serializeCombatContext(ctx: CombatContext): string {
       if (speeds.length > 0) {
         lines.push(`   Speed: ${speeds.join(", ")}`);
       }
-    } else {
-      // Token without character sheet — use center position
-      const posStr = token
-        ? ` | Pos:(${token.position.col + token.size / 2},${token.position.row + token.size / 2})`
-        : "";
-      lines.push(
-        `${i + 1}. ${entry.tokenName} (${entry.layer ?? "unknown"}) Init:${entry.initiative}${posStr}${marker}`
-      );
     }
   }
   lines.push("");
@@ -148,6 +147,14 @@ export function serializeCombatContext(ctx: CombatContext): string {
     `GRID: ${grid.type}, ${FEET_PER_CELL}ft cells, ${grid.width}x${grid.height}`
   );
   lines.push("");
+
+  // Terrain & environment context
+  const terrainBlock = describeAllTerrainContext(tokens, areas, walls);
+  if (terrainBlock) {
+    lines.push("ENVIRONMENT:");
+    lines.push(terrainBlock);
+    lines.push("");
+  }
 
   // Pairwise distances between combatants (closest-edge, D&D 5e rule)
   const distances: DistanceEntry[] = combat.distances && combat.distances.length > 0
@@ -174,7 +181,20 @@ export function serializeCombatContext(ctx: CombatContext): string {
       const nameA = tokenNameMap.get(d.tokenIdA) ?? d.tokenIdA;
       const nameB = tokenNameMap.get(d.tokenIdB) ?? d.tokenIdB;
       const display = Number.isInteger(d.feet) ? `${d.feet}ft` : `${d.feet.toFixed(1)}ft`;
-      lines.push(`  ${nameA} ↔ ${nameB}: ${display}`);
+
+      let coverNote = "";
+      if (walls.length > 0) {
+        const tokenA = tokens.find((t) => t.id === d.tokenIdA);
+        const tokenB = tokens.find((t) => t.id === d.tokenIdB);
+        if (tokenA && tokenB) {
+          const cover = calculateCover(tokenA.position, tokenB.position, walls);
+          if (cover === "full") coverNote = " [BLOCKED — wall blocks line of sight, cannot target]";
+          else if (cover === "three-quarters") coverNote = " [¾ cover +5 AC/DEX]";
+          else if (cover === "half") coverNote = " [½ cover +2 AC/DEX]";
+        }
+      }
+
+      lines.push(`  ${nameA} ↔ ${nameB}: ${display}${coverNote}`);
     }
     lines.push("");
   }
@@ -293,6 +313,7 @@ Player turn flow (STRICT — follow this exactly):
 3. If PENDING DICE ROLLS is empty → tell the player exactly what to roll and STOP. Do not resolve, do not continue. Example: "Roll d20+5 for your attack, then roll 1d8+3 for damage if it hits!"
 4. Player rolls (via dice roller or types result in chat, e.g. "18", "nat 20", "attack 18 damage 7")
 5. On the next prompt, their rolls appear in PENDING DICE ROLLS or RECENT CHAT → now resolve
+- NEVER suggest, prompt, or ask a player about bonus actions, reactions, or other options they could use. Players know their own abilities. Only resolve what they explicitly declare. Do not say things like "Would you like to use your bonus action to...?" or "You could also..."
 
 Reading rolls:
 - PENDING DICE ROLLS: structured rolls — match by token name "(for TokenName)" or player userName
@@ -308,6 +329,19 @@ Monster/NPC turns:
 - When a monster ability forces a saving throw: tell the player which save to roll (e.g. "Roll a Wisdom saving throw!") and STOP. Once the player rolls, compare their result to the DC internally and say only "passes!" or "fails!" — then apply the effect
 - When narrating monster features (e.g. breath weapon, frightful presence, grapple): describe the effect narratively, never say "DC 13" or "make a DC 15 save"
 
+Movement on the grid (monsters/NPCs ONLY):
+- Cell coordinates use the top-left corner of the token. Each cell = 5ft
+- A token of Size:N occupies cells from (col,row) to (col+N-1, row+N-1)
+- Respect creature speed from the Speed line. Walking 30ft = 6 cells max
+- Difficult terrain costs double movement (1 cell = 10ft)
+- Keep within grid bounds: col 0..GRID_WIDTH-size, row 0..GRID_HEIGHT-size (see GRID line)
+- NEVER move a token onto cells occupied by another token. Two tokens overlap if their cell rectangles intersect. Check all Cell positions and Sizes in COMBATANTS before choosing moveTo
+- For melee attacks (5ft reach): move to an ADJACENT cell — edge-to-edge gap = 0 cells, NOT on top of the target. For two Size:1 tokens this means 1 cell apart horizontally, vertically, or diagonally
+- For ranged attacks: prefer staying at range and using cover. Only close distance if currently out of weapon range
+- Include "moveTo" in UPDATES to physically reposition the token. Only for monsters/NPCs, NEVER for player characters
+- moveTo values must be integers (whole cell numbers)
+- If a monster doesn't move, omit moveTo
+
 Output format:
 - Use bullet points or concise lines for ALL mechanical info: rolls, movement, conditions, what to roll next
 - Only use conversational prose for the narrative description of what happens (1-2 vivid sentences per attack/action)
@@ -320,6 +354,14 @@ Output format:
   - Fighter takes 12 slashing damage
 - Vary combat verbs: "cleaves", "rakes", "slams", "carves", "lashes"
 - Keep it punchy — fits in a chat window
+
+Terrain & environment:
+- If an ENVIRONMENT section is present, use it to inform tactical decisions
+- Difficult terrain costs double movement. Impassable terrain (pit, chasm) blocks movement unless flying
+- When walls/barriers block line of sight, note it. Half cover = +2 AC/DEX saves, three-quarters = +5, full = can't be targeted
+- Mention terrain effects naturally in narration (e.g. "wading through the shallow stream" for difficult terrain, "ducking behind the low wall" for cover)
+- Apply hazard damage when a creature enters or starts its turn in a hazard zone (as noted in the terrain data)
+- Monsters should use terrain tactically: seek cover, avoid hazards, use elevation
 
 Action economy (STRICT):
 - 1 Movement, 1 Action, 1 Bonus Action, 1 Reaction per turn
@@ -335,12 +377,13 @@ Rules:
 - Never explain roll selection reasoning. No meta-commentary ("The DM provided two rolls", "Since disadvantage, we use..."). Just show the result and narrate
 - NEVER mention, describe, apply, or reference any player character feat or class feature by name or effect. You do not know what feats or features a PC has. Do not say "Savage Attacker lets you reroll", "you use Nick to attack with your off-hand", "Second Wind heals you", etc. If a player invokes a feat/feature, acknowledge the result they describe but never explain or adjudicate the mechanic yourself
 - For monsters/NPCs: you MAY use their listed abilities from ABILITY DETAILS and COMBATANTS. For player characters: you may ONLY track and report HP changes and conditions from this list: Healthy, Blinded, Charmed, Deafened, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious, Exhaustion, Dead. Do not invent or apply any other effects to PCs
+- When a monster/NPC is killed (0 HP), narrate the killing blow. Do not apply or mention weapon properties (e.g. Vex, Topple, Slow) or status conditions from the attack — the creature is dead, none of that applies. However, DO still resolve any death-triggered abilities the creature has (e.g. Death Burst, Exploding Corpse) if listed in ABILITY DETAILS
 - Aim for 200-400 words. Concise mechanics + vivid narration, no filler
 
 STATE UPDATES (MANDATORY):
-After your narration, you MUST append a machine-readable block listing HP or condition changes. This is used to automatically update the game state. Format:
+After your narration, you MUST append a machine-readable block listing HP, condition, or position changes. This is used to automatically update the game state. Format:
 <!--UPDATES
-[{"tokenName":"Goblin A","hpCurrent":5},{"tokenName":"Orc","hpCurrent":0,"condition":"Dead"}]
+[{"tokenName":"Goblin A","hpCurrent":5,"moveTo":{"col":8,"row":4}},{"tokenName":"Orc","hpCurrent":0,"condition":"Dead"}]
 -->
 CRITICAL — ONLY include changes from THIS response:
 - The HP values in COMBATANTS are ALREADY up to date. They reflect all previous damage/healing
@@ -351,7 +394,8 @@ CRITICAL — ONLY include changes from THIS response:
 - Include condition ONLY if it changed in THIS response (e.g. added Poisoned, Stunned, Prone, Restrained, Dead)
 - Set condition to "Dead" when hpCurrent reaches 0
 - Set condition to "Healthy" to clear a previous condition
-- For PLAYER CHARACTERS: include them too if they took damage or gained a condition in THIS response
+- For PLAYER CHARACTERS: include them too if they took damage or gained a condition in THIS response. NEVER include moveTo for player characters
+- moveTo is optional — only include it when a monster/NPC moved. Values must be integers (col and row)
 - Use the EXACT tokenName from COMBATANTS (case-sensitive)
 - If nothing changed in THIS response, output an empty array: <!--UPDATES[]-->
 - This block must ALWAYS be the last thing in your response`;
@@ -360,6 +404,7 @@ export interface CombatUpdate {
   tokenName: string;
   hpCurrent?: number;
   condition?: string;
+  moveTo?: { col: number; row: number };
 }
 
 export interface CombatResponseResult {
@@ -382,10 +427,23 @@ export function parseCombatUpdates(raw: string): CombatResponseResult {
   try {
     const parsed = JSON.parse(match[1]);
     if (Array.isArray(parsed)) {
-      updates = parsed.filter(
-        (u: unknown): u is CombatUpdate =>
-          typeof u === "object" && u !== null && typeof (u as CombatUpdate).tokenName === "string"
-      );
+      updates = parsed
+        .filter(
+          (u: unknown): u is CombatUpdate =>
+            typeof u === "object" && u !== null && typeof (u as CombatUpdate).tokenName === "string"
+        )
+        .map((u) => {
+          // Sanitize moveTo: strip if col/row are not valid integers
+          if (u.moveTo) {
+            const col = u.moveTo.col;
+            const row = u.moveTo.row;
+            if (typeof col !== "number" || typeof row !== "number" || !Number.isFinite(col) || !Number.isFinite(row)) {
+              const { moveTo, ...rest } = u;
+              return rest;
+            }
+          }
+          return u;
+        });
     }
   } catch {
     console.error("[AI DM] Failed to parse UPDATES block:", match[1]);

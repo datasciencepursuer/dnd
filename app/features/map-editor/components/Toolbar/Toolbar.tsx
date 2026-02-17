@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link, useRevalidator } from "react-router";
+import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, ZOOM_REFERENCE } from "../../constants";
 import type { EditorTool } from "../../types";
@@ -24,10 +24,6 @@ const pingTool: { id: EditorTool; label: string; icon: string; shortcut: string;
 const eraseTool: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string } =
   { id: "erase", label: "Erase", icon: "⌫", shortcut: "3", hint: "Drag to erase fog and drawings" };
 
-// Tools requiring map edit permission (DM only)
-const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
-  { id: "fog", label: "Fog", icon: "🌫", shortcut: "4", hint: "Drag to paint fog" },
-];
 
 interface ToolbarProps {
   userName?: string | null;
@@ -46,7 +42,6 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const togglePlayingLocally = useEditorStore((s) => s.togglePlayingLocally);
-
   const getCanvasDimensions = useEditorStore((s) => s.getCanvasDimensions);
 
   const map = useMapStore((s) => s.map);
@@ -64,7 +59,6 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const dmDropdownRef = useRef<HTMLDivElement>(null);
   const overflowMenuRef = useRef<HTMLDivElement>(null);
-  const revalidator = useRevalidator();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -156,6 +150,14 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
         case "4":
           // Fog only for DM
           if (canEditMap()) setTool("fog");
+          break;
+        case "5":
+          // Wall only for DM
+          if (canEditMap()) setTool("wall");
+          break;
+        case "6":
+          // Area only for DM
+          if (canEditMap()) setTool("area");
           break;
         case "p":
         case "P":
@@ -276,14 +278,21 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
             ←<span className="hidden lg:inline"> Maps</span>
           </Link>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 hidden lg:block" />
-          <input
-            type="text"
-            value={mapName}
-            onChange={handleNameChange}
-            placeholder="Map name"
-            disabled={!canEditMap()}
-            className="hidden lg:block px-3 py-1.5 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
-          />
+          <div className="hidden lg:flex flex-col">
+            <input
+              type="text"
+              value={mapName}
+              onChange={handleNameChange}
+              placeholder="Map name"
+              disabled={!canEditMap()}
+              className="px-3 py-1 text-sm font-medium rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[150px] disabled:opacity-50"
+            />
+            {isDungeonMaster() && map?.activeSceneName && (
+              <span className="px-3 text-[10px] text-gray-400 dark:text-gray-500 leading-tight">
+                Scene: {map.activeSceneName}
+              </span>
+            )}
+          </div>
           {/* Role indicator - clickable for DM to transfer */}
           <div className="relative hidden lg:flex" ref={dmDropdownRef}>
             {isDungeonMaster() && transferOptions.length > 0 ? (
@@ -372,23 +381,6 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
               <span className="hidden lg:inline">{eraseTool.label}</span>
               <span className="hidden lg:inline ml-1 text-xs opacity-60">({eraseTool.shortcut})</span>
             </button>
-            {/* Fog tool - DM only */}
-            {canEditMap() && mapEditTools.map((tool) => (
-              <button
-                key={tool.id}
-                onClick={() => setTool(tool.id)}
-                className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${
-                  selectedTool === tool.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                }`}
-                title={tool.hint || `${tool.label} (${tool.shortcut})`}
-              >
-                <span className="lg:mr-1">{tool.icon}</span>
-                <span className="hidden lg:inline">{tool.label}</span>
-                <span className="hidden lg:inline ml-1 text-xs opacity-60">({tool.shortcut})</span>
-              </button>
-            ))}
             <button
               onClick={() => setTool(pingTool.id)}
               className={`p-2 lg:px-3 lg:py-2 rounded text-sm font-medium transition-colors cursor-pointer ${

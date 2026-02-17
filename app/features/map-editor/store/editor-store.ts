@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { EditorTool, MapPermission, PlayerPermissions } from "../types";
+import type { EditorTool, MapPermission, PlayerPermissions, WallType, TerrainType } from "../types";
 import { DEFAULT_PERMISSIONS } from "../types";
 
 interface EditorState {
@@ -27,6 +27,16 @@ interface EditorState {
 
   // Local play mode - DM sees fog as opaque (player perspective)
   isPlayingLocally: boolean;
+
+  // Wall/area tool state
+  currentWallType: WallType;
+  currentTerrainType: TerrainType;
+
+  // Build mode - walls/areas visible when Edit Map panel is open
+  buildMode: boolean;
+
+  // Pending token animations (AI combat moves)
+  pendingAnimations: Record<string, { fromCol: number; fromRow: number }>;
 
   // Actions
   setTool: (tool: EditorTool) => void;
@@ -56,9 +66,22 @@ interface EditorState {
   // Canvas dimensions
   setCanvasDimensions: (width: number, height: number) => void;
   getCanvasDimensions: () => { width: number; height: number };
+  /** Get the grid cell at the center of the visible viewport. */
+  getViewportCenterCell: (viewport: { x: number; y: number; scale: number }, cellSize: number) => { col: number; row: number };
 
   // Local play mode
   togglePlayingLocally: () => void;
+
+  // Wall/area tool state
+  setWallType: (type: WallType) => void;
+  setTerrainType: (type: TerrainType) => void;
+
+  // Build mode
+  setBuildMode: (value: boolean) => void;
+
+  // Pending token animations
+  addPendingAnimation: (tokenId: string, fromCol: number, fromRow: number) => void;
+  clearPendingAnimation: (tokenId: string) => void;
 
   // Permission helpers
   isDungeonMaster: () => boolean;
@@ -91,6 +114,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openCharacterSheetTokenId: null,
   canvasDimensions: { width: 800, height: 600 },
   isPlayingLocally: false,
+  currentWallType: "wall",
+  currentTerrainType: "difficult",
+  buildMode: false,
+  pendingAnimations: {},
 
   setTool: (tool) =>
     set((state) => ({
@@ -161,9 +188,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Canvas dimensions
   setCanvasDimensions: (width, height) => set({ canvasDimensions: { width, height } }),
   getCanvasDimensions: () => get().canvasDimensions,
+  getViewportCenterCell: (viewport, cellSize) => {
+    const { width, height } = get().canvasDimensions;
+    const worldX = (width / 2 - viewport.x) / viewport.scale;
+    const worldY = (height / 2 - viewport.y) / viewport.scale;
+    return { col: Math.floor(worldX / cellSize), row: Math.floor(worldY / cellSize) };
+  },
 
   // Local play mode
   togglePlayingLocally: () => set((state) => ({ isPlayingLocally: !state.isPlayingLocally })),
+
+  // Wall/area tool state
+  setWallType: (type) => set({ currentWallType: type }),
+  setTerrainType: (type) => set({ currentTerrainType: type }),
+
+  // Build mode
+  setBuildMode: (value) => set({ buildMode: value }),
+
+  // Pending token animations
+  addPendingAnimation: (tokenId, fromCol, fromRow) =>
+    set((state) => ({
+      pendingAnimations: { ...state.pendingAnimations, [tokenId]: { fromCol, fromRow } },
+    })),
+  clearPendingAnimation: (tokenId) =>
+    set((state) => {
+      const { [tokenId]: _, ...rest } = state.pendingAnimations;
+      return { pendingAnimations: rest };
+    }),
 
   // Permission helpers
   isDungeonMaster: () => get().permission === "dm",

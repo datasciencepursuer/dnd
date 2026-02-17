@@ -371,12 +371,63 @@ export interface EditorContext {
 // Drawing Types
 export type DrawingTool = "wall" | "area" | "text" | "freehand";
 
+// Terrain Types
+export type TerrainType =
+  | "normal"
+  | "difficult"
+  | "water-shallow"
+  | "water-deep"
+  | "ice"
+  | "lava"
+  | "pit"
+  | "chasm"
+  | "elevated"
+  | "vegetation"
+  | "darkness"
+  | "trap";
+
+export type WallType =
+  | "wall"
+  | "half-wall"
+  | "window"
+  | "arrow-slit"
+  | "door-closed"
+  | "door-open"
+  | "door-locked"
+  | "pillar"
+  | "fence";
+
+export type CoverType = "none" | "half" | "three-quarters" | "full";
+
+export type ObscurementLevel = "none" | "light" | "heavy";
+
+export type HazardTrigger = "on-enter" | "start-of-turn" | "both";
+
+export interface HazardInfo {
+  damage: string;       // Dice notation, e.g. "2d10"
+  damageType: DamageType;
+  trigger: HazardTrigger;
+  saveDC?: number;        // DC for the saving throw (if any)
+  saveAbility?: "strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma";
+}
+
+export interface TrapEffect {
+  damage: string;       // Dice notation
+  damageType: DamageType;
+  saveDC: number;
+  saveAbility: "strength" | "dexterity" | "constitution" | "intelligence" | "wisdom" | "charisma";
+  condition?: Condition; // Optional condition applied on fail
+  armed: boolean;        // Whether the trap is still active
+  hidden: boolean;       // Whether the trap is hidden from players
+  description?: string;  // DM notes about the trap
+}
+
 export interface WallSegment {
   id: string;
   points: Position[];
   color: string;
   width: number;
-  doorway: boolean;
+  wallType: WallType;
 }
 
 export interface AreaShape {
@@ -388,6 +439,11 @@ export interface AreaShape {
   strokeColor: string;
   strokeWidth: number;
   label?: string;
+  terrainType: TerrainType;
+  elevation: number;          // Elevation level in feet (0 = ground level)
+  hazard?: HazardInfo;        // Set when terrainType is a damaging terrain (lava, etc.)
+  trap?: TrapEffect;          // Set when terrainType is "trap"
+  obscurement: ObscurementLevel;
 }
 
 export interface TextLabel {
@@ -471,6 +527,21 @@ export interface CombatState {
   turnStartedAt?: string;
 }
 
+// Scene - a snapshot of per-scene data stored when inactive
+export interface MapScene {
+  id: string;
+  name: string;
+  grid: GridSettings;
+  background: Background | null;
+  tokens: Token[];
+  walls: WallSegment[];
+  areas: AreaShape[];
+  labels: TextLabel[];
+  freehand: FreehandPath[];
+  fogOfWar: FogOfWar;
+  monsterGroups: MonsterGroup[];
+}
+
 // Complete Map
 export interface DnDMap {
   id: string;
@@ -493,6 +564,10 @@ export interface DnDMap {
     y: number;
     scale: number;
   };
+  // Multi-scene support
+  activeSceneId: string;
+  activeSceneName: string;
+  scenes: MapScene[]; // inactive scenes only; active scene lives in flat fields
 }
 
 // Editor State

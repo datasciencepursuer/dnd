@@ -77,6 +77,7 @@ export function TokenPanel({
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
+  const getViewportCenterCell = useEditorStore((s) => s.getViewportCenterCell);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -138,16 +139,14 @@ export function TokenPanel({
   const handleAddToken = () => {
     if (!tokenName.trim() || !map || !canCreateToken()) return;
 
+    const center = getViewportCenterCell(map.viewport, map.grid.cellSize);
     const token: Token = {
       id: crypto.randomUUID(),
       name: tokenName.trim(),
       imageUrl: tokenImageUrl,
       color: tokenColor,
       size: tokenSize,
-      position: {
-        col: Math.floor(map.grid.width / 2),
-        row: Math.floor(map.grid.height / 2),
-      },
+      position: center,
       rotation: 0,
       flipped: false,
       visible: true,

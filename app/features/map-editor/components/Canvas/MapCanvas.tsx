@@ -1,4 +1,4 @@
-import { Stage, Layer, Rect, Group } from "react-konva";
+import { Stage, Layer, Rect, Group, Line, Circle } from "react-konva";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { BackgroundLayer } from "./BackgroundLayer";
@@ -7,12 +7,36 @@ import { AuraLayer } from "./AuraLayer";
 import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay, DragOverlay, SelectedTokenControls } from "./TokenLayer";
 import type { DragState } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
+import { WallLayer } from "./WallLayer";
+import { AreaLayer } from "./AreaLayer";
 import { FogLayer } from "./FogLayer";
 import { PingLayer } from "./PingLayer";
 import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
 import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
-import type { FreehandPath, GridPosition, Ping, Token } from "../../types";
+import { WALL_STYLES, TERRAIN_COLORS, TERRAIN_DEFAULT_OPACITY } from "../../utils/terrain-utils";
+import type { FreehandPath, GridPosition, Ping, Token, WallSegment, AreaShape, Position } from "../../types";
+
+/** Test if line segment (ax,ay)→(bx,by) intersects axis-aligned rect [minX,minY,maxX,maxY]. */
+function segIntersectsRect(ax: number, ay: number, bx: number, by: number, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  // Cohen–Sutherland outcode
+  const code = (x: number, y: number) =>
+    (x < minX ? 1 : 0) | (x > maxX ? 2 : 0) | (y < minY ? 4 : 0) | (y > maxY ? 8 : 0);
+  let c1 = code(ax, ay), c2 = code(bx, by);
+  let x1 = ax, y1 = ay, x2 = bx, y2 = by;
+  while (true) {
+    if ((c1 | c2) === 0) return true;   // Both inside
+    if ((c1 & c2) !== 0) return false;   // Both outside same side
+    const c = c1 || c2;
+    let x: number, y: number;
+    if (c & 8)      { x = x1 + (x2 - x1) * (maxY - y1) / (y2 - y1); y = maxY; }
+    else if (c & 4) { x = x1 + (x2 - x1) * (minY - y1) / (y2 - y1); y = minY; }
+    else if (c & 2) { y = y1 + (y2 - y1) * (maxX - x1) / (x2 - x1); x = maxX; }
+    else            { y = y1 + (y2 - y1) * (minX - x1) / (x2 - x1); x = minX; }
+    if (c === c1) { x1 = x; y1 = y; c1 = code(x, y); }
+    else          { x2 = x; y2 = y; c2 = code(x, y); }
+  }
+}
 
 interface MapCanvasProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
@@ -24,10 +48,14 @@ interface MapCanvasProps {
   onPing?: (ping: Ping) => void;
   onDrawingAdd?: (path: FreehandPath) => void;
   onDrawingRemove?: (pathId: string) => void;
+  onWallAdd?: (wall: WallSegment) => void;
+  onWallRemove?: (wallId: string) => void;
+  onAreaAdd?: (area: AreaShape) => void;
+  onAreaRemove?: (areaId: string) => void;
   activePings?: Ping[];
 }
 
-export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, onDrawingAdd, onDrawingRemove, activePings = [] }: MapCanvasProps) {
+export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, onDrawingAdd, onDrawingRemove, onWallAdd, onWallRemove, onAreaAdd, onAreaRemove, activePings = [] }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -46,6 +74,22 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const [isDraggingRect, setIsDraggingRect] = useState(false);
   const [dragMode, setDragMode] = useState<"fog" | "erase" | null>(null);
 
+  // Wall drawing state
+  const [wallPoints, setWallPoints] = useState<Position[]>([]);
+  const [isDrawingWall, setIsDrawingWall] = useState(false);
+  const wallPreviewRef = useRef<Position | null>(null);
+  const wallPreviewLineRef = useRef<any>(null);
+
+  // Area drawing state
+  const [areaDragStart, setAreaDragStart] = useState<{ x: number; y: number } | null>(null);
+  const areaDragEndRef = useRef<{ x: number; y: number } | null>(null);
+  const areaRectRef = useRef<any>(null);
+  const [isDraggingArea, setIsDraggingArea] = useState(false);
+
+  // Selected wall/area for property editing
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+
   // Multi-touch (pinch/pan) tracking
   const multiTouchRef = useRef<{
     active: boolean;
@@ -56,13 +100,15 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
 
   // Shallow-compared selector prevents re-renders when unrelated map fields change
   // (e.g. viewport saves won't trigger re-render if tokens/grid/fog haven't changed)
-  const { tokens, grid, fogPaintedCells, background, freehand, mapId } = useMapStore(
+  const { tokens, grid, fogPaintedCells, background, freehand, walls, areas, mapId } = useMapStore(
     useShallow((s) => ({
       tokens: s.map?.tokens,
       grid: s.map?.grid,
       fogPaintedCells: s.map?.fogOfWar?.paintedCells,
       background: s.map?.background,
       freehand: s.map?.freehand,
+      walls: s.map?.walls,
+      areas: s.map?.areas,
       mapId: s.map?.id,
     }))
   );
@@ -77,6 +123,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
   const paintFogInRange = useMapStore((s) => s.paintFogInRange);
   const eraseFogInRange = useMapStore((s) => s.eraseFogInRange);
+  const addWall = useMapStore((s) => s.addWall);
+  const removeWall = useMapStore((s) => s.removeWall);
+  const addArea = useMapStore((s) => s.addArea);
+  const removeArea = useMapStore((s) => s.removeArea);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
   const setIsPanning = useEditorStore((s) => s.setIsPanning);
@@ -88,6 +138,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const recordPing = useEditorStore((s) => s.recordPing);
   const setCanvasDimensions = useEditorStore((s) => s.setCanvasDimensions);
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
+  const currentWallType = useEditorStore((s) => s.currentWallType);
+  const currentTerrainType = useEditorStore((s) => s.currentTerrainType);
+  const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
+  const buildMode = useEditorStore((s) => s.buildMode);
 
   // Hovered token state (lifted from TokenLayer)
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
@@ -138,6 +192,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const freehandRef = useRef(freehand);
   freehandRef.current = freehand;
 
+  // Stable refs for walls/areas (used in erase handler)
+  const wallsRef = useRef(walls);
+  wallsRef.current = walls;
+  const areasRef = useRef(areas);
+  areasRef.current = areas;
+
   // Auto-scroll callback — moves the viewport by (dx, dy) screen pixels
   const handleAutoScroll = useCallback((dx: number, dy: number) => {
     const stage = stageRef.current;
@@ -160,6 +220,82 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     removeFreehandPath(pathId);
     onDrawingRemove?.(pathId);
   }, [removeFreehandPath, onDrawingRemove]);
+
+  // Wall selection/erase handlers
+  const handleSelectWall = useCallback((wallId: string) => {
+    setSelectedWallId(wallId);
+    setSelectedAreaId(null);
+    setSelectedElements([`wall:${wallId}`]);
+  }, [setSelectedElements]);
+
+  const handleEraseWall = useCallback((wallId: string) => {
+    removeWall(wallId);
+    onWallRemove?.(wallId);
+  }, [removeWall, onWallRemove]);
+
+  // Area selection/erase handlers
+  const handleSelectArea = useCallback((areaId: string) => {
+    setSelectedAreaId(areaId);
+    setSelectedWallId(null);
+    setSelectedElements([`area:${areaId}`]);
+  }, [setSelectedElements]);
+
+  const handleEraseArea = useCallback((areaId: string) => {
+    removeArea(areaId);
+    onAreaRemove?.(areaId);
+  }, [removeArea, onAreaRemove]);
+
+  // Finalize a wall polyline from accumulated points
+  const finalizeWall = useCallback(() => {
+    if (wallPoints.length < 2) {
+      setWallPoints([]);
+      setIsDrawingWall(false);
+      return;
+    }
+    const style = WALL_STYLES[currentWallType];
+    const wall: WallSegment = {
+      id: crypto.randomUUID(),
+      points: wallPoints,
+      color: style.color,
+      width: style.width,
+      wallType: currentWallType,
+    };
+    addWall(wall);
+    onWallAdd?.(wall);
+    setWallPoints([]);
+    setIsDrawingWall(false);
+  }, [wallPoints, currentWallType, addWall, onWallAdd]);
+
+  // Keyboard handler for wall tool (Enter to finalize, Escape to cancel)
+  useEffect(() => {
+    if (!isDrawingWall) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        finalizeWall();
+      } else if (e.key === "Escape") {
+        setWallPoints([]);
+        setIsDrawingWall(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isDrawingWall, finalizeWall]);
+
+  // Clear wall/area selection when tool changes away from select
+  useEffect(() => {
+    if (selectedTool !== "select") {
+      setSelectedWallId(null);
+      setSelectedAreaId(null);
+    }
+  }, [selectedTool]);
+
+  // Cancel wall drawing when switching tools
+  useEffect(() => {
+    if (selectedTool !== "wall" && isDrawingWall) {
+      setWallPoints([]);
+      setIsDrawingWall(false);
+    }
+  }, [selectedTool, isDrawingWall]);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -332,7 +468,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     };
   }, []);
 
-  if (!grid || !tokens || !freehand || !fogPaintedCells) return null;
+  if (!grid || !tokens || !freehand || !fogPaintedCells || !walls || !areas) return null;
 
   const cellSize = grid.cellSize;
 
@@ -421,6 +557,33 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       return;
     }
 
+    // Wall tool: click to add point, snapped to grid corners
+    if (selectedTool === "wall" && e.evt.button === 0) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      // Snap to nearest grid corner
+      const snappedX = Math.round(pos.x / cellSize);
+      const snappedY = Math.round(pos.y / cellSize);
+      const point: Position = { x: snappedX, y: snappedY };
+
+      setWallPoints((prev) => [...prev, point]);
+      setIsDrawingWall(true);
+      return;
+    }
+
+    // Area tool: start drag rectangle, snapped to grid cells
+    if (selectedTool === "area" && e.evt.button === 0) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      // Snap to grid cell boundary
+      const snappedX = Math.floor(pos.x / cellSize) * cellSize;
+      const snappedY = Math.floor(pos.y / cellSize) * cellSize;
+      setAreaDragStart({ x: snappedX, y: snappedY });
+      areaDragEndRef.current = { x: snappedX, y: snappedY };
+      setIsDraggingArea(true);
+      return;
+    }
+
     // Drawing with left click when draw tool is selected
     if (selectedTool === "draw" && e.evt.button === 0 && selectedToken) {
       const stage = stageRef.current;
@@ -446,6 +609,42 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       return;
     }
 
+    // Wall tool: update preview line to cursor (snapped to grid corner)
+    if (selectedTool === "wall" && isDrawingWall && wallPoints.length > 0) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const snappedX = Math.round(pos.x / cellSize);
+      const snappedY = Math.round(pos.y / cellSize);
+      wallPreviewRef.current = { x: snappedX, y: snappedY };
+      if (wallPreviewLineRef.current) {
+        const lastPt = wallPoints[wallPoints.length - 1];
+        wallPreviewLineRef.current.points([
+          lastPt.x * cellSize, lastPt.y * cellSize,
+          snappedX * cellSize, snappedY * cellSize,
+        ]);
+        wallPreviewLineRef.current.getLayer()?.batchDraw();
+      }
+      return;
+    }
+
+    // Area tool: update preview rect imperatively
+    if (isDraggingArea && areaDragStart) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      // Snap to grid cell boundary (ceiling for end)
+      const snappedX = Math.ceil(pos.x / cellSize) * cellSize;
+      const snappedY = Math.ceil(pos.y / cellSize) * cellSize;
+      areaDragEndRef.current = { x: snappedX, y: snappedY };
+      if (areaRectRef.current) {
+        areaRectRef.current.x(Math.min(areaDragStart.x, snappedX));
+        areaRectRef.current.y(Math.min(areaDragStart.y, snappedY));
+        areaRectRef.current.width(Math.abs(snappedX - areaDragStart.x));
+        areaRectRef.current.height(Math.abs(snappedY - areaDragStart.y));
+        areaRectRef.current.getLayer()?.batchDraw();
+      }
+      return;
+    }
+
     if (!isDrawing || selectedTool !== "draw" || !currentPath) return;
 
     const stage = stageRef.current;
@@ -454,6 +653,43 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   };
 
   const handleMouseUp = (e: any) => {
+    // Complete area drag
+    if (isDraggingArea && areaDragStart && areaDragEndRef.current) {
+      const endPos = areaDragEndRef.current;
+      const startCol = Math.round(areaDragStart.x / cellSize);
+      const startRow = Math.round(areaDragStart.y / cellSize);
+      const endCol = Math.round(endPos.x / cellSize);
+      const endRow = Math.round(endPos.y / cellSize);
+
+      // Only create if the area has some size
+      if (startCol !== endCol && startRow !== endRow) {
+        const fillColor = TERRAIN_COLORS[currentTerrainType];
+        const fillOpacity = TERRAIN_DEFAULT_OPACITY[currentTerrainType];
+        const area: AreaShape = {
+          id: crypto.randomUUID(),
+          type: "rectangle",
+          points: [
+            { x: Math.min(startCol, endCol), y: Math.min(startRow, endRow) },
+            { x: Math.max(startCol, endCol), y: Math.max(startRow, endRow) },
+          ],
+          fillColor,
+          fillOpacity,
+          strokeColor: fillColor,
+          strokeWidth: 1,
+          terrainType: currentTerrainType,
+          elevation: 0,
+          obscurement: currentTerrainType === "vegetation" ? "light" : currentTerrainType === "darkness" ? "heavy" : "none",
+        };
+        addArea(area);
+        onAreaAdd?.(area);
+      }
+
+      setAreaDragStart(null);
+      areaDragEndRef.current = null;
+      setIsDraggingArea(false);
+      return;
+    }
+
     // Complete drag rectangle operation
     const dragEnd = dragEndRef.current;
     if (isDraggingRect && dragStart && dragEnd && dragMode) {
@@ -485,6 +721,72 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               onDrawingRemove?.(path.id);
               break;
             }
+          }
+        });
+
+        // Also erase walls whose segments intersect or are near the erase rectangle.
+        // For single clicks (zero-area rect), use point-to-segment distance;
+        // for drags, also check if any wall segment crosses the rectangle.
+        const isSingleClick = Math.abs(maxX - minX) < 4 && Math.abs(maxY - minY) < 4;
+        const clickHitRadius = 10; // px tolerance for single-click hit
+        wallsRef.current?.forEach((wall) => {
+          let hit = false;
+          // Check vertex containment (original logic, works for drags)
+          for (const pt of wall.points) {
+            const px = pt.x * cellSize;
+            const py = pt.y * cellSize;
+            if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
+              hit = true;
+              break;
+            }
+          }
+          // Check segment proximity / intersection
+          if (!hit) {
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+            for (let i = 0; i < wall.points.length - 1; i++) {
+              const ax = wall.points[i].x * cellSize;
+              const ay = wall.points[i].y * cellSize;
+              const bx = wall.points[i + 1].x * cellSize;
+              const by = wall.points[i + 1].y * cellSize;
+              if (isSingleClick) {
+                // Point-to-segment distance
+                const dx = bx - ax, dy = by - ay;
+                const lenSq = dx * dx + dy * dy;
+                const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((cx - ax) * dx + (cy - ay) * dy) / lenSq));
+                const projX = ax + t * dx, projY = ay + t * dy;
+                const dist = Math.sqrt((cx - projX) ** 2 + (cy - projY) ** 2);
+                if (dist <= clickHitRadius) { hit = true; break; }
+              } else {
+                // For drags, check if wall segment crosses the rect
+                // Test segment against all 4 rect edges
+                if (segIntersectsRect(ax, ay, bx, by, minX, minY, maxX, maxY)) {
+                  hit = true; break;
+                }
+              }
+            }
+          }
+          if (hit) {
+            removeWall(wall.id);
+            onWallRemove?.(wall.id);
+          }
+        });
+
+        // Also erase areas that overlap the rectangle
+        const eraseMinCol = Math.min(startCol, endCol);
+        const eraseMaxCol = Math.max(startCol, endCol);
+        const eraseMinRow = Math.min(startRow, endRow);
+        const eraseMaxRow = Math.max(startRow, endRow);
+        areasRef.current?.forEach((area) => {
+          if (area.points.length < 2) return;
+          const aMinX = Math.min(area.points[0].x, area.points[1].x);
+          const aMaxX = Math.max(area.points[0].x, area.points[1].x);
+          const aMinY = Math.min(area.points[0].y, area.points[1].y);
+          const aMaxY = Math.max(area.points[0].y, area.points[1].y);
+          // Check overlap
+          if (aMinX < eraseMaxCol && aMaxX > eraseMinCol && aMinY < eraseMaxRow && aMaxY > eraseMinRow) {
+            removeArea(area.id);
+            onAreaRemove?.(area.id);
           }
         });
       }
@@ -557,6 +859,29 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       return;
     }
 
+    // Wall tool: add point on touch
+    if (selectedTool === "wall") {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const snappedX = Math.round(pos.x / cellSize);
+      const snappedY = Math.round(pos.y / cellSize);
+      setWallPoints((prev) => [...prev, { x: snappedX, y: snappedY }]);
+      setIsDrawingWall(true);
+      return;
+    }
+
+    // Area tool: start drag rectangle on touch
+    if (selectedTool === "area") {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const snappedX = Math.floor(pos.x / cellSize) * cellSize;
+      const snappedY = Math.floor(pos.y / cellSize) * cellSize;
+      setAreaDragStart({ x: snappedX, y: snappedY });
+      areaDragEndRef.current = { x: snappedX, y: snappedY };
+      setIsDraggingArea(true);
+      return;
+    }
+
     // Draw tool: start drawing path
     if (selectedTool === "draw" && selectedToken) {
       const stage = stageRef.current;
@@ -623,7 +948,24 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         dragRectRef.current.y(Math.min(dragStart.y, pos.y));
         dragRectRef.current.width(Math.abs(pos.x - dragStart.x));
         dragRectRef.current.height(Math.abs(pos.y - dragStart.y));
-        dragRectRef.current.getLayer().batchDraw();
+        dragRectRef.current.getLayer()?.batchDraw();
+      }
+      return;
+    }
+
+    // Area tool: update preview rect imperatively (touch)
+    if (isDraggingArea && areaDragStart) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const snappedX = Math.ceil(pos.x / cellSize) * cellSize;
+      const snappedY = Math.ceil(pos.y / cellSize) * cellSize;
+      areaDragEndRef.current = { x: snappedX, y: snappedY };
+      if (areaRectRef.current) {
+        areaRectRef.current.x(Math.min(areaDragStart.x, snappedX));
+        areaRectRef.current.y(Math.min(areaDragStart.y, snappedY));
+        areaRectRef.current.width(Math.abs(snappedX - areaDragStart.x));
+        areaRectRef.current.height(Math.abs(snappedY - areaDragStart.y));
+        areaRectRef.current.getLayer()?.batchDraw();
       }
       return;
     }
@@ -666,6 +1008,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     setViewport(vp.x, vp.y, vp.scale);
   };
 
+  const handleDblClick = (e: any) => {
+    // Wall tool: double-click to finalize wall
+    if (selectedTool === "wall" && isDrawingWall && wallPoints.length >= 2) {
+      finalizeWall();
+      return;
+    }
+  };
+
   const handleClick = (e: any) => {
     // Ping tool click handler
     if (selectedTool === "ping" && selectedToken && userId) {
@@ -704,6 +1054,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           if (movable.length === 1) return;
         }
         clearSelection();
+        setSelectedWallId(null);
+        setSelectedAreaId(null);
       }
     }
   };
@@ -725,11 +1077,15 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           ? "crosshair"
           : selectedTool === "fog"
             ? "crosshair"
-            : selectedTool === "ping"
-              ? selectedToken
+            : selectedTool === "wall"
+              ? "crosshair"
+              : selectedTool === "area"
                 ? "crosshair"
-                : "not-allowed"
-              : "default";
+                : selectedTool === "ping"
+                  ? selectedToken
+                    ? "crosshair"
+                    : "not-allowed"
+                  : "default";
 
   return (
     <div
@@ -753,7 +1109,21 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       {/* Erase tool hint */}
       {selectedTool === "erase" && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          Drag to erase fog and drawings | Click on drawing to erase
+          Drag to erase fog, drawings, walls and areas | Click on drawing to erase
+        </div>
+      )}
+      {/* Wall tool hint */}
+      {selectedTool === "wall" && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          {isDrawingWall
+            ? `Click to add points (${wallPoints.length} placed). Double-click or Enter to finish. Escape to cancel.`
+            : "Click to place wall points. Double-click or Enter to finish."}
+        </div>
+      )}
+      {/* Area tool hint */}
+      {selectedTool === "area" && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
+          Click and drag to create terrain area
         </div>
       )}
       {/* Ping tool warning when no token selected */}
@@ -780,7 +1150,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onClick={handleClick}
+        onDblClick={handleDblClick}
         onTap={handleClick}
+        onDblTap={handleDblClick}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -802,6 +1174,34 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           </Group>
         </Layer>
         <Layer name="content">
+          {buildMode && (
+            <>
+              <Group>
+                <AreaLayer
+                  areas={areas}
+                  cellSize={cellSize}
+                  selectedAreaId={selectedAreaId}
+                  isSelectMode={selectedTool === "select"}
+                  isEraseMode={selectedTool === "erase"}
+                  isDragging={isDraggingRect}
+                  onSelectArea={handleSelectArea}
+                  onEraseArea={handleEraseArea}
+                />
+              </Group>
+              <Group>
+                <WallLayer
+                  walls={walls}
+                  cellSize={cellSize}
+                  selectedWallId={selectedWallId}
+                  isSelectMode={selectedTool === "select"}
+                  isEraseMode={selectedTool === "erase"}
+                  isDragging={isDraggingRect}
+                  onSelectWall={handleSelectWall}
+                  onEraseWall={handleEraseWall}
+                />
+              </Group>
+            </>
+          )}
           <Group>
             <DrawingLayer
               paths={freehand}
@@ -853,6 +1253,65 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           <Group>
             <PingLayer pings={activePings} />
           </Group>
+          {/* Wall preview: placed points + preview line to cursor */}
+          {buildMode && selectedTool === "wall" && wallPoints.length > 0 && (
+            <>
+              {/* Already placed segments */}
+              <Line
+                points={wallPoints.flatMap((p) => [p.x * cellSize, p.y * cellSize])}
+                stroke={WALL_STYLES[currentWallType].color}
+                strokeWidth={WALL_STYLES[currentWallType].width}
+                dash={WALL_STYLES[currentWallType].dash.length > 0 ? WALL_STYLES[currentWallType].dash : undefined}
+                lineCap="round"
+                lineJoin="round"
+                listening={false}
+              />
+              {/* Preview line from last point to cursor */}
+              <Line
+                ref={wallPreviewLineRef}
+                points={[
+                  wallPoints[wallPoints.length - 1].x * cellSize,
+                  wallPoints[wallPoints.length - 1].y * cellSize,
+                  wallPoints[wallPoints.length - 1].x * cellSize,
+                  wallPoints[wallPoints.length - 1].y * cellSize,
+                ]}
+                stroke={WALL_STYLES[currentWallType].color}
+                strokeWidth={WALL_STYLES[currentWallType].width}
+                opacity={0.5}
+                dash={[6, 4]}
+                lineCap="round"
+                listening={false}
+              />
+              {/* Vertex dots */}
+              {wallPoints.map((p, i) => (
+                <Circle
+                  key={`wp-${i}`}
+                  x={p.x * cellSize}
+                  y={p.y * cellSize}
+                  radius={5}
+                  fill={WALL_STYLES[currentWallType].color}
+                  stroke="#fff"
+                  strokeWidth={1.5}
+                  listening={false}
+                />
+              ))}
+            </>
+          )}
+          {/* Area drag preview rect */}
+          {buildMode && isDraggingArea && areaDragStart && (
+            <Rect
+              ref={areaRectRef}
+              x={areaDragStart.x}
+              y={areaDragStart.y}
+              width={0}
+              height={0}
+              fill={TERRAIN_COLORS[currentTerrainType]}
+              opacity={TERRAIN_DEFAULT_OPACITY[currentTerrainType]}
+              stroke={TERRAIN_COLORS[currentTerrainType]}
+              strokeWidth={2}
+              dash={[6, 4]}
+            />
+          )}
           {/* Drag rectangle overlay — updated imperatively via dragRectRef */}
           {isDraggingRect && dragStart && (
             <Rect
@@ -874,6 +1333,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
               dragState={dragOverlay.dragState}
               token={dragOverlay.token}
               cellSize={cellSize}
+              walls={wallsRef.current ?? []}
+              areas={areasRef.current ?? []}
             />
           )}
         </Layer>

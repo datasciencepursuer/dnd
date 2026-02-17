@@ -173,6 +173,30 @@ interface ChatClearMsg {
   userId: string;
 }
 
+interface WallAddMessage {
+  type: "wall-add";
+  wall: Record<string, unknown>;
+  userId: string;
+}
+
+interface WallRemoveMessage {
+  type: "wall-remove";
+  wallId: string;
+  userId: string;
+}
+
+interface AreaAddMessage {
+  type: "area-add";
+  area: Record<string, unknown>;
+  userId: string;
+}
+
+interface AreaRemoveMessage {
+  type: "area-remove";
+  areaId: string;
+  userId: string;
+}
+
 // Server-generated messages
 interface PresenceMessage {
   type: "presence";
@@ -204,7 +228,11 @@ type ClientMessage =
   | DiceRollMessage
   | TokenStatsMessage
   | ChatMessageMsg
-  | ChatClearMsg;
+  | ChatClearMsg
+  | WallAddMessage
+  | WallRemoveMessage
+  | AreaAddMessage
+  | AreaRemoveMessage;
 
 // Track connected users
 interface ConnectedUser {

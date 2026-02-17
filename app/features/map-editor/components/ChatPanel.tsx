@@ -5,6 +5,7 @@ import { useMapStore, useEditorStore } from "../store";
 import { usePresenceStore } from "../store/presence-store";
 import type { ChatMessageData, DiceRollData } from "../store/chat-store";
 
+
 const DICE_BUTTONS = [
   { name: "d4", sides: 4, color: "bg-red-600 hover:bg-red-700" },
   { name: "d6", sides: 6, color: "bg-orange-600 hover:bg-orange-700" },
@@ -25,7 +26,8 @@ interface ChatPanelProps {
   variant?: "sidebar" | "panel";
   mapOwnerId?: string;
   aiLoading?: boolean;
-  onAiPrompt?: (prompt: string) => void;
+  onAiPrompt?: (prompt: string, silent?: boolean) => void;
+  aiBattleEngine?: boolean;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -104,7 +106,7 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
   );
 }
 
-export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClearChat, variant = "sidebar", mapOwnerId, aiLoading = false, onAiPrompt }: ChatPanelProps) {
+export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClearChat, variant = "sidebar", mapOwnerId, aiLoading = false, onAiPrompt, aiBattleEngine = false }: ChatPanelProps) {
   const messages = useChatStore((s) => s.messages);
   const isLoaded = useChatStore((s) => s.isLoaded);
   const setMessages = useChatStore((s) => s.setMessages);
@@ -161,6 +163,30 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
     ? map?.tokens.find((t) => t.id === selectedIds[0])
     : null;
   const canRollToken = !!selectedToken && canMoveToken(selectedToken.ownerId);
+
+  // AI Battle Engine: combat turn state
+  const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
+  const combat = map?.combat ?? null;
+
+  const isMyTurn = useMemo(() => {
+    if (!aiBattleEngine || !combat?.isInCombat || !combat.initiativeOrder) return false;
+    const entry = combat.initiativeOrder[combat.currentTurnIndex];
+    if (!entry || entry.layer !== "character") return false;
+    const token = map?.tokens.find((t) => t.id === entry.tokenId);
+    if (!token) return false;
+    return isTokenOwner(token.ownerId);
+  }, [aiBattleEngine, combat, map?.tokens, isTokenOwner]);
+
+  const currentTurnTokenName = useMemo(() => {
+    if (!aiBattleEngine || !combat?.isInCombat || !combat.initiativeOrder) return null;
+    return combat.initiativeOrder[combat.currentTurnIndex]?.tokenName ?? null;
+  }, [aiBattleEngine, combat]);
+
+  const isMonsterTurn = useMemo(() => {
+    if (!aiBattleEngine || !combat?.isInCombat || !combat.initiativeOrder) return false;
+    const entry = combat.initiativeOrder[combat.currentTurnIndex];
+    return !!entry && entry.layer !== "character";
+  }, [aiBattleEngine, combat]);
 
   // Reset chat store when switching maps
   useEffect(() => {
@@ -363,6 +389,42 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
     createAndSendMessage(trimmed);
     setInput("");
   };
+
+  const handleSendToAi = () => {
+    const trimmed = input.trim();
+    if (!trimmed || !currentTurnTokenName || !onAiPrompt) return;
+
+    // Send as player intent chat message
+    const chatMessage: ChatMessageData = {
+      id: crypto.randomUUID(),
+      mapId,
+      userId,
+      userName,
+      message: trimmed,
+      role: isDM ? "dm" : "player",
+      createdAt: new Date().toISOString(),
+      metadata: { playerIntent: true },
+      recipientId: null,
+      recipientName: null,
+    };
+    onSendMessage(chatMessage);
+    setInput("");
+
+    onAiPrompt(`${currentTurnTokenName} declares: ${trimmed}. Tell them what to roll.`);
+  };
+
+  const handleContinueTurn = () => {
+    if (!currentTurnTokenName || !onAiPrompt) return;
+    onAiPrompt(`Continue ${currentTurnTokenName}'s turn. Check PENDING DICE ROLLS for new rolls and resolve.`, true);
+  };
+
+  const handleChipClick = useCallback((text: string) => {
+    setInput((prev) => {
+      const trimmed = prev.trimEnd();
+      return trimmed ? `${trimmed} ${text}` : text;
+    });
+    inputRef.current?.focus();
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Whisper autocomplete navigation
@@ -727,6 +789,56 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
 
       {/* Input */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-2">
+        {/* AI Battle Engine: Turn banner */}
+        {isMyTurn && currentTurnTokenName && (
+          <div className="flex items-center gap-1.5 mb-1.5 px-1">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-200 dark:bg-yellow-800 text-yellow-800 dark:text-yellow-200">
+              YOUR TURN
+            </span>
+            <span className="text-xs text-yellow-700 dark:text-yellow-300 truncate">
+              {currentTurnTokenName}
+            </span>
+            <button
+              onClick={handleContinueTurn}
+              disabled={aiLoading}
+              className="ml-auto flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center gap-1"
+              title="Continue turn — send your rolls to AI"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-2.5 h-2.5">
+                <path d="M3 3.732a1.5 1.5 0 012.305-1.265l6.706 4.267a1.5 1.5 0 010 2.531l-6.706 4.268A1.5 1.5 0 013 12.267V3.732z" />
+              </svg>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* Quick-fill chips for player turn */}
+        {isMyTurn && currentTurnTokenName && (
+          <div className="flex flex-wrap gap-1 mb-1.5 px-1">
+            {["Action:", "Bonus:", "Attack", "Cast", "Disengage", "Hide"].map((chip) => (
+              <button
+                key={chip}
+                onClick={() => handleChipClick(chip)}
+                className="px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 cursor-pointer transition-colors"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* AI Battle Engine: Monster turn indicator */}
+        {isMonsterTurn && currentTurnTokenName && (
+          <div className="flex items-center gap-1.5 mb-1.5 px-1">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-200">
+              ENEMY TURN
+            </span>
+            <span className="text-xs text-red-700 dark:text-red-300 truncate">
+              {currentTurnTokenName}
+            </span>
+          </div>
+        )}
+
         {/* AI loading indicator */}
         {aiLoading && (
           <div className="flex items-center gap-1.5 mb-1.5 px-1">
@@ -805,14 +917,36 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={whisperTarget ? `Message ${whisperTarget.name}...` : "/r /dr /w ..."}
+              placeholder={
+                isMyTurn
+                  ? "Declare your action..."
+                  : whisperTarget
+                    ? `Message ${whisperTarget.name}...`
+                    : "/r /dr /w ..."
+              }
               maxLength={500}
               className={`flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 ${
-                whisperTarget
-                  ? "border-purple-300 dark:border-purple-600 focus:ring-purple-500"
-                  : "border-gray-300 dark:border-gray-600 focus:ring-blue-500"
+                isMyTurn
+                  ? "border-yellow-300 dark:border-yellow-600 focus:ring-yellow-500"
+                  : whisperTarget
+                    ? "border-purple-300 dark:border-purple-600 focus:ring-purple-500"
+                    : "border-gray-300 dark:border-gray-600 focus:ring-blue-500"
               }`}
             />
+            {/* Send to AI button - shown when it's your turn and input has text */}
+            {isMyTurn && onAiPrompt && (
+              <button
+                onClick={handleSendToAi}
+                disabled={!input.trim() || aiLoading}
+                className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                title="Send action to AI"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path d="M13 7H7v6h6V7z" />
+                  <path fillRule="evenodd" d="M7 2a1 1 0 012 0v1h2V2a1 1 0 112 0v1h2a2 2 0 012 2v2h1a1 1 0 110 2h-1v2h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-2v1a1 1 0 11-2 0v-1H9v1a1 1 0 11-2 0v-1H5a2 2 0 01-2-2v-2H2a1 1 0 110-2h1V9H2a1 1 0 010-2h1V5a2 2 0 012-2h2V2zM5 5h10v10H5V5z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={handleSend}
               disabled={!input.trim() && !showWhisperList}

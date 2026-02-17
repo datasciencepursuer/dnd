@@ -1,7 +1,15 @@
-import type { Token, InitiativeEntry, DistanceEntry } from "../types";
+import type { Token, InitiativeEntry, DistanceEntry, WallSegment, AreaShape } from "../types";
+import { FEET_PER_CELL } from "../constants";
+import {
+  wallToSegments,
+  segmentsIntersect,
+  isWallPassable,
+  getTerrainAtPosition,
+  isDifficultTerrain,
+  isPassableTerrain,
+} from "./terrain-utils";
 
-/** Standard D&D 5e: each grid cell = 5 feet */
-export const FEET_PER_CELL = 5;
+export { FEET_PER_CELL };
 
 /** Axis-aligned rectangle footprint of a token on the grid */
 export interface TokenFootprint {
@@ -114,4 +122,54 @@ export function gridMovementDistance(
   const dc = Math.abs(endCol - startCol);
   const dr = Math.abs(endRow - startRow);
   return Math.sqrt(dc * dc + dr * dr) * feetPerCell;
+}
+
+/** Result of terrain-aware drag analysis. */
+export interface DragMovementInfo {
+  totalFeet: number;
+  crossedWallIds: string[];
+  hasDifficultTerrain: boolean;
+  hasImpassable: boolean;
+}
+
+/**
+ * Compute terrain-aware movement info for a token drag.
+ * Checks wall crossings along the drag line and terrain at the endpoint.
+ * Runs every drag frame (~60fps) — kept lightweight (O(W+A)).
+ */
+export function computeDragMovementInfo(
+  startCol: number,
+  startRow: number,
+  endCol: number,
+  endRow: number,
+  tokenSize: number,
+  walls: WallSegment[],
+  areas: AreaShape[],
+): DragMovementInfo {
+  const totalFeet = gridMovementDistance(startCol, startRow, endCol, endRow);
+
+  // Build center-to-center line segment in grid coordinates
+  const halfSize = tokenSize / 2;
+  const p1 = { x: startCol + halfSize, y: startRow + halfSize };
+  const p2 = { x: endCol + halfSize, y: endRow + halfSize };
+
+  // Test wall crossings — only impassable walls
+  const crossedWallIds: string[] = [];
+  for (const wall of walls) {
+    if (isWallPassable(wall)) continue;
+    const segs = wallToSegments(wall);
+    for (const [s1, s2] of segs) {
+      if (segmentsIntersect(p1, p2, s1, s2)) {
+        crossedWallIds.push(wall.id);
+        break; // One crossing per wall is enough
+      }
+    }
+  }
+
+  // Check terrain at endpoint
+  const endAreas = getTerrainAtPosition({ col: endCol, row: endRow }, areas);
+  const hasDifficultTerrain = endAreas.some((a) => isDifficultTerrain(a));
+  const hasImpassable = endAreas.some((a) => !isPassableTerrain(a));
+
+  return { totalFeet, crossedWallIds, hasDifficultTerrain, hasImpassable };
 }

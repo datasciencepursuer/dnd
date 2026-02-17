@@ -14,7 +14,7 @@ import type { ChatMessageData } from "../store/chat-store";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import { filterMessagesForAI } from "../utils/ai-context-utils";
 import { VALID_CONDITIONS } from "../types";
-import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition } from "../types";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape } from "../types";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -52,6 +52,7 @@ export function MapEditor({
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const updateToken = useMapStore((s) => s.updateToken);
+  const moveToken = useMapStore((s) => s.moveToken);
   const updateCharacterSheet = useMapStore((s) => s.updateCharacterSheet);
   const initializeCharacterSheet = useMapStore((s) => s.initializeCharacterSheet);
   const setViewport = useMapStore((s) => s.setViewport);
@@ -70,6 +71,21 @@ export function MapEditor({
   const isInCombat = combat?.isInCombat ?? false;
   const initiativeOrder = combat?.initiativeOrder ?? null;
   const currentTurnIndex = combat?.currentTurnIndex ?? 0;
+
+  // Wall/area store actions for property editing
+  const updateWall = useMapStore((s) => s.updateWall);
+  const updateArea = useMapStore((s) => s.updateArea);
+  const removeWallFromStore = useMapStore((s) => s.removeWall);
+  const removeAreaFromStore = useMapStore((s) => s.removeArea);
+
+  // Selected wall/area IDs (kept in sync with MapCanvas via selectedElementIds)
+  const selectedElementIds = useEditorStore((s) => s.selectedElementIds);
+  const selectedWallId = selectedElementIds.length === 1 && selectedElementIds[0].startsWith("wall:")
+    ? selectedElementIds[0].slice(5)
+    : null;
+  const selectedAreaId = selectedElementIds.length === 1 && selectedElementIds[0].startsWith("area:")
+    ? selectedElementIds[0].slice(5)
+    : null;
 
   // HTTP sync for persistence to database
   const { syncNow, syncDebounced, syncTokenMove, syncTokenDelete, syncTokenUpdate, syncTokenCreate } = useMapSync(mapId);
@@ -95,6 +111,10 @@ export function MapEditor({
     broadcastCombatEnd,
     broadcastChatMessage,
     broadcastChatClear,
+    broadcastWallAdd,
+    broadcastWallRemove,
+    broadcastAreaAdd,
+    broadcastAreaRemove,
     clearCombatRequest,
     activePings,
     combatRequest,
@@ -107,6 +127,16 @@ export function MapEditor({
 
   useChatPersistence(mapId);
 
+  // Scene actions
+  const switchScene = useMapStore((s) => s.switchScene);
+  const createScene = useMapStore((s) => s.createScene);
+  const duplicateScene = useMapStore((s) => s.duplicateScene);
+  const deleteScene = useMapStore((s) => s.deleteScene);
+  const renameScene = useMapStore((s) => s.renameScene);
+
+  // Scene switch confirmation dialog state
+  const [pendingSceneSwitch, setPendingSceneSwitch] = useState<string | null>(null);
+
   // AI Battle Engine toggle state
   const [aiBattleEngine, setAiBattleEngine] = useState(false);
 
@@ -114,7 +144,7 @@ export function MapEditor({
   const [aiLoading, setAiLoading] = useState(false);
   const aiCooldownRef = useRef<number | null>(null);
 
-  const sendAiPrompt = useCallback((aiPrompt: string) => {
+  const sendAiPrompt = useCallback((aiPrompt: string, silent = false) => {
     if (!isDungeonMaster()) {
       const errMsg: ChatMessageData = {
         id: crypto.randomUUID(),
@@ -189,6 +219,23 @@ export function MapEditor({
     setAiLoading(true);
     aiCooldownRef.current = now;
 
+    // Show the prompt in chat so all players can see what was asked (skip for automatic prompts)
+    if (!silent) {
+      const promptMsg: ChatMessageData = {
+        id: crypto.randomUUID(),
+        mapId: mapId || "",
+        userId: userId || "",
+        userName: userName || "DM",
+        message: `/ai ${aiPrompt}`,
+        role: "dm",
+        createdAt: new Date().toISOString(),
+        metadata: null,
+        recipientId: null,
+        recipientName: null,
+      };
+      broadcastChatMessage(promptMsg);
+    }
+
     // Collect combat context — filter stale dice rolls from previous turns
     const mapState = useMapStore.getState().map!;
     const allRecent = useChatStore
@@ -203,6 +250,8 @@ export function MapEditor({
       grid: mapState.grid,
       monsterGroups: mapState.monsterGroups,
       recentMessages,
+      walls: mapState.walls,
+      areas: mapState.areas,
     };
 
     fetch(`/api/maps/${mapId}/ai`, {
@@ -242,41 +291,61 @@ export function MapEditor({
           broadcastChatMessage(aiMsg);
 
           // Apply HP/condition updates from AI
-          const updates = data.updates as { tokenName: string; hpCurrent?: number; condition?: string }[] | undefined;
+          const updates = data.updates as { tokenName: string; hpCurrent?: number; condition?: string; moveTo?: { col: number; row: number } }[] | undefined;
           if (updates && updates.length > 0) {
             const currentMap = useMapStore.getState().map;
             if (currentMap) {
               for (const u of updates) {
                 const token = currentMap.tokens.find((t) => t.name === u.tokenName);
-                if (!token || !token.characterSheet) continue;
-                const cs = token.characterSheet;
-                const sheetUpdates: Partial<CharacterSheet> = {};
-                // Only apply HP if it actually changed (guards against AI re-applying old damage)
-                if (u.hpCurrent !== undefined) {
-                  const clamped = Math.max(0, Math.min(u.hpCurrent, cs.hpMax));
-                  if (clamped !== cs.hpCurrent) sheetUpdates.hpCurrent = clamped;
+                if (!token) continue;
+
+                // Apply HP/condition changes (requires character sheet)
+                if (token.characterSheet) {
+                  const cs = token.characterSheet;
+                  const sheetUpdates: Partial<CharacterSheet> = {};
+                  // Only apply HP if it actually changed (guards against AI re-applying old damage)
+                  if (u.hpCurrent !== undefined) {
+                    const clamped = Math.max(0, Math.min(u.hpCurrent, cs.hpMax));
+                    if (clamped !== cs.hpCurrent) sheetUpdates.hpCurrent = clamped;
+                  }
+                  if (u.condition !== undefined && VALID_CONDITIONS.includes(u.condition as Condition) && u.condition !== cs.condition) {
+                    sheetUpdates.condition = u.condition as Condition;
+                  }
+                  if (Object.keys(sheetUpdates).length > 0) {
+                    updateCharacterSheet(token.id, sheetUpdates);
+
+                    // Broadcast stats change to other clients
+                    const stats: Record<string, number | string> = {};
+                    if (sheetUpdates.hpCurrent !== undefined) stats.hpCurrent = sheetUpdates.hpCurrent;
+                    if (sheetUpdates.condition !== undefined) stats.condition = sheetUpdates.condition;
+                    broadcastTokenStats(token.id, stats);
+
+                    // Sync to character library for linked characters
+                    if (token.characterId) {
+                      const updatedSheet = { ...cs, ...sheetUpdates };
+                      fetch(`/api/characters/${token.characterId}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ characterSheet: updatedSheet }),
+                      }).catch(() => { /* silent — map sync is primary, library sync is best-effort */ });
+                    }
+                  }
                 }
-                if (u.condition !== undefined && VALID_CONDITIONS.includes(u.condition as Condition) && u.condition !== cs.condition) {
-                  sheetUpdates.condition = u.condition as Condition;
-                }
-                if (Object.keys(sheetUpdates).length === 0) continue;
 
-                updateCharacterSheet(token.id, sheetUpdates);
-
-                // Broadcast stats change to other clients
-                const stats: Record<string, number | string> = {};
-                if (sheetUpdates.hpCurrent !== undefined) stats.hpCurrent = sheetUpdates.hpCurrent;
-                if (sheetUpdates.condition !== undefined) stats.condition = sheetUpdates.condition;
-                broadcastTokenStats(token.id, stats);
-
-                // Sync to character library for linked characters
-                if (token.characterId) {
-                  const updatedSheet = { ...cs, ...sheetUpdates };
-                  fetch(`/api/characters/${token.characterId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ characterSheet: updatedSheet }),
-                  }).catch(() => { /* silent — map sync is primary, library sync is best-effort */ });
+                // Apply movement (monsters/NPCs only, never player characters)
+                if (u.moveTo && token.layer !== "character") {
+                  const grid = currentMap.grid;
+                  const col = Math.round(u.moveTo.col);
+                  const row = Math.round(u.moveTo.row);
+                  const clampedCol = Math.max(0, Math.min(col, grid.width - token.size));
+                  const clampedRow = Math.max(0, Math.min(row, grid.height - token.size));
+                  if (clampedCol !== token.position.col || clampedRow !== token.position.row) {
+                    const newPosition: GridPosition = { col: clampedCol, row: clampedRow };
+                    // Animate on own client before store update
+                    useEditorStore.getState().addPendingAnimation(token.id, token.position.col, token.position.row);
+                    moveToken(token.id, newPosition);
+                    broadcastTokenMove(token.id, newPosition);
+                  }
                 }
               }
               syncDebounced(1000);
@@ -302,7 +371,7 @@ export function MapEditor({
       .finally(() => {
         setAiLoading(false);
       });
-  }, [mapId, userId, userName, isDungeonMaster, broadcastChatMessage, updateCharacterSheet, broadcastTokenStats, syncDebounced]);
+  }, [mapId, userId, userName, isDungeonMaster, broadcastChatMessage, updateCharacterSheet, broadcastTokenStats, moveToken, broadcastTokenMove, syncDebounced]);
 
   // Combined handler: broadcast via WebSocket + persist to DB
   const handleTokenMoved = useCallback(
@@ -388,6 +457,77 @@ export function MapEditor({
       syncDebounced(1000);
     },
     [broadcastFogEraseRange, isDungeonMaster, syncDebounced]
+  );
+
+  // Combined handler for wall add: broadcast + debounced sync
+  const handleWallAdd = useCallback(
+    (wall: WallSegment) => {
+      broadcastWallAdd(wall);
+      syncDebounced(1000);
+    },
+    [broadcastWallAdd, syncDebounced]
+  );
+
+  // Combined handler for wall remove: broadcast + debounced sync
+  const handleWallRemove = useCallback(
+    (wallId: string) => {
+      broadcastWallRemove(wallId);
+      syncDebounced(1000);
+    },
+    [broadcastWallRemove, syncDebounced]
+  );
+
+  // Combined handler for area add: broadcast + debounced sync
+  const handleAreaAdd = useCallback(
+    (area: AreaShape) => {
+      broadcastAreaAdd(area);
+      syncDebounced(1000);
+    },
+    [broadcastAreaAdd, syncDebounced]
+  );
+
+  // Combined handler for area remove: broadcast + debounced sync
+  const handleAreaRemove = useCallback(
+    (areaId: string) => {
+      broadcastAreaRemove(areaId);
+      syncDebounced(1000);
+    },
+    [broadcastAreaRemove, syncDebounced]
+  );
+
+  // Handlers for wall/area property edits from sidebar panel
+  const handleUpdateWall = useCallback(
+    (id: string, updates: Partial<WallSegment>) => {
+      updateWall(id, updates);
+      syncDebounced(1000);
+    },
+    [updateWall, syncDebounced]
+  );
+
+  const handleDeleteWall = useCallback(
+    (id: string) => {
+      removeWallFromStore(id);
+      broadcastWallRemove(id);
+      syncDebounced(1000);
+    },
+    [removeWallFromStore, broadcastWallRemove, syncDebounced]
+  );
+
+  const handleUpdateArea = useCallback(
+    (id: string, updates: Partial<AreaShape>) => {
+      updateArea(id, updates);
+      syncDebounced(1000);
+    },
+    [updateArea, syncDebounced]
+  );
+
+  const handleDeleteArea = useCallback(
+    (id: string) => {
+      removeAreaFromStore(id);
+      broadcastAreaRemove(id);
+      syncDebounced(1000);
+    },
+    [removeAreaFromStore, broadcastAreaRemove, syncDebounced]
   );
 
   // Handler for selecting and centering on a token
@@ -536,7 +676,7 @@ export function MapEditor({
       if (aiBattleEngine) {
         const firstEntry = entries[0];
         if (firstEntry && firstEntry.layer !== "character") {
-          sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.");
+          sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.", true);
         }
       }
     },
@@ -586,10 +726,11 @@ export function MapEditor({
         sendAiPrompt(
           entry && entry.layer !== "character"
             ? "New round. Run this creature's turn. Decide movement, action, and bonus action."
-            : "New round begins. Summarize the state of combat briefly."
+            : "New round begins. Summarize the state of combat briefly.",
+          true
         );
       } else if (entry && entry.layer !== "character") {
-        sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.");
+        sendAiPrompt("Run this creature's turn. Decide movement, action, and bonus action.", true);
       }
     }
   }, [initiativeOrder, currentTurnIndex, setCombatTurnIndex, syncDebounced, broadcastMapSync, aiBattleEngine, sendAiPrompt]);
@@ -811,6 +952,59 @@ export function MapEditor({
     }
   }, [temporalStore, broadcastMapSync, syncDebounced]);
 
+  // Scene handlers
+  const performSceneSwitch = useCallback((sceneId: string) => {
+    switchScene(sceneId);
+    temporalStore.getState().clear();
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncNow();
+    }
+  }, [switchScene, temporalStore, broadcastMapSync, syncNow]);
+
+  const handleSwitchScene = useCallback((sceneId: string) => {
+    if (isInCombat) {
+      setPendingSceneSwitch(sceneId);
+      return;
+    }
+    performSceneSwitch(sceneId);
+  }, [isInCombat, performSceneSwitch]);
+
+  const handleCreateScene = useCallback((name: string) => {
+    createScene(name);
+    temporalStore.getState().clear();
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncNow();
+    }
+  }, [createScene, temporalStore, broadcastMapSync, syncNow]);
+
+  const handleDeleteScene = useCallback((sceneId: string) => {
+    deleteScene(sceneId);
+    temporalStore.getState().clear();
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncNow();
+    }
+  }, [deleteScene, temporalStore, broadcastMapSync, syncNow]);
+
+  const handleRenameScene = useCallback((sceneId: string, newName: string) => {
+    renameScene(sceneId, newName);
+    syncDebounced(500);
+  }, [renameScene, syncDebounced]);
+
+  const handleDuplicateScene = useCallback((sceneId: string) => {
+    duplicateScene(sceneId);
+    const currentMap = useMapStore.getState().map;
+    if (currentMap) {
+      broadcastMapSync(currentMap);
+      syncNow();
+    }
+  }, [duplicateScene, broadcastMapSync, syncNow]);
+
   // Keyboard shortcuts - undo/redo for fog, drawing, and token operations
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -943,6 +1137,11 @@ export function MapEditor({
             onAiPrompt={sendAiPrompt}
             aiBattleEngine={aiBattleEngine}
             onAiBattleEngineChange={setAiBattleEngine}
+            onSwitchScene={handleSwitchScene}
+            onCreateScene={handleCreateScene}
+            onDeleteScene={handleDeleteScene}
+            onRenameScene={handleRenameScene}
+            onDuplicateScene={handleDuplicateScene}
           />
         ) : (
           <Sidebar
@@ -969,6 +1168,17 @@ export function MapEditor({
             onAiBattleEngineChange={setAiBattleEngine}
             userId={userId}
             onSendMessage={broadcastChatMessage}
+            selectedWallId={selectedWallId}
+            selectedAreaId={selectedAreaId}
+            onUpdateWall={handleUpdateWall}
+            onDeleteWall={handleDeleteWall}
+            onUpdateArea={handleUpdateArea}
+            onDeleteArea={handleDeleteArea}
+            onSwitchScene={handleSwitchScene}
+            onCreateScene={handleCreateScene}
+            onDeleteScene={handleDeleteScene}
+            onRenameScene={handleRenameScene}
+            onDuplicateScene={handleDuplicateScene}
           />
         )}
         <Suspense
@@ -988,6 +1198,10 @@ export function MapEditor({
             onPing={broadcastPing}
             onDrawingAdd={broadcastDrawingAdd}
             onDrawingRemove={broadcastDrawingRemove}
+            onWallAdd={handleWallAdd}
+            onWallRemove={handleWallRemove}
+            onAreaAdd={handleAreaAdd}
+            onAreaRemove={handleAreaRemove}
             activePings={activePings}
           />
         </Suspense>
@@ -1002,6 +1216,7 @@ export function MapEditor({
             mapOwnerId={mapOwnerId || userId || ""}
             aiLoading={aiLoading}
             onAiPrompt={sendAiPrompt}
+            aiBattleEngine={aiBattleEngine}
           />
         )}
       </div>
@@ -1076,6 +1291,46 @@ export function MapEditor({
         onConfirm={handleConfirmCombat}
         onCancel={handleCancelInitiativeSetup}
       />
+
+      {/* Scene Switch During Combat Confirmation */}
+      {pendingSceneSwitch && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Switch Scene?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Combat is active. Tokens in the initiative tracker may not be on the new scene.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => setPendingSceneSwitch(null)}
+                className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const endCombatAction = useMapStore.getState().endCombat;
+                  endCombatAction();
+                  performSceneSwitch(pendingSceneSwitch);
+                  setPendingSceneSwitch(null);
+                }}
+                className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-amber-600 hover:bg-amber-700 text-white"
+              >
+                End Combat & Switch
+              </button>
+              <button
+                onClick={() => {
+                  performSceneSwitch(pendingSceneSwitch);
+                  setPendingSceneSwitch(null);
+                }}
+                className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Switch (Keep Combat)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
