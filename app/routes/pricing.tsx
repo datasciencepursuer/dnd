@@ -34,9 +34,9 @@ const tiers: { tier: AccountTier; price: number | null; description: string }[] 
 const features = [
   { label: "Maps", key: "maxMaps" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
   { label: "Scenes per map", key: "maxScenesPerMap" as const, format: (v: number) => String(v) },
-  { label: "Tokens per map", key: "maxTokensPerMap" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
   { label: "Groups", key: "maxGroups" as const, format: (v: number) => String(v) },
-  { label: "Upload size", key: "maxUploadSizeMB" as const, format: (v: number) => `${v}MB` },
+  { label: "Map background uploads", key: "maxMapUploads" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
+  { label: "Token image uploads", key: "maxTokenUploads" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
   { label: "Combat system", key: "combatSystem" as const, format: (v: boolean) => v ? "Yes" : "No" },
   { label: "Real-time sync", key: "realtimeSync" as const, format: (v: boolean) => v ? "Yes" : "No" },
   { label: "Chat whispers", key: "chatWhispers" as const, format: (v: boolean) => v ? "Yes" : "No" },
@@ -160,7 +160,7 @@ export default function Pricing({ loaderData }: Route.ComponentProps) {
                   <TierIcon tier={tier} />
                   <div>
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                      {tierDisplayName(tier)}
+                      {tierDisplayName(tier).replace(/^\S+\s/, "")}
                     </h2>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {description}
@@ -256,48 +256,6 @@ function FeatureIcon({ enabled }: { enabled: boolean }) {
 }
 
 function TierIcon({ tier }: { tier: AccountTier }) {
-  if (tier === "free") {
-    // Dagger — simple starter weapon
-    return (
-      <svg className="w-10 h-10 text-gray-400 dark:text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="2" x2="12" y2="16" />
-        <path d="M9 5l3-3 3 3" />
-        <line x1="9" y1="10" x2="15" y2="10" />
-        <line x1="10" y1="16" x2="14" y2="16" />
-        <line x1="11" y1="16" x2="11" y2="22" />
-        <line x1="13" y1="16" x2="13" y2="22" />
-      </svg>
-    );
-  }
-
-  if (tier === "adventurer") {
-    // Single sword — a proper weapon for an adventurer
-    return (
-      <svg className="w-10 h-10 text-blue-500 dark:text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="2" x2="8" y2="12" />
-        <path d="M20 4l-2-2" />
-        <path d="M15 3l2 2" />
-        <path d="M19 7l2 2" />
-        <line x1="6.5" y1="10.5" x2="10.5" y2="14.5" />
-        <path d="M5 11l-2 2 4 4 2-2" />
-        <line x1="3" y1="17" x2="7" y2="21" />
-      </svg>
-    );
-  }
-
-  // Hero (dungeon_master) — crossed swords
-  return (
-    <svg className="w-10 h-10 text-amber-500 dark:text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="6" y1="2" x2="16" y2="12" />
-      <path d="M4 4l2-2" />
-      <line x1="14.5" y1="10.5" x2="18.5" y2="14.5" />
-      <path d="M19 11l2 2-4 4-2-2" />
-      <line x1="17" y1="17" x2="21" y2="21" />
-      <line x1="18" y1="2" x2="8" y2="12" />
-      <path d="M20 4l-2-2" />
-      <line x1="5.5" y1="10.5" x2="9.5" y2="14.5" />
-      <path d="M5 11l-2 2 4 4 2-2" />
-      <line x1="3" y1="17" x2="7" y2="21" />
-    </svg>
-  );
+  const emoji = tier === "free" ? "🌿" : tier === "adventurer" ? "👟" : "⚔️";
+  return <span className="text-4xl leading-none">{emoji}</span>;
 }

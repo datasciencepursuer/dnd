@@ -4,7 +4,6 @@ import { db } from "~/.server/db";
 import { maps } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
-import { getUserTierLimits } from "~/.server/subscription";
 
 interface Token {
   id: string;
@@ -98,15 +97,6 @@ export async function action({ request, params }: Route.ActionArgs) {
         // All users can create tokens, but players must set themselves as owner
         if (!isDM && body.ownerId !== session.user.id) {
           return new Response("Cannot create tokens for other users", { status: 403 });
-        }
-
-        // Check token count limit (based on map owner's tier)
-        const limits = await getUserTierLimits(mapData[0].userId);
-        if (currentData.tokens.length >= limits.maxTokensPerMap) {
-          return Response.json(
-            { error: `Token limit reached (${limits.maxTokensPerMap}). Upgrade for more.`, upgrade: true },
-            { status: 403 }
-          );
         }
 
         // Create new token with the provided ID

@@ -1,5 +1,6 @@
 import { createUploadthing, type FileRouter } from "uploadthing/remix";
 import { UploadThingError } from "uploadthing/server";
+import { eq, and, count } from "drizzle-orm";
 import { getSession } from "~/.server/auth/session";
 import { getMapAccess } from "~/.server/permissions/map-permissions";
 import { db } from "~/.server/db";
@@ -7,12 +8,6 @@ import { uploads } from "~/.server/db/schema";
 import { getUserTierLimits } from "~/.server/subscription";
 
 const f = createUploadthing();
-
-// File size limits - displayed in UI upload components
-export const UPLOAD_LIMITS = {
-  TOKEN_MAX_SIZE: "16MB", // Character art can be detailed
-  MAP_MAX_SIZE: "32MB",   // Battle maps need high resolution
-} as const;
 
 export const uploadRouter = {
   tokenImageUploader: f({
@@ -26,11 +21,16 @@ export const uploadRouter = {
       if (!session) throw new UploadThingError("Unauthorized");
 
       const limits = await getUserTierLimits(session.user.id);
-      const maxBytes = limits.maxUploadSizeMB * 1024 * 1024;
-      for (const file of files) {
-        if (file.size > maxBytes) {
+
+      if (limits.maxTokenUploads !== Infinity) {
+        const [{ total }] = await db
+          .select({ total: count() })
+          .from(uploads)
+          .where(and(eq(uploads.userId, session.user.id), eq(uploads.type, "token")));
+
+        if (total + files.length > limits.maxTokenUploads) {
           throw new UploadThingError(
-            `File too large. Your plan allows up to ${limits.maxUploadSizeMB}MB uploads.`
+            `Upload limit reached. Your plan allows ${limits.maxTokenUploads} token image${limits.maxTokenUploads === 1 ? "" : "s"}.`
           );
         }
       }
@@ -65,11 +65,16 @@ export const uploadRouter = {
       if (!session) throw new UploadThingError("Unauthorized");
 
       const limits = await getUserTierLimits(session.user.id);
-      const maxBytes = limits.maxUploadSizeMB * 1024 * 1024;
-      for (const file of files) {
-        if (file.size > maxBytes) {
+
+      if (limits.maxMapUploads !== Infinity) {
+        const [{ total }] = await db
+          .select({ total: count() })
+          .from(uploads)
+          .where(and(eq(uploads.userId, session.user.id), eq(uploads.type, "map")));
+
+        if (total + files.length > limits.maxMapUploads) {
           throw new UploadThingError(
-            `File too large. Your plan allows up to ${limits.maxUploadSizeMB}MB uploads.`
+            `Upload limit reached. Your plan allows ${limits.maxMapUploads} map background${limits.maxMapUploads === 1 ? "" : "s"}.`
           );
         }
       }

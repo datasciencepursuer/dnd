@@ -3,9 +3,9 @@ export type AccountTier = "free" | "adventurer" | "dungeon_master" | "admin";
 export interface TierLimits {
   maxMaps: number;
   maxScenesPerMap: number;
-  maxTokensPerMap: number;
   maxGroups: number;
-  maxUploadSizeMB: number;
+  maxMapUploads: number;
+  maxTokenUploads: number;
   combatSystem: boolean;
   realtimeSync: boolean;
   chatWhispers: boolean;
@@ -20,9 +20,9 @@ export interface TierLimits {
 const FREE_LIMITS: TierLimits = {
   maxMaps: 3,
   maxScenesPerMap: 1,
-  maxTokensPerMap: 15,
   maxGroups: 1,
-  maxUploadSizeMB: 5,
+  maxMapUploads: 1,
+  maxTokenUploads: 1,
   combatSystem: true,
   realtimeSync: true,
   chatWhispers: false,
@@ -37,9 +37,9 @@ const FREE_LIMITS: TierLimits = {
 const ADVENTURER_LIMITS: TierLimits = {
   maxMaps: Infinity,
   maxScenesPerMap: 5,
-  maxTokensPerMap: Infinity,
   maxGroups: 2,
-  maxUploadSizeMB: 16,
+  maxMapUploads: 15,
+  maxTokenUploads: 10,
   combatSystem: true,
   realtimeSync: true,
   chatWhispers: true,
@@ -54,9 +54,9 @@ const ADVENTURER_LIMITS: TierLimits = {
 const DM_LIMITS: TierLimits = {
   maxMaps: Infinity,
   maxScenesPerMap: 10,
-  maxTokensPerMap: Infinity,
   maxGroups: 3,
-  maxUploadSizeMB: 32,
+  maxMapUploads: 30,
+  maxTokenUploads: 20,
   combatSystem: true,
   realtimeSync: true,
   chatWhispers: true,
@@ -72,7 +72,7 @@ const TIER_MAP: Record<AccountTier, TierLimits> = {
   free: FREE_LIMITS,
   adventurer: ADVENTURER_LIMITS,
   dungeon_master: DM_LIMITS,
-  admin: DM_LIMITS, // Admin gets DM limits with all features enabled
+  admin: { ...DM_LIMITS, maxMapUploads: Infinity, maxTokenUploads: Infinity },
 };
 
 export function getTierLimits(tier: AccountTier): TierLimits {
