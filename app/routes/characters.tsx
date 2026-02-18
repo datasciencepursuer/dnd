@@ -6,6 +6,7 @@ import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "~/features/map-editor/components/ImageLibraryPicker";
 import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterSheet/CharacterSheetPanel";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
+import { TOKEN_COLORS } from "~/features/map-editor/constants";
 
 interface CharacterData {
   id: string;
@@ -191,11 +192,6 @@ export default function Characters() {
       setDeletingCharacter(null);
     }
   };
-
-  const TOKEN_COLORS = [
-    "#ef4444", "#f97316", "#eab308", "#22c55e",
-    "#3b82f6", "#8b5cf6", "#ec4899", "#6b7280",
-  ];
 
   const renderCharacterCard = (character: CharacterData) => {
     return (

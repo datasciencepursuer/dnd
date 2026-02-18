@@ -27,6 +27,7 @@ export function ImageLibraryPicker({
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Upload | null>(null);
+  const [search, setSearch] = useState("");
 
   const fetchUploads = async () => {
     try {
@@ -122,10 +123,32 @@ export function ImageLibraryPicker({
     );
   }
 
+  const filtered = search
+    ? uploads.filter((u) =>
+        u.fileName.toLowerCase().includes(search.toLowerCase())
+      )
+    : uploads;
+
   return (
     <>
-      <div className="grid grid-cols-4 gap-2">
-        {uploads.map((upload) => (
+      <div className="mb-2 flex items-center gap-2">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search images..."
+          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+        />
+        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+          {filtered.length === uploads.length
+            ? `${uploads.length} images`
+            : `${filtered.length} of ${uploads.length}`}
+        </span>
+      </div>
+
+      <div className="max-h-[280px] overflow-y-auto">
+        <div className="grid grid-cols-4 gap-2">
+        {filtered.map((upload) => (
           <div
             key={upload.id}
             className="group"
@@ -182,6 +205,7 @@ export function ImageLibraryPicker({
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       <ConfirmModal
