@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, ZOOM_REFERENCE } from "../../constants";
+import { UpgradePrompt } from "~/components/UpgradePrompt";
 import type { EditorTool } from "../../types";
+import type { TierLimits } from "~/lib/tier-limits";
 
 interface GroupMember {
   id: string;
@@ -33,9 +35,10 @@ interface ToolbarProps {
   groupMembers?: GroupMember[];
   onDmTransfer?: (newDmId: string) => void;
   onGridChange?: () => void;
+  tierLimits?: TierLimits;
 }
 
-export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], onDmTransfer, onGridChange }: ToolbarProps) {
+export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], onDmTransfer, onGridChange, tierLimits }: ToolbarProps) {
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -520,9 +523,9 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 ml-2" />
             </div>
           )}
-          {/* Local play toggle - desktop only */}
+          {/* Local play toggle + walls/terrain indicator - desktop only */}
           {isDungeonMaster() && (
-            <div className="hidden lg:flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-2">
               <button
                 onClick={togglePlayingLocally}
                 className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border cursor-pointer transition-colors ${
@@ -535,6 +538,9 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
                 <span>{isPlayingLocally ? "🎲" : "👁"}</span>
                 <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
               </button>
+              {tierLimits && !tierLimits.wallsAndTerrain && (
+                <UpgradePrompt feature="Walls & terrain" requiredTier="Hero" variant="inline" />
+              )}
               <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
             </div>
           )}
@@ -655,17 +661,22 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
                 )}
                 {/* Local play toggle - DM only */}
                 {isDungeonMaster() && (
-                  <button
-                    onClick={togglePlayingLocally}
-                    className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md border cursor-pointer transition-colors ${
-                      isPlayingLocally
-                        ? "bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-300"
-                        : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    <span>{isPlayingLocally ? "🎲" : "👁"}</span>
-                    <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={togglePlayingLocally}
+                      className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md border cursor-pointer transition-colors ${
+                        isPlayingLocally
+                          ? "bg-amber-100 border-amber-400 text-amber-800 dark:bg-amber-900/40 dark:border-amber-600 dark:text-amber-300"
+                          : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400"
+                      }`}
+                    >
+                      <span>{isPlayingLocally ? "🎲" : "👁"}</span>
+                      <span>{isPlayingLocally ? "Local Play" : "DM View"}</span>
+                    </button>
+                    {tierLimits && !tierLimits.wallsAndTerrain && (
+                      <UpgradePrompt feature="Walls & terrain" requiredTier="Hero" variant="inline" />
+                    )}
+                  </>
                 )}
                 {/* User info */}
                 {userName && (

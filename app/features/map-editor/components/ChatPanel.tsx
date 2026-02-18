@@ -4,6 +4,7 @@ import { parseDiceNotation, rollDice } from "../store/chat-store";
 import { useMapStore, useEditorStore } from "../store";
 import { usePresenceStore } from "../store/presence-store";
 import type { ChatMessageData, DiceRollData } from "../store/chat-store";
+import type { TierLimits } from "~/lib/tier-limits";
 
 
 const DICE_BUTTONS = [
@@ -28,6 +29,7 @@ interface ChatPanelProps {
   aiLoading?: boolean;
   onAiPrompt?: (prompt: string, silent?: boolean) => void;
   aiBattleEngine?: boolean;
+  tierLimits?: TierLimits;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -106,7 +108,7 @@ function DiceRollMessage({ diceRoll, messageText }: { diceRoll: DiceRollData; me
   );
 }
 
-export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClearChat, variant = "sidebar", mapOwnerId, aiLoading = false, onAiPrompt, aiBattleEngine = false }: ChatPanelProps) {
+export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClearChat, variant = "sidebar", mapOwnerId, aiLoading = false, onAiPrompt, aiBattleEngine = false, tierLimits }: ChatPanelProps) {
   const messages = useChatStore((s) => s.messages);
   const isLoaded = useChatStore((s) => s.isLoaded);
   const setMessages = useChatStore((s) => s.setMessages);
@@ -126,6 +128,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
   const savedInputRef = useRef("");
 
   // Whisper state
+  const whispersEnabled = !tierLimits || tierLimits.chatWhispers;
   const [whisperTarget, setWhisperTarget] = useState<{ id: string; name: string } | null>(null);
   const [showWhisperList, setShowWhisperList] = useState(false);
   const [whisperFilterIndex, setWhisperFilterIndex] = useState(0);
@@ -280,12 +283,12 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
 
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
-    if (value.startsWith("/w ") && !whisperTarget) {
+    if (whispersEnabled && value.startsWith("/w ") && !whisperTarget) {
       setShowWhisperList(true);
     } else if (!value.startsWith("/w ")) {
       setShowWhisperList(false);
     }
-  }, [whisperTarget]);
+  }, [whisperTarget, whispersEnabled]);
 
   const handleSend = () => {
     const trimmed = input.trim();
@@ -316,6 +319,10 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
     // Check for /dmw command (whisper message to DM)
     const dmWhisperMatch = trimmed.match(/^\/dmw\s+(.+)$/i);
     if (dmWhisperMatch) {
+      if (!whispersEnabled) {
+        setInput("");
+        return;
+      }
       const dmTarget = isDM ? { id: userId, name: userName } : dmUser;
       if (dmTarget) {
         createAndSendMessage(dmWhisperMatch[1].trim(), undefined, dmTarget);
@@ -326,7 +333,9 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
 
     // Check for /dmroll or /dr command (secret roll to DM)
     const dmRollMatch = trimmed.match(/^\/(?:dmroll|dr)\s+(.+)$/i);
-    if (dmRollMatch) {
+    if (dmRollMatch && !whispersEnabled) {
+      // Fall through to regular roll handling if whispers disabled
+    } else if (dmRollMatch) {
       const notation = dmRollMatch[1].trim();
       const parsed = parseDiceNotation(notation);
       if (parsed) {
@@ -583,7 +592,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
               No messages yet
             </span>
             <span className="text-xs text-gray-300 dark:text-gray-600">
-              /r roll | /dr /dmw secret | /ai combat
+              {whispersEnabled ? "/r roll | /dr /dmw secret | /ai combat" : "/r roll | /ai combat"}
             </span>
           </div>
         )}
@@ -849,7 +858,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
         )}
 
         {/* Whisper target indicator */}
-        {whisperTarget && (
+        {whispersEnabled && whisperTarget && (
           <div className="flex items-center gap-1.5 mb-1.5 px-1">
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200">
               whisper
@@ -871,7 +880,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
 
         <div className="relative">
           {/* Whisper autocomplete dropdown */}
-          {showWhisperList && (
+          {whispersEnabled && showWhisperList && (
             <div className="absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-40 overflow-y-auto z-20">
               {filteredWhisperUsers.length === 0 ? (
                 <div className="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">

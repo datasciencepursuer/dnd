@@ -1,10 +1,11 @@
 import type { Route } from "./+types/api.maps";
-import { eq, desc, inArray, and, ne } from "drizzle-orm";
+import { eq, desc, inArray, and, ne, sql } from "drizzle-orm";
 import { db } from "~/.server/db";
 import { maps, groups, groupMembers } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { nanoid } from "nanoid";
 import { isGroupMember } from "~/.server/permissions/group-permissions";
+import { getUserTierLimits } from "~/.server/subscription";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -99,6 +100,22 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (!name || !data) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  // Check map creation limit
+  const limits = await getUserTierLimits(userId);
+  if (limits.maxMaps !== Infinity) {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(maps)
+      .where(eq(maps.userId, userId));
+
+    if (count >= limits.maxMaps) {
+      return Response.json(
+        { error: `You've reached the limit of ${limits.maxMaps} maps. Upgrade your plan to create more.`, upgrade: true },
+        { status: 403 }
+      );
+    }
   }
 
   // If groupId is provided, verify user is a member of the group

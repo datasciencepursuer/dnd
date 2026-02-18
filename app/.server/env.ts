@@ -31,4 +31,16 @@ export const env = {
   get GEMINI_API_KEY() {
     return process.env.GEMINI_API_KEY || null;
   },
+  get STRIPE_SECRET_KEY() {
+    return getEnvVar("STRIPE_SECRET_KEY");
+  },
+  get STRIPE_WEBHOOK_SECRET() {
+    return getEnvVar("STRIPE_WEBHOOK_SECRET");
+  },
+  get STRIPE_ADVENTURER_PRICE_ID() {
+    return getEnvVar("STRIPE_ADVENTURER_PRICE_ID");
+  },
+  get STRIPE_HERO_PRICE_ID() {
+    return getEnvVar("STRIPE_HERO_PRICE_ID");
+  },
 };

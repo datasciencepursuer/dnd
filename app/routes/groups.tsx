@@ -2,6 +2,7 @@ import type { Route } from "./+types/groups";
 import { useState } from "react";
 import { Link, useLoaderData, useNavigate } from "react-router";
 import type { GroupRole } from "~/types/group";
+import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
 
 interface GroupListItem {
   id: string;
@@ -21,6 +22,7 @@ interface LoaderData {
   groupCount: number;
   maxGroups: number;
   canCreateGroup: boolean;
+  currentTier: AccountTier;
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -35,9 +37,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const { db } = await import("~/.server/db");
   const { groupMembers, maps } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
-  const { getUserGroups, getUserGroupCount, MAX_GROUPS_PER_USER } = await import(
+  const { getUserGroups, getUserGroupCount } = await import(
     "~/.server/permissions/group-permissions"
   );
+  const { getUserTierLimits, getUserTier } = await import("~/.server/subscription");
 
   const session = await requireAuth(request);
   const userId = session.user.id;
@@ -68,17 +71,22 @@ export async function loader({ request }: Route.LoaderArgs) {
   );
 
   const groupCount = await getUserGroupCount(userId);
+  const [limits, currentTier] = await Promise.all([
+    getUserTierLimits(userId),
+    getUserTier(userId),
+  ]);
 
   return {
     groups: groupsWithCounts,
     groupCount,
-    maxGroups: MAX_GROUPS_PER_USER,
-    canCreateGroup: groupCount < MAX_GROUPS_PER_USER,
+    maxGroups: limits.maxGroups,
+    canCreateGroup: groupCount < limits.maxGroups,
+    currentTier,
   };
 }
 
 export default function Groups() {
-  const { groups, groupCount, maxGroups, canCreateGroup } = useLoaderData<LoaderData>();
+  const { groups, groupCount, maxGroups, canCreateGroup, currentTier } = useLoaderData<LoaderData>();
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -134,9 +142,23 @@ export default function Groups() {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              My Groups
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                My Groups
+              </h1>
+              <Link
+                to="/pricing"
+                className={`text-xs px-2 py-0.5 rounded font-medium ${
+                  currentTier === "free"
+                    ? "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    : currentTier === "adventurer"
+                      ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+                      : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {tierDisplayName(currentTier)}
+              </Link>
+            </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {groupCount} of {maxGroups} groups
             </p>
@@ -152,7 +174,7 @@ export default function Groups() {
               onClick={() => setShowCreateModal(true)}
               disabled={!canCreateGroup}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              title={!canCreateGroup ? `You can only be in ${maxGroups} groups` : undefined}
+              title={!canCreateGroup ? `You can only be in ${maxGroups} group${maxGroups === 1 ? "" : "s"}` : undefined}
             >
               + New Group
             </button>

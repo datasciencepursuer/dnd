@@ -143,6 +143,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const buildMode = useEditorStore((s) => s.buildMode);
 
+  // Show walls/areas in DM View (not just when Edit Map panel is open)
+  // Visible when: editing (buildMode) OR DM is in DM View (not Local Play)
+  const showWallsAndAreas = buildMode || (isDungeonMaster() && !isPlayingLocally);
+
   // Hovered token state (lifted from TokenLayer)
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
 
@@ -1174,15 +1178,15 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
           </Group>
         </Layer>
         <Layer name="content">
-          {buildMode && (
+          {showWallsAndAreas && (
             <>
               <Group>
                 <AreaLayer
                   areas={areas}
                   cellSize={cellSize}
-                  selectedAreaId={selectedAreaId}
-                  isSelectMode={selectedTool === "select"}
-                  isEraseMode={selectedTool === "erase"}
+                  selectedAreaId={buildMode ? selectedAreaId : null}
+                  isSelectMode={buildMode && selectedTool === "select"}
+                  isEraseMode={buildMode && selectedTool === "erase"}
                   isDragging={isDraggingRect}
                   onSelectArea={handleSelectArea}
                   onEraseArea={handleEraseArea}
@@ -1192,9 +1196,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
                 <WallLayer
                   walls={walls}
                   cellSize={cellSize}
-                  selectedWallId={selectedWallId}
-                  isSelectMode={selectedTool === "select"}
-                  isEraseMode={selectedTool === "erase"}
+                  selectedWallId={buildMode ? selectedWallId : null}
+                  isSelectMode={buildMode && selectedTool === "select"}
+                  isEraseMode={buildMode && selectedTool === "erase"}
                   isDragging={isDraggingRect}
                   onSelectWall={handleSelectWall}
                   onEraseWall={handleEraseWall}

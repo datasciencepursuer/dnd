@@ -23,6 +23,7 @@ interface CharacterData {
 interface LoaderData {
   characters: CharacterData[];
   userName: string;
+  characterLibraryEnabled: boolean;
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -47,14 +48,18 @@ export async function loader({ request }: Route.LoaderArgs) {
     .where(eq(characters.userId, userId))
     .orderBy(desc(characters.updatedAt));
 
+  const { getUserTierLimits } = await import("~/.server/subscription");
+  const limits = await getUserTierLimits(userId);
+
   return {
     characters: characterList,
     userName: session.user.name,
+    characterLibraryEnabled: limits.characterLibrary,
   };
 }
 
 export default function Characters() {
-  const { characters, userName } = useLoaderData<LoaderData>();
+  const { characters, userName, characterLibraryEnabled } = useLoaderData<LoaderData>();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<CharacterData | null>(null);
@@ -293,7 +298,9 @@ export default function Characters() {
             </Link>
             <button
               onClick={openCreateModal}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              disabled={!characterLibraryEnabled}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!characterLibraryEnabled ? "Character sheet library requires a paid subscription" : undefined}
             >
               + New Character
             </button>
@@ -301,7 +308,19 @@ export default function Characters() {
         </div>
 
         {/* Character List */}
-        {characters.length === 0 ? (
+        {!characterLibraryEnabled ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 sm:p-8 text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-3">
+              Character sheet library requires a paid subscription.
+            </p>
+            <Link
+              to="/pricing"
+              className="inline-block px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+            >
+              View Plans
+            </Link>
+          </div>
+        ) : characters.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 sm:p-8 text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-4">
               No characters yet. Create your first character!

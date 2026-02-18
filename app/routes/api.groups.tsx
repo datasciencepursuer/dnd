@@ -9,6 +9,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     "~/.server/permissions/group-permissions"
   );
 
+  const { getUserTierLimits } = await import("~/.server/subscription");
+
   const session = await requireAuth(request);
   const userId = session.user.id;
 
@@ -38,12 +40,13 @@ export async function loader({ request }: Route.LoaderArgs) {
   );
 
   const groupCount = await getUserGroupCount(userId);
+  const limits = await getUserTierLimits(userId);
 
   return Response.json({
     groups: groupsWithCounts,
     groupCount,
-    maxGroups: MAX_GROUPS_PER_USER,
-    canCreateGroup: groupCount < MAX_GROUPS_PER_USER,
+    maxGroups: limits.maxGroups,
+    canCreateGroup: groupCount < limits.maxGroups,
   });
 }
 
@@ -55,9 +58,10 @@ export async function action({ request }: Route.ActionArgs) {
   const { db } = await import("~/.server/db");
   const { groups, groupMembers } = await import("~/.server/db/schema");
   const { requireAuth } = await import("~/.server/auth/session");
-  const { getUserGroupCount, MAX_GROUPS_PER_USER } = await import(
+  const { getUserGroupCount } = await import(
     "~/.server/permissions/group-permissions"
   );
+  const { getUserTierLimits } = await import("~/.server/subscription");
   const { nanoid } = await import("nanoid");
 
   const session = await requireAuth(request);
@@ -77,12 +81,13 @@ export async function action({ request }: Route.ActionArgs) {
     );
   }
 
-  // Check 3-group limit
+  // Check group limit based on tier
+  const limits = await getUserTierLimits(userId);
   const groupCount = await getUserGroupCount(userId);
-  if (groupCount >= MAX_GROUPS_PER_USER) {
+  if (groupCount >= limits.maxGroups) {
     return Response.json(
-      { error: `You can only be a member of ${MAX_GROUPS_PER_USER} groups` },
-      { status: 400 }
+      { error: limits.maxGroups === 0 ? "Groups require a paid subscription." : `You've reached the limit of ${limits.maxGroups} groups. Upgrade your plan to create more.`, upgrade: true },
+      { status: 403 }
     );
   }
 

@@ -9,11 +9,22 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     "~/.server/permissions/group-permissions"
   );
 
+  const { getUserTierLimits } = await import("~/.server/subscription");
+
   const session = await requireAuth(request);
   const userId = session.user.id;
   const { groupId } = params;
 
   await requireGroupPermission(groupId, userId, "view");
+
+  // Check tier permission for scheduling
+  const loaderLimits = await getUserTierLimits(userId);
+  if (!loaderLimits.groupScheduling) {
+    return Response.json(
+      { error: "Group scheduling requires a Hero subscription.", upgrade: true },
+      { status: 403 }
+    );
+  }
 
   // Fetch all future availability blocks (from yesterday onwards)
   const queryStart = new Date(Date.now() - 86400000);
@@ -60,11 +71,22 @@ export async function action({ request, params }: Route.ActionArgs) {
     "~/.server/permissions/group-permissions"
   );
 
+  const { getUserTierLimits } = await import("~/.server/subscription");
+
   const session = await requireAuth(request);
   const userId = session.user.id;
   const { groupId } = params;
 
   await requireGroupPermission(groupId, userId, "view");
+
+  // Check tier permission for scheduling
+  const actionLimits = await getUserTierLimits(userId);
+  if (!actionLimits.groupScheduling) {
+    return Response.json(
+      { error: "Group scheduling requires a Hero subscription.", upgrade: true },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json();
   const { startTime, endTime } = body;

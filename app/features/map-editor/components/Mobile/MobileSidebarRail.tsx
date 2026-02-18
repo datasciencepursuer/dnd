@@ -8,6 +8,7 @@ import { ChatPanel } from "../ChatPanel";
 import { useEditorStore, useChatStore } from "../../store";
 import type { Token, InitiativeEntry } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
+import type { TierLimits } from "~/lib/tier-limits";
 
 type PanelId = "units" | "create" | "editMap" | "players" | "scenes";
 
@@ -46,6 +47,7 @@ interface MobileSidebarRailProps {
   onDeleteScene?: (sceneId: string) => void;
   onRenameScene?: (sceneId: string, newName: string) => void;
   onDuplicateScene?: (sceneId: string) => void;
+  tierLimits?: TierLimits;
 }
 
 // Ordered by frequency of use: most accessed → least accessed
@@ -136,6 +138,7 @@ export function MobileSidebarRail({
   onDeleteScene,
   onRenameScene,
   onDuplicateScene,
+  tierLimits,
 }: MobileSidebarRailProps) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const [chatOpen, setChatOverlay] = useState(false);
@@ -253,6 +256,7 @@ export function MobileSidebarRail({
                   aiBattleEngine={aiBattleEngine}
                   onAiBattleEngineChange={onAiBattleEngineChange}
                   onSetupEnvironment={handleSetupEnvironment}
+                  tierLimits={tierLimits}
                 />
                 {/* Token list (sorted by initiative when in combat) */}
                 <TokenPanel
@@ -293,6 +297,7 @@ export function MobileSidebarRail({
                   onDeleteScene={onDeleteScene}
                   onRenameScene={onRenameScene}
                   onDuplicateScene={onDuplicateScene}
+                  maxScenes={tierLimits?.maxScenesPerMap}
                 />
               </div>
             )}

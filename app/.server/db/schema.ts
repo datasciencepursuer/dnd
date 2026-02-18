@@ -13,6 +13,9 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 
+// Account tier enum
+export const accountTierEnum = pgEnum("account_tier", ["free", "adventurer", "dungeon_master", "admin"]);
+
 // Group role enum
 export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
 
@@ -28,6 +31,11 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   lastGroupId: text("last_group_id").references((): AnyPgColumn => groups.id, { onDelete: "set null" }),
+  accountTier: accountTierEnum("account_tier").notNull().default("free"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
+  stripeCancelAtPeriodEnd: boolean("stripe_cancel_at_period_end").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -443,3 +451,4 @@ export type GroupAvailability = typeof groupAvailabilities.$inferSelect;
 export type NewGroupAvailability = typeof groupAvailabilities.$inferInsert;
 export type GroupScheduleVote = typeof groupScheduleVotes.$inferSelect;
 export type NewGroupScheduleVote = typeof groupScheduleVotes.$inferInsert;
+export type AccountTier = (typeof accountTierEnum.enumValues)[number];

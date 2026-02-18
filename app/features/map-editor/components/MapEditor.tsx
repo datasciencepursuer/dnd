@@ -15,6 +15,8 @@ import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import { filterMessagesForAI } from "../utils/ai-context-utils";
 import { VALID_CONDITIONS } from "../types";
 import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape } from "../types";
+import type { AccountTier, TierLimits } from "~/lib/tier-limits";
+import { getTierLimits } from "~/lib/tier-limits";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -36,6 +38,9 @@ interface MapEditorProps {
   groupMembers?: GroupMemberInfo[];
   groupId?: string | null;
   mapOwnerId?: string | null;
+  accountTier?: AccountTier;
+  tierLimits?: TierLimits;
+  realtimeSyncEnabled?: boolean;
 }
 
 export function MapEditor({
@@ -47,7 +52,12 @@ export function MapEditor({
   groupMembers = [],
   groupId = null,
   mapOwnerId = null,
+  accountTier = "free",
+  tierLimits: tierLimitsProp,
+  realtimeSyncEnabled: realtimeSyncProp,
 }: MapEditorProps) {
+  const tierLimits = tierLimitsProp ?? getTierLimits(accountTier);
+  const realtimeSyncEnabled = realtimeSyncProp ?? tierLimits.realtimeSync;
   const isMobile = useIsMobile();
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
@@ -122,7 +132,7 @@ export function MapEditor({
     mapId,
     userId,
     userName,
-    enabled: !!mapId && !!userId,
+    enabled: !!mapId && !!userId && realtimeSyncEnabled,
   });
 
   useChatPersistence(mapId);
@@ -1106,7 +1116,7 @@ export function MapEditor({
 
   return (
     <div className="flex flex-col h-full">
-      <Toolbar userName={userName} userId={userId} mapId={mapId} groupId={groupId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} />
+      <Toolbar userName={userName} userId={userId} mapId={mapId} groupId={groupId} groupMembers={groupMembers} onDmTransfer={broadcastDmTransfer} onGridChange={() => { const currentMap = useMapStore.getState().map; if (currentMap) { broadcastMapSync(currentMap); syncDebounced(500); } }} tierLimits={tierLimits} />
       <div className="flex flex-1 overflow-hidden relative">
         {isMobile ? (
           <MobileSidebarRail
@@ -1142,6 +1152,7 @@ export function MapEditor({
             onDeleteScene={handleDeleteScene}
             onRenameScene={handleRenameScene}
             onDuplicateScene={handleDuplicateScene}
+            tierLimits={tierLimits}
           />
         ) : (
           <Sidebar
@@ -1179,6 +1190,7 @@ export function MapEditor({
             onDeleteScene={handleDeleteScene}
             onRenameScene={handleRenameScene}
             onDuplicateScene={handleDuplicateScene}
+            tierLimits={tierLimits}
           />
         )}
         <Suspense
@@ -1217,6 +1229,7 @@ export function MapEditor({
             aiLoading={aiLoading}
             onAiPrompt={sendAiPrompt}
             aiBattleEngine={aiBattleEngine}
+            tierLimits={tierLimits}
           />
         )}
       </div>

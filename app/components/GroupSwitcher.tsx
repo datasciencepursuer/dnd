@@ -41,7 +41,7 @@ export function GroupSwitcher({ currentGroupId, groups }: GroupSwitcherProps) {
       </button>
 
       {open && (
-        <div className="absolute top-full mt-1 right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[200px]">
+        <div className="absolute top-full mt-1 left-0 sm:left-auto sm:right-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 min-w-[200px] max-w-[calc(100vw-2rem)]">
           <div className="px-4 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
             Switch to
           </div>

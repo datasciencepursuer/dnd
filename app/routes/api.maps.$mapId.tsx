@@ -7,6 +7,7 @@ import {
   requireMapPermission,
   getEffectivePermissions,
 } from "~/.server/permissions/map-permissions";
+import { getUserTierLimits } from "~/.server/subscription";
 
 interface GroupMemberInfo {
   id: string;
@@ -146,6 +147,36 @@ export async function action({ request, params }: Route.ActionArgs) {
           }
         }
         // Note: All players can edit any token, so no edit restriction needed
+      }
+
+      // Tier limit validation on map data
+      if (data) {
+        const mapRecord = await db
+          .select({ userId: maps.userId })
+          .from(maps)
+          .where(eq(maps.id, mapId))
+          .limit(1);
+
+        if (mapRecord.length > 0) {
+          const limits = await getUserTierLimits(mapRecord[0].userId);
+          const mapData = data as { scenes?: unknown[]; walls?: unknown[]; areas?: unknown[] };
+
+          // Scene count check: scenes array + 1 for the active scene
+          if (mapData.scenes && mapData.scenes.length + 1 > limits.maxScenesPerMap) {
+            return Response.json(
+              { error: `Scene limit reached (${limits.maxScenesPerMap}). Upgrade for more.`, upgrade: true },
+              { status: 403 }
+            );
+          }
+
+          // Walls and terrain check
+          if (!limits.wallsAndTerrain && ((mapData.walls && (mapData.walls as unknown[]).length > 0) || (mapData.areas && (mapData.areas as unknown[]).length > 0))) {
+            return Response.json(
+              { error: "Walls & terrain requires Hero plan.", upgrade: true },
+              { status: 403 }
+            );
+          }
+        }
       }
 
       const updateData: { name?: string; data?: unknown; updatedAt: Date } = {

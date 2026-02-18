@@ -3,7 +3,9 @@ import { Link } from "react-router";
 import { useState, useEffect } from "react";
 import { requireAuth } from "~/.server/auth/session";
 import { auth } from "~/.server/auth/auth.server";
+import { getUserSubscriptionInfo } from "~/.server/subscription";
 import { authClient, linkSocial } from "~/lib/auth-client";
+import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Account Settings" }];
@@ -20,17 +22,32 @@ export async function loader({ request }: Route.LoaderArgs) {
     (a: { providerId: string }) => a.providerId === "google"
   );
 
+  const subscription = await getUserSubscriptionInfo(session.user.id);
+
   return {
     userName: session.user.name,
     email: session.user.email,
     hasGoogle,
+    accountTier: (subscription?.accountTier ?? "free") as AccountTier,
+    stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
+    stripeCurrentPeriodEnd: subscription?.stripeCurrentPeriodEnd?.toISOString() ?? null,
+    stripeCancelAtPeriodEnd: subscription?.stripeCancelAtPeriodEnd ?? false,
   };
 }
 
 export default function Settings({ loaderData }: Route.ComponentProps) {
-  const { userName, email, hasGoogle: initialHasGoogle } = loaderData;
+  const {
+    userName,
+    email,
+    hasGoogle: initialHasGoogle,
+    accountTier,
+    stripeSubscriptionId,
+    stripeCurrentPeriodEnd,
+    stripeCancelAtPeriodEnd,
+  } = loaderData;
   const [hasGoogle, setHasGoogle] = useState(initialHasGoogle);
   const [loading, setLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -40,7 +57,13 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
     if (params.get("linked") === "google") {
       setHasGoogle(true);
       setSuccess("Google account linked successfully!");
-      // Clean up URL
+      window.history.replaceState({}, "", "/settings");
+    }
+    if (params.get("subscription") === "success") {
+      setSuccess("Subscription activated! Your account has been upgraded.");
+      window.history.replaceState({}, "", "/settings");
+    }
+    if (params.get("subscription") === "cancelled") {
       window.history.replaceState({}, "", "/settings");
     }
   }, []);
@@ -76,6 +99,30 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
       setLoading(false);
     }
   }
+
+  async function handleManageSubscription() {
+    setError(null);
+    setPortalLoading(true);
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error || "Failed to open billing portal.");
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setPortalLoading(false);
+    }
+  }
+
+  const periodEnd = stripeCurrentPeriodEnd
+    ? new Date(stripeCurrentPeriodEnd).toLocaleDateString()
+    : null;
 
   return (
     <div className="min-h-screen max-lg:h-full max-lg:overflow-auto bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -120,6 +167,54 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
               <span className="text-gray-600 dark:text-gray-400">Email</span>
               <span className="text-gray-900 dark:text-white">{email}</span>
             </div>
+          </div>
+        </div>
+
+        {/* Subscription */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Subscription
+          </h2>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-400">Current Plan</span>
+              <span className="text-gray-900 dark:text-white font-medium">
+                {tierDisplayName(accountTier)}
+              </span>
+            </div>
+            {periodEnd && (
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">
+                  {stripeCancelAtPeriodEnd ? "Access until" : "Renews on"}
+                </span>
+                <span className="text-gray-900 dark:text-white">{periodEnd}</span>
+              </div>
+            )}
+            {stripeCancelAtPeriodEnd && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Your subscription is set to cancel at the end of the current period.
+              </p>
+            )}
+          </div>
+          <div className="flex gap-3 mt-4">
+            {stripeSubscriptionId ? (
+              <button
+                type="button"
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+                className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {portalLoading ? "..." : "Manage Subscription"}
+              </button>
+            ) : null}
+            {accountTier === "free" || stripeCancelAtPeriodEnd ? (
+              <Link
+                to="/pricing"
+                className="px-4 py-2 text-sm bg-amber-600 text-white rounded hover:bg-amber-700"
+              >
+                {accountTier === "free" ? "Upgrade" : "Resubscribe"}
+              </Link>
+            ) : null}
           </div>
         </div>
 

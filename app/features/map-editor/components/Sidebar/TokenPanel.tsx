@@ -7,7 +7,9 @@ import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
 import { MonsterCompendium } from "./MonsterCompendium";
 import { ConfirmModal } from "../ConfirmModal";
+import { UpgradePrompt } from "~/components/UpgradePrompt";
 import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
+import type { TierLimits } from "~/lib/tier-limits";
 
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
@@ -26,6 +28,7 @@ interface TokenPanelProps {
   // AI Battle Engine props
   aiBattleEngine?: boolean;
   onAiBattleEngineChange?: (enabled: boolean) => void;
+  tierLimits?: TierLimits;
 }
 
 export function TokenPanel({
@@ -43,6 +46,7 @@ export function TokenPanel({
   onPrevTurn,
   aiBattleEngine = false,
   onAiBattleEngineChange,
+  tierLimits,
 }: TokenPanelProps) {
   const [tokenName, setTokenName] = useState("");
   const [tokenColor, setTokenColor] = useState(TOKEN_COLORS[0]);
@@ -595,16 +599,26 @@ export function TokenPanel({
                 Custom
               </button>
               <button
-                onClick={() => setCreateMode("compendium")}
-                className={`px-2 py-1.5 text-xs rounded border cursor-pointer ${
-                  createMode === "compendium"
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600"
+                onClick={() => {
+                  if (tierLimits && !tierLimits.monsterCompendium) return;
+                  setCreateMode("compendium");
+                }}
+                disabled={tierLimits ? !tierLimits.monsterCompendium : false}
+                className={`px-2 py-1.5 text-xs rounded border ${
+                  tierLimits && !tierLimits.monsterCompendium
+                    ? "opacity-50 cursor-not-allowed bg-white dark:bg-gray-700 text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600"
+                    : createMode === "compendium"
+                      ? "bg-blue-600 text-white border-blue-600 cursor-pointer"
+                      : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 cursor-pointer"
                 }`}
+                title={tierLimits && !tierLimits.monsterCompendium ? "Monster Templates requires Adventurer plan" : undefined}
               >
                 Monster Templates
               </button>
             </div>
+          )}
+          {isDungeonMaster() && tierLimits && !tierLimits.monsterCompendium && (
+            <UpgradePrompt feature="Monster Templates" requiredTier="Adventurer" variant="inline" />
           )}
 
           {/* Compendium mode */}

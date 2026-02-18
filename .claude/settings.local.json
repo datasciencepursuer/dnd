@@ -44,7 +44,8 @@
       "WebFetch(domain:www.dnd5eapi.co)",
       "Bash(gzip:*)",
       "Bash(node -e:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "WebFetch(domain:docs.stripe.com)"
     ]
   }
 }

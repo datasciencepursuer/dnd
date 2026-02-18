@@ -12,6 +12,7 @@ import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import { PatchNotesPanel } from "~/components/PatchNotesPanel";
 import { GroupSwitcher } from "~/components/GroupSwitcher";
+import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
 
 interface MapListItem {
   id: string;
@@ -54,6 +55,7 @@ interface LoaderData {
   userGroups: GroupInfo[];
   userName: string;
   userRole: string;
+  currentTier: AccountTier;
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -196,12 +198,13 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     userGroups,
     userName: session.user.name,
     userRole,
+    currentTier: await (await import("~/.server/subscription")).getUserTier(userId),
   };
 }
 
 export default function GroupMaps() {
   const navigate = useNavigate();
-  const { groupId, groupName, groupMaps, personalMaps, userGroups, userName, userRole } =
+  const { groupId, groupName, groupMaps, personalMaps, userGroups, userName, userRole, currentTier } =
     useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
@@ -455,8 +458,20 @@ export default function GroupMaps() {
       <div className="max-w-4xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               Hello, {userName}
+              <Link
+                to="/pricing"
+                className={`text-xs px-2 py-0.5 rounded font-medium ${
+                  currentTier === "free"
+                    ? "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    : currentTier === "adventurer"
+                      ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+                      : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {tierDisplayName(currentTier)}
+              </Link>
             </h1>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-4">
@@ -844,6 +859,16 @@ export default function GroupMaps() {
             )}
           </section>
         )}
+
+        <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-8">
+          Found a bug?{" "}
+          <a
+            href="mailto:will.gao@gtechnology.ca"
+            className="text-blue-500 dark:text-blue-400 hover:underline"
+          >
+            will.gao@gtechnology.ca
+          </a>
+        </p>
       </div>
     </div>
   );

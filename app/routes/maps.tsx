@@ -12,6 +12,7 @@ import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import { PatchNotesPanel } from "~/components/PatchNotesPanel";
 import { GroupSwitcher } from "~/components/GroupSwitcher";
+import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
 
 interface MapListItem {
   id: string;
@@ -50,6 +51,9 @@ interface LoaderData {
   owned: MapListItem[];
   groups: GroupInfo[];
   userName: string;
+  maxMaps: number;
+  canCreateMap: boolean;
+  currentTier: AccountTier;
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -126,6 +130,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   };
 
+  const { getUserTierLimits, getUserTier } = await import("~/.server/subscription");
+  const [limits, currentTier] = await Promise.all([
+    getUserTierLimits(userId),
+    getUserTier(userId),
+  ]);
+
   return {
     owned: ownedMaps.map((m) => {
       const { gridWidth, gridHeight, thumbnailUrl } = getMapPreviewData(m.data);
@@ -145,12 +155,15 @@ export async function loader({ request }: Route.LoaderArgs) {
     }),
     groups: groupsData,
     userName: session.user.name,
+    maxMaps: limits.maxMaps,
+    canCreateMap: limits.maxMaps === Infinity || ownedMaps.length < limits.maxMaps,
+    currentTier,
   };
 }
 
 export default function Maps() {
   const navigate = useNavigate();
-  const { owned, groups, userName } = useLoaderData<LoaderData>();
+  const { owned, groups, userName, maxMaps, canCreateMap, currentTier } = useLoaderData<LoaderData>();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newMapName, setNewMapName] = useState("Untitled Map");
   const [gridWidth, setGridWidth] = useState(DEFAULT_GRID.width);
@@ -419,8 +432,20 @@ export default function Maps() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Personal Maps
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
               Hello, {userName}
+              <Link
+                to="/pricing"
+                className={`text-xs px-2 py-0.5 rounded font-medium ${
+                  currentTier === "free"
+                    ? "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                    : currentTier === "adventurer"
+                      ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+                      : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {tierDisplayName(currentTier)}
+              </Link>
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-4">
@@ -439,7 +464,9 @@ export default function Maps() {
             </Link>
             <button
               onClick={handleOpenModal}
-              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              disabled={!canCreateMap}
+              className="px-3 py-1.5 sm:px-4 sm:py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!canCreateMap ? `You've reached the limit of ${maxMaps} maps. Upgrade to create more.` : undefined}
             >
               + New Map
             </button>
@@ -786,6 +813,16 @@ export default function Maps() {
             </div>
           )}
         </section>
+
+        <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-8">
+          Found a bug?{" "}
+          <a
+            href="mailto:will.gao@gtechnology.ca"
+            className="text-blue-500 dark:text-blue-400 hover:underline"
+          >
+            will.gao@gtechnology.ca
+          </a>
+        </p>
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useMapStore, useEditorStore } from "../../store";
+import type { TierLimits } from "~/lib/tier-limits";
+import { UpgradePrompt } from "~/components/UpgradePrompt";
 
 interface CombatPanelProps {
   isInCombat: boolean;
@@ -15,6 +17,7 @@ interface CombatPanelProps {
   onAiBattleEngineChange?: (enabled: boolean) => void;
   // Environment setup
   onSetupEnvironment?: () => void;
+  tierLimits?: TierLimits;
 }
 
 // Crossed swords icon
@@ -65,7 +68,9 @@ export function CombatPanel({
   aiBattleEngine = false,
   onAiBattleEngineChange,
   onSetupEnvironment,
+  tierLimits,
 }: CombatPanelProps) {
+  const combatLocked = tierLimits && !tierLimits.combatSystem;
   const [hasRequested, setHasRequested] = useState(false);
 
   // Reset hasRequested when combat starts or ends
@@ -106,6 +111,14 @@ export function CombatPanel({
     if (!token) return false;
     return isTokenOwner(token.ownerId);
   }, [aiBattleEngine, combat, map?.tokens, isTokenOwner]);
+
+  if (combatLocked) {
+    return (
+      <div className="border-t border-gray-200 dark:border-gray-700 p-3">
+        <UpgradePrompt feature="Combat system" requiredTier="Adventurer" variant="banner" />
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 p-3">

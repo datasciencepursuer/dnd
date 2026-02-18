@@ -2,10 +2,12 @@ import type { Route } from "./+types/playground.$mapId";
 import { useEffect } from "react";
 import { useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
+import { getUserTier } from "~/.server/subscription";
 import { MapEditor, useMapStore, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
+import { getTierLimits, type AccountTier, type TierLimits } from "~/lib/tier-limits";
 
 interface GroupMemberInfo {
   id: string;
@@ -23,6 +25,9 @@ interface LoaderData {
   groupMembers: GroupMemberInfo[];
   groupId: string | null;
   mapOwnerId: string;
+  accountTier: AccountTier;
+  tierLimits: TierLimits;
+  realtimeSyncEnabled: boolean;
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -61,11 +66,25 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const mapData = await response.json();
 
+  // Get current user's tier for UI gating
+  const accountTier = await getUserTier(session.user.id);
+  const tierLimits = getTierLimits(accountTier);
+
+  // Real-time sync enabled if the map owner has the feature
+  const ownerTier = mapData.userId === session.user.id
+    ? accountTier
+    : await getUserTier(mapData.userId);
+  const ownerLimits = getTierLimits(ownerTier);
+  const realtimeSyncEnabled = ownerLimits.realtimeSync;
+
   return {
     ...mapData,
     mapOwnerId: mapData.userId,
     userId: session.user.id,
     userName: session.user.name,
+    accountTier,
+    tierLimits,
+    realtimeSyncEnabled,
   };
 }
 
@@ -98,6 +117,9 @@ export default function PlaygroundWithMap() {
           groupMembers={data.groupMembers}
           groupId={data.groupId}
           mapOwnerId={data.mapOwnerId}
+          accountTier={data.accountTier}
+          tierLimits={data.tierLimits}
+          realtimeSyncEnabled={data.realtimeSyncEnabled}
         />
       ) : null}
     </div>

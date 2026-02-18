@@ -2,6 +2,7 @@ import { env } from "~/.server/env";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { analyzeMapBackground } from "~/.server/ai/auto-draw";
+import { getUserTierLimits } from "~/.server/subscription";
 
 interface RouteArgs {
   request: Request;
@@ -23,6 +24,15 @@ export async function action({ request, params }: RouteArgs) {
 
   const session = await requireAuth(request);
   const mapId = params.mapId;
+
+  // Check tier permission
+  const limits = await getUserTierLimits(session.user.id);
+  if (!limits.aiDmAssistant) {
+    return Response.json(
+      { error: "AI Auto-Draw requires a Hero subscription.", upgrade: true },
+      { status: 403 }
+    );
+  }
 
   // Only DM can use AI auto-draw
   const access = await requireMapPermission(mapId, session.user.id, "view");

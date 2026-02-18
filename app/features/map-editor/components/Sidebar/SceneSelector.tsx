@@ -10,6 +10,7 @@ interface SceneSelectorProps {
   onDeleteScene: (sceneId: string) => void;
   onRenameScene: (sceneId: string, newName: string) => void;
   onDuplicateScene: (sceneId: string) => void;
+  maxScenes?: number;
 }
 
 export function SceneSelector({
@@ -18,6 +19,7 @@ export function SceneSelector({
   onDeleteScene,
   onRenameScene,
   onDuplicateScene,
+  maxScenes,
 }: SceneSelectorProps) {
   const map = useMapStore((s) => s.map);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
@@ -30,7 +32,8 @@ export function SceneSelector({
 
   const scenes: SceneInfo[] = map ? getAllScenes(map) : [];
   const totalScenes = scenes.length;
-  const atLimit = totalScenes >= MAX_SCENES;
+  const effectiveMax = maxScenes ?? MAX_SCENES;
+  const atLimit = totalScenes >= effectiveMax;
 
   // Determine if the menu should open left or right based on available space
   const openMenu = useCallback((sceneId: string, triggerEl: HTMLElement) => {
@@ -96,7 +99,7 @@ export function SceneSelector({
           onClick={handleCreate}
           disabled={atLimit}
           className="w-6 h-6 flex items-center justify-center rounded text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
-          title={atLimit ? `Max ${MAX_SCENES} scenes` : "Add scene"}
+          title={atLimit ? `Max ${effectiveMax} scenes` : "Add scene"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />

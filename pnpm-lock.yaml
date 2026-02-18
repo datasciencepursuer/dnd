@@ -71,6 +71,9 @@ importers:
       resend:
         specifier: ^6.9.1
         version: 6.9.1(@react-email/render@2.0.4(react-dom@19.2.3(react@19.2.3))(react@19.2.3))
+      stripe:
+        specifier: ^20.3.1
+        version: 20.3.1(@types/node@22.19.7)
       uploadthing:
         specifier: ^7.7.4
         version: 7.7.4(express@4.22.1)(next@16.0.10(@babel/core@7.28.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tailwindcss@4.1.18)
@@ -3327,6 +3330,15 @@ packages:
     resolution: {integrity: sha512-dOESqjYr96iWYylGObzd39EuNTa5VJxyvVAEm5Jnh7KGo75V43Hk1odPQkNDyXNmUR6k+gEiDVXnjB8HJ3crXw==}
     engines: {node: '>=12'}
 
+  stripe@20.3.1:
+    resolution: {integrity: sha512-k990yOT5G5rhX3XluRPw5Y8RLdJDW4dzQ29wWT66piHrbnM2KyamJ1dKgPsw4HzGHRWjDiSSdcI2WdxQUPV3aQ==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      '@types/node': '>=16'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   stubborn-fs@2.0.0:
     resolution: {integrity: sha512-Y0AvSwDw8y+nlSNFXMm2g6L51rBGdAQT20J3YSOqxC53Lo3bjWRtr2BKcfYoAf352WYpsZSTURrA0tqhfgudPA==}
 
@@ -6480,6 +6492,10 @@ snapshots:
   strip-bom@3.0.0: {}
 
   strip-final-newline@3.0.0: {}
+
+  stripe@20.3.1(@types/node@22.19.7):
+    optionalDependencies:
+      '@types/node': 22.19.7
 
   stubborn-fs@2.0.0:
     dependencies:

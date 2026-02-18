@@ -4,6 +4,7 @@ import { getSession } from "~/.server/auth/session";
 import { getMapAccess } from "~/.server/permissions/map-permissions";
 import { db } from "~/.server/db";
 import { uploads } from "~/.server/db/schema";
+import { getUserTierLimits } from "~/.server/subscription";
 
 const f = createUploadthing();
 
@@ -20,9 +21,20 @@ export const uploadRouter = {
       maxFileCount: 10,
     },
   })
-    .middleware(async ({ event }) => {
+    .middleware(async ({ event, files }) => {
       const session = await getSession(event.request);
       if (!session) throw new UploadThingError("Unauthorized");
+
+      const limits = await getUserTierLimits(session.user.id);
+      const maxBytes = limits.maxUploadSizeMB * 1024 * 1024;
+      for (const file of files) {
+        if (file.size > maxBytes) {
+          throw new UploadThingError(
+            `File too large. Your plan allows up to ${limits.maxUploadSizeMB}MB uploads.`
+          );
+        }
+      }
+
       return { userId: session.user.id };
     })
     .onUploadComplete(async ({ metadata, file }) => {
@@ -48,9 +60,19 @@ export const uploadRouter = {
       maxFileCount: 1,
     },
   })
-    .middleware(async ({ event }) => {
+    .middleware(async ({ event, files }) => {
       const session = await getSession(event.request);
       if (!session) throw new UploadThingError("Unauthorized");
+
+      const limits = await getUserTierLimits(session.user.id);
+      const maxBytes = limits.maxUploadSizeMB * 1024 * 1024;
+      for (const file of files) {
+        if (file.size > maxBytes) {
+          throw new UploadThingError(
+            `File too large. Your plan allows up to ${limits.maxUploadSizeMB}MB uploads.`
+          );
+        }
+      }
 
       // Get mapId from custom header
       const mapId = event.request.headers.get("x-map-id");

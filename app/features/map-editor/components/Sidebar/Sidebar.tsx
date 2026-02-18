@@ -8,6 +8,7 @@ import { CombatPanel } from "./CombatPanel";
 import { useEditorStore, useMapStore } from "../../store";
 import type { Token, InitiativeEntry, WallSegment, AreaShape, EditorTool, WallType, TerrainType } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
+import type { TierLimits } from "~/lib/tier-limits";
 
 const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
   { id: "fog", label: "Fog", icon: "🌫", shortcut: "4", hint: "Drag to paint fog" },
@@ -85,6 +86,7 @@ interface SidebarProps {
   onDeleteScene?: (sceneId: string) => void;
   onRenameScene?: (sceneId: string, newName: string) => void;
   onDuplicateScene?: (sceneId: string) => void;
+  tierLimits?: TierLimits;
 }
 
 export function Sidebar({
@@ -122,6 +124,7 @@ export function Sidebar({
   onDeleteScene,
   onRenameScene,
   onDuplicateScene,
+  tierLimits,
 }: SidebarProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>("none");
   const canEditMap = useEditorStore((s) => s.canEditMap);
@@ -192,6 +195,7 @@ export function Sidebar({
           onDeleteScene={onDeleteScene}
           onRenameScene={onRenameScene}
           onDuplicateScene={onDuplicateScene}
+          maxScenes={tierLimits?.maxScenesPerMap}
         />
       )}
       {/* Action Buttons */}
@@ -233,21 +237,27 @@ export function Sidebar({
             <div className="px-3 py-2 space-y-2 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tools</h3>
               <div className="grid grid-cols-3 gap-1.5">
-                {mapEditTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => setTool(tool.id)}
-                    className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded text-xs font-medium transition-colors cursor-pointer ${
-                      selectedTool === tool.id
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                    }`}
-                    title={tool.hint || `${tool.label} (${tool.shortcut})`}
-                  >
-                    <span className="text-base">{tool.icon}</span>
-                    <span>{tool.label}</span>
-                  </button>
-                ))}
+                {mapEditTools.map((tool) => {
+                  const isLocked = (tool.id === "wall" || tool.id === "area") && tierLimits && !tierLimits.wallsAndTerrain;
+                  return (
+                    <button
+                      key={tool.id}
+                      onClick={() => !isLocked && setTool(tool.id)}
+                      disabled={!!isLocked}
+                      className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded text-xs font-medium transition-colors ${
+                        isLocked
+                          ? "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+                          : selectedTool === tool.id
+                            ? "bg-blue-600 text-white cursor-pointer"
+                            : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                      }`}
+                      title={isLocked ? `${tool.label} requires Hero plan` : tool.hint || `${tool.label} (${tool.shortcut})`}
+                    >
+                      <span className="text-base">{tool.icon}</span>
+                      <span>{tool.label}</span>
+                    </button>
+                  );
+                })}
               </div>
               {/* Wall type selector */}
               {selectedTool === "wall" && (
@@ -298,6 +308,7 @@ export function Sidebar({
             onPrevTurn={onPrevTurn}
             aiBattleEngine={aiBattleEngine}
             onAiBattleEngineChange={onAiBattleEngineChange}
+            tierLimits={tierLimits}
           />
         )}
 
@@ -329,6 +340,7 @@ export function Sidebar({
             onPrevTurn={onPrevTurn}
             aiBattleEngine={aiBattleEngine}
             onAiBattleEngineChange={onAiBattleEngineChange}
+            tierLimits={tierLimits}
           />
         )}
       </div>
@@ -347,6 +359,7 @@ export function Sidebar({
         onAiBattleEngineChange={onAiBattleEngineChange}
         onAiPrompt={onAiPrompt}
         onSetupEnvironment={handleSetupEnvironment}
+        tierLimits={tierLimits}
       />
 
       {/* Players Online */}

@@ -54,6 +54,16 @@ export async function action({ request, params }: Route.ActionArgs) {
     // Create invitation
     await requireGroupPermission(groupId, userId, "invite");
 
+    // Check tier permission
+    const { getUserTierLimits } = await import("~/.server/subscription");
+    const limits = await getUserTierLimits(userId);
+    if (!limits.groupInvitations) {
+      return Response.json(
+        { error: "Group invitations require a Hero subscription.", upgrade: true },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { email } = body;
 

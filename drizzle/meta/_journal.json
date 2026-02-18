@@ -162,6 +162,13 @@
       "when": 1771005989908,
       "tag": "0022_safe_master_mold",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1771372991077,
+      "tag": "0023_absent_giant_man",
+      "breakpoints": true
     }
   ]
 }

@@ -39,4 +39,8 @@ route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availabili
   route("api/maps/:mapId/chat/batch", "routes/api.maps.$mapId.chat.batch.tsx"),
   route("api/maps/:mapId/ai", "routes/api.maps.$mapId.ai.tsx"),
   route("api/maps/:mapId/ai-draw", "routes/api.maps.$mapId.ai-draw.tsx"),
+  route("api/stripe/checkout", "routes/api.stripe.checkout.ts"),
+  route("api/stripe/webhook", "routes/api.stripe.webhook.ts"),
+  route("api/stripe/portal", "routes/api.stripe.portal.ts"),
+  route("pricing", "routes/pricing.tsx"),
 ] satisfies RouteConfig;

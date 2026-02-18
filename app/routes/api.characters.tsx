@@ -2,6 +2,7 @@ import { eq, desc } from "drizzle-orm";
 import { db } from "~/.server/db";
 import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
+import { getUserTierLimits } from "~/.server/subscription";
 
 /**
  * GET /api/characters
@@ -31,6 +32,15 @@ export async function action({ request }: { request: Request }) {
 
   const session = await requireAuth(request);
   const userId = session.user.id;
+
+  // Check tier permission
+  const limits = await getUserTierLimits(userId);
+  if (!limits.characterLibrary) {
+    return Response.json(
+      { error: "Character sheet library requires a paid subscription.", upgrade: true },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json();
   const { name, imageUrl, color, size, layer, characterSheet } = body;

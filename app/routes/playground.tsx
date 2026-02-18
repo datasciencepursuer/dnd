@@ -1,12 +1,16 @@
 import type { Route } from "./+types/playground";
 import { useLoaderData } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
+import { getUserTier } from "~/.server/subscription";
 import { MapEditor, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
+import { getTierLimits, type AccountTier, type TierLimits } from "~/lib/tier-limits";
 
 interface LoaderData {
   userId: string;
   userName: string;
+  accountTier: AccountTier;
+  tierLimits: TierLimits;
 }
 
 export function meta({}: Route.MetaArgs) {
@@ -18,9 +22,12 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
+  const accountTier = await getUserTier(session.user.id);
   return {
     userId: session.user.id,
     userName: session.user.name,
+    accountTier,
+    tierLimits: getTierLimits(accountTier),
   };
 }
 
@@ -35,7 +42,7 @@ export default function Playground() {
       style={{ height: appHeight }}
     >
       {hydrated ? (
-        <MapEditor userId={data.userId} userName={data.userName} />
+        <MapEditor userId={data.userId} userName={data.userName} accountTier={data.accountTier} tierLimits={data.tierLimits} />
       ) : null}
     </div>
   );
