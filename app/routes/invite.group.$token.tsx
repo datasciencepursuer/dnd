@@ -465,7 +465,7 @@ export default function InviteGroupToken() {
               to="/groups"
               className="block w-full px-4 py-2 bg-blue-600 text-white text-center rounded hover:bg-blue-700"
             >
-              Manage Groups
+              Groups
             </Link>
           </>
         )}
