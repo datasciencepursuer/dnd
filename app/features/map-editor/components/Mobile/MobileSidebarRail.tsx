@@ -6,7 +6,7 @@ import { PresenceList } from "../Sidebar/PresenceList";
 import { CombatPanel } from "../Sidebar/CombatPanel";
 import { ChatPanel } from "../ChatPanel";
 import { useEditorStore, useChatStore } from "../../store";
-import type { Token, InitiativeEntry } from "../../types";
+import type { Token, MonsterGroup, InitiativeEntry } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
 import type { TierLimits } from "~/lib/tier-limits";
 
@@ -42,7 +42,7 @@ interface MobileSidebarRailProps {
   aiBattleEngine?: boolean;
   onAiBattleEngineChange?: (enabled: boolean) => void;
   // Scene props (DM only)
-  onSwitchScene?: (sceneId: string) => void;
+  onSwitchScene?: (sceneId: string, importTokens?: Token[], importGroups?: MonsterGroup[]) => void;
   onCreateScene?: (name: string) => void;
   onDeleteScene?: (sceneId: string) => void;
   onRenameScene?: (sceneId: string, newName: string) => void;

@@ -6,7 +6,7 @@ import { SceneSelector } from "./SceneSelector";
 import { PresenceList } from "./PresenceList";
 import { CombatPanel } from "./CombatPanel";
 import { useEditorStore, useMapStore } from "../../store";
-import type { Token, InitiativeEntry, WallSegment, AreaShape, EditorTool, WallType, TerrainType } from "../../types";
+import type { Token, MonsterGroup, InitiativeEntry, WallSegment, AreaShape, EditorTool, WallType, TerrainType } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
 import type { TierLimits } from "~/lib/tier-limits";
 
@@ -81,7 +81,7 @@ interface SidebarProps {
   onUpdateArea?: (id: string, updates: Partial<AreaShape>) => void;
   onDeleteArea?: (id: string) => void;
   // Scene props (DM only)
-  onSwitchScene?: (sceneId: string) => void;
+  onSwitchScene?: (sceneId: string, importTokens?: Token[], importGroups?: MonsterGroup[]) => void;
   onCreateScene?: (name: string) => void;
   onDeleteScene?: (sceneId: string) => void;
   onRenameScene?: (sceneId: string, newName: string) => void;

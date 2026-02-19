@@ -3,9 +3,10 @@ import { useMapStore } from "../../store";
 import { getAllScenes } from "../../utils/scene-utils";
 import { MAX_SCENES } from "../../constants";
 import type { SceneInfo } from "../../utils/scene-utils";
+import type { Token, MonsterGroup } from "../../types";
 
 interface SceneSelectorProps {
-  onSwitchScene: (sceneId: string) => void;
+  onSwitchScene: (sceneId: string, importTokens?: Token[], importGroups?: MonsterGroup[]) => void;
   onCreateScene: (name: string) => void;
   onDeleteScene: (sceneId: string) => void;
   onRenameScene: (sceneId: string, newName: string) => void;
@@ -30,10 +31,22 @@ export function SceneSelector({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Inline token selection state
+  const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(new Set());
+
   const scenes: SceneInfo[] = map ? getAllScenes(map) : [];
   const totalScenes = scenes.length;
   const effectiveMax = maxScenes ?? MAX_SCENES;
   const atLimit = totalScenes >= effectiveMax;
+
+  const tokens = map?.tokens ?? [];
+  const monsterGroups = map?.monsterGroups ?? [];
+
+  // Reset token selection when active scene changes
+  const activeSceneId = map?.activeSceneId;
+  useEffect(() => {
+    setSelectedTokenIds(new Set());
+  }, [activeSceneId]);
 
   // Determine if the menu should open left or right based on available space
   const openMenu = useCallback((sceneId: string, triggerEl: HTMLElement) => {
@@ -91,6 +104,63 @@ export function SceneSelector({
     setRenamingId(null);
   };
 
+  const toggleToken = useCallback((id: string) => {
+    setSelectedTokenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedTokenIds(new Set(tokens.map((t) => t.id)));
+  }, [tokens]);
+
+  const clearAll = useCallback(() => {
+    setSelectedTokenIds(new Set());
+  }, []);
+
+  const handleSceneClick = useCallback((sceneId: string) => {
+    if (selectedTokenIds.size === 0) {
+      onSwitchScene(sceneId);
+      return;
+    }
+
+    // Clone selected tokens with new IDs (same logic as SceneTokenImportModal)
+    const groupIdMap = new Map<string, string>();
+    const newMonsterGroups: MonsterGroup[] = [];
+
+    for (const token of tokens) {
+      if (!selectedTokenIds.has(token.id)) continue;
+      if (!token.monsterGroupId) continue;
+      if (groupIdMap.has(token.monsterGroupId)) continue;
+
+      const newGroupId = crypto.randomUUID();
+      groupIdMap.set(token.monsterGroupId, newGroupId);
+
+      const originalGroup = monsterGroups.find((g) => g.id === token.monsterGroupId);
+      newMonsterGroups.push({
+        id: newGroupId,
+        name: originalGroup?.name ?? "Monster Group",
+      });
+    }
+
+    const clonedTokens: Token[] = tokens
+      .filter((t) => selectedTokenIds.has(t.id))
+      .map((t) => ({
+        ...t,
+        id: crypto.randomUUID(),
+        visible: true,
+        position: { col: 0, row: 0 },
+        monsterGroupId: t.monsterGroupId
+          ? groupIdMap.get(t.monsterGroupId) ?? null
+          : null,
+      }));
+
+    onSwitchScene(sceneId, clonedTokens, newMonsterGroups);
+  }, [selectedTokenIds, tokens, monsterGroups, onSwitchScene]);
+
   return (
     <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center justify-between mb-2">
@@ -114,7 +184,7 @@ export function SceneSelector({
             <button
               onClick={() => {
                 if (renamingId) return;
-                if (!scene.isActive) onSwitchScene(scene.id);
+                if (!scene.isActive) handleSceneClick(scene.id);
               }}
               className={`w-20 rounded-lg overflow-hidden border-2 transition-colors cursor-pointer ${
                 scene.isActive
@@ -216,6 +286,72 @@ export function SceneSelector({
           </div>
         ))}
       </div>
+
+      {/* Carry Tokens — inline token selection for scene switching */}
+      {tokens.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              Carry Tokens
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                All
+              </button>
+              <span className="text-[10px] text-gray-400">/</span>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-[10px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              >
+                None
+              </button>
+              {selectedTokenIds.size > 0 && (
+                <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-1">
+                  {selectedTokenIds.size}/{tokens.length}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="max-h-32 overflow-y-auto -mx-1 px-1">
+            {tokens.map((token) => (
+              <label
+                key={token.id}
+                className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedTokenIds.has(token.id)}
+                  onChange={() => toggleToken(token.id)}
+                  className="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                />
+                {token.imageUrl ? (
+                  <img
+                    src={token.imageUrl}
+                    alt={token.name}
+                    className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="w-5 h-5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: token.color }}
+                  />
+                )}
+                <span className="text-[11px] text-gray-800 dark:text-gray-200 truncate flex-1">
+                  {token.name}
+                </span>
+                <span className="text-[9px] text-gray-400 dark:text-gray-500 capitalize flex-shrink-0">
+                  {token.layer}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

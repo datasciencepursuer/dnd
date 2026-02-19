@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { authClient } from "~/lib/auth-client";
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Reset Password" }];
+  return [{ title: "Reset Password - DnD Virtual Table Top" }];
 }
 
 export default function ResetPassword() {
@@ -73,11 +73,11 @@ export default function ResetPassword() {
         <div className="text-center">
           <img
             src="https://gn3amfywu8.ufs.sh/f/dWzugQGhzDaSG2hFjlV3WsDHwNF80yobV295vlqiRe6UxXjM"
-            alt="D&D Map Editor"
+            alt="DnD Virtual Table Top"
             className="w-32 h-32 mx-auto rounded-2xl shadow-lg object-cover"
           />
           <h2 className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">
-            D&D Map Editor
+            DnD Virtual Table Top
           </h2>
         </div>
 

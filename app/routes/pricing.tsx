@@ -6,7 +6,7 @@ import { getUserTier } from "~/.server/subscription";
 import { getTierLimits, tierDisplayName, type AccountTier } from "~/lib/tier-limits";
 
 export function meta() {
-  return [{ title: "Pricing - DnD Map Editor" }];
+  return [{ title: "Pricing - DnD Virtual Table Top" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

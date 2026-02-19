@@ -5,7 +5,7 @@ import { authClient } from "~/lib/auth-client";
 import { auth } from "~/.server/auth/auth.server";
 
 export function meta({}: Route.MetaArgs) {
-  return [{ title: "Login" }];
+  return [{ title: "Login - DnD Virtual Table Top" }];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -158,11 +158,11 @@ export default function Login() {
         <div className="text-center">
           <img
             src="https://gn3amfywu8.ufs.sh/f/dWzugQGhzDaSG2hFjlV3WsDHwNF80yobV295vlqiRe6UxXjM"
-            alt="D&D Map Editor"
+            alt="DnD Virtual Table Top"
             className="w-32 h-32 mx-auto rounded-2xl shadow-lg object-cover"
           />
           <h2 className="mt-4 text-3xl font-bold text-gray-900 dark:text-white">
-            D&D Map Editor
+            DnD Virtual Table Top
           </h2>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Create and manage your tabletop RPG maps

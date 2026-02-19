@@ -15,7 +15,7 @@ interface LoaderData {
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "Map Editor - DnD" },
+    { title: "Virtual Table Top - DnD" },
     { name: "description", content: "Create and edit DnD maps" },
   ];
 }

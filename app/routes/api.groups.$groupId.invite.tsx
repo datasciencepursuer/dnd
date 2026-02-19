@@ -136,7 +136,6 @@ export async function action({ request, params }: Route.ActionArgs) {
 
     // Send invitation email (best-effort — don't fail the invite if email fails)
     try {
-      const { Resend } = await import("resend");
       const { render } = await import("@react-email/render");
       const { GroupInvitationEmail } = await import("~/.server/emails/group-invitation-email");
       const { env } = await import("~/.server/env");
@@ -154,10 +153,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       const html = await render(GroupInvitationEmail({ url: inviteUrl, inviterName, groupName }));
 
-      const resend = new Resend(env.RESEND_API_KEY);
-      const fromEmail = process.env.NODE_ENV === "production"
-        ? "bubufulplanet <noreply@bubufulplanet.com>"
-        : "bubufulplanet <onboarding@resend.dev>";
+      const { resend, fromEmail } = await import("~/.server/email");
 
       await resend.emails.send({
         from: fromEmail,
