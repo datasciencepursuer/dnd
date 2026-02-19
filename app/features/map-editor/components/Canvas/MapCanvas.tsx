@@ -41,6 +41,7 @@ function segIntersectsRect(ax: number, ay: number, bx: number, by: number, minX:
 interface MapCanvasProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
+  onTokenCreate?: (token: Token) => void;
   onFogPaint?: (col: number, row: number, creatorId: string) => void;
   onFogErase?: (col: number, row: number) => void;
   onFogPaintRange?: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;
@@ -55,7 +56,7 @@ interface MapCanvasProps {
   activePings?: Ping[];
 }
 
-export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, onDrawingAdd, onDrawingRemove, onWallAdd, onWallRemove, onAreaAdd, onAreaRemove, activePings = [] }: MapCanvasProps) {
+export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint, onFogErase, onFogPaintRange, onFogEraseRange, onPing, onDrawingAdd, onDrawingRemove, onWallAdd, onWallRemove, onAreaAdd, onAreaRemove, activePings = [] }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [isRightClickPanning, setIsRightClickPanning] = useState(false);
@@ -118,6 +119,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   // zoom/pan, which is unnecessary since Konva already has the correct position.
 
   const setViewport = useMapStore((s) => s.setViewport);
+  const addToken = useMapStore((s) => s.addToken);
   const flipToken = useMapStore((s) => s.flipToken);
   const addFreehandPath = useMapStore((s) => s.addFreehandPath);
   const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
@@ -142,6 +144,11 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   const currentTerrainType = useEditorStore((s) => s.currentTerrainType);
   const setSelectedElements = useEditorStore((s) => s.setSelectedElements);
   const buildMode = useEditorStore((s) => s.buildMode);
+  const tokenPlacementQueue = useEditorStore((s) => s.tokenPlacementQueue);
+  const tokenPlacementIndex = useEditorStore((s) => s.tokenPlacementIndex);
+  const advancePlacementQueue = useEditorStore((s) => s.advancePlacementQueue);
+  const cancelPlacementQueue = useEditorStore((s) => s.cancelPlacementQueue);
+  const currentPlacementToken = tokenPlacementQueue[tokenPlacementIndex] ?? null;
 
   // Show walls/areas in DM View (not just when Edit Map panel is open)
   // Visible when: editing (buildMode) OR DM is in DM View (not Local Play)
@@ -284,6 +291,18 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [isDrawingWall, finalizeWall]);
+
+  // Escape key to cancel token placement queue
+  useEffect(() => {
+    if (selectedTool !== "token" || tokenPlacementQueue.length === 0) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        cancelPlacementQueue();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedTool, tokenPlacementQueue.length, cancelPlacementQueue]);
 
   // Clear wall/area selection when tool changes away from select
   useEffect(() => {
@@ -1021,6 +1040,27 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
   };
 
   const handleClick = (e: any) => {
+    // Token placement (scene import) click handler
+    if (selectedTool === "token" && currentPlacementToken && grid) {
+      const stage = stageRef.current;
+      const pos = stage.getRelativePointerPosition();
+      const cell = getCellFromPosition(pos);
+
+      // Clamp to grid bounds accounting for token size
+      const col = Math.max(0, Math.min(cell.col, grid.width - currentPlacementToken.size));
+      const row = Math.max(0, Math.min(cell.row, grid.height - currentPlacementToken.size));
+
+      const placedToken: Token = {
+        ...currentPlacementToken,
+        position: { col, row },
+      };
+
+      addToken(placedToken);
+      onTokenCreate?.(placedToken);
+      advancePlacementQueue();
+      return;
+    }
+
     // Ping tool click handler
     if (selectedTool === "ping" && selectedToken && userId) {
       // Check rate limit
@@ -1073,23 +1113,27 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
     ? "grabbing"
     : selectedTool === "pan"
       ? "grab"
-      : selectedTool === "draw"
-        ? selectedToken
+      : selectedTool === "token"
+        ? currentPlacementToken
           ? "crosshair"
-          : "not-allowed"
-        : selectedTool === "erase"
-          ? "crosshair"
-          : selectedTool === "fog"
+          : "default"
+        : selectedTool === "draw"
+          ? selectedToken
             ? "crosshair"
-            : selectedTool === "wall"
+            : "not-allowed"
+          : selectedTool === "erase"
+            ? "crosshair"
+            : selectedTool === "fog"
               ? "crosshair"
-              : selectedTool === "area"
+              : selectedTool === "wall"
                 ? "crosshair"
-                : selectedTool === "ping"
-                  ? selectedToken
-                    ? "crosshair"
-                    : "not-allowed"
-                  : "default";
+                : selectedTool === "area"
+                  ? "crosshair"
+                  : selectedTool === "ping"
+                    ? selectedToken
+                      ? "crosshair"
+                      : "not-allowed"
+                    : "default";
 
   return (
     <div
@@ -1140,6 +1184,32 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onFogPaint, onFogErase, o
       {selectedTool === "ping" && selectedToken && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
           Click to ping (4 per 10s limit)
+        </div>
+      )}
+      {/* Token placement banner */}
+      {selectedTool === "token" && currentPlacementToken && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium flex items-center gap-3">
+          {currentPlacementToken.imageUrl ? (
+            <img
+              src={currentPlacementToken.imageUrl}
+              alt={currentPlacementToken.name}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          ) : (
+            <div
+              className="w-6 h-6 rounded-full flex-shrink-0"
+              style={{ backgroundColor: currentPlacementToken.color }}
+            />
+          )}
+          <span>
+            Click to place: {currentPlacementToken.name} ({tokenPlacementIndex + 1}/{tokenPlacementQueue.length})
+          </span>
+          <button
+            onClick={cancelPlacementQueue}
+            className="ml-2 px-2 py-0.5 rounded bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium cursor-pointer"
+          >
+            Cancel
+          </button>
         </div>
       )}
       <Stage

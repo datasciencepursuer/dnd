@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { EditorTool, MapPermission, PlayerPermissions, WallType, TerrainType } from "../types";
+import type { EditorTool, MapPermission, PlayerPermissions, WallType, TerrainType, Token } from "../types";
 import { DEFAULT_PERMISSIONS } from "../types";
 
 interface EditorState {
@@ -37,6 +37,10 @@ interface EditorState {
 
   // Pending token animations (AI combat moves)
   pendingAnimations: Record<string, { fromCol: number; fromRow: number }>;
+
+  // Token placement queue (scene import)
+  tokenPlacementQueue: Token[];
+  tokenPlacementIndex: number;
 
   // Actions
   setTool: (tool: EditorTool) => void;
@@ -83,6 +87,12 @@ interface EditorState {
   addPendingAnimation: (tokenId: string, fromCol: number, fromRow: number) => void;
   clearPendingAnimation: (tokenId: string) => void;
 
+  // Token placement queue (scene import)
+  setTokenPlacementQueue: (tokens: Token[]) => void;
+  advancePlacementQueue: () => void;
+  cancelPlacementQueue: () => void;
+  currentPlacementToken: () => Token | null;
+
   // Permission helpers
   isDungeonMaster: () => boolean;
   isTokenOwner: (tokenOwnerId: string | null) => boolean;
@@ -118,6 +128,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentTerrainType: "difficult",
   buildMode: false,
   pendingAnimations: {},
+  tokenPlacementQueue: [],
+  tokenPlacementIndex: 0,
 
   setTool: (tool) =>
     set((state) => ({
@@ -215,6 +227,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const { [tokenId]: _, ...rest } = state.pendingAnimations;
       return { pendingAnimations: rest };
     }),
+
+  // Token placement queue (scene import)
+  setTokenPlacementQueue: (tokens) =>
+    set({ tokenPlacementQueue: tokens, tokenPlacementIndex: 0, selectedTool: "token", selectedElementIds: [] }),
+  advancePlacementQueue: () => {
+    const { tokenPlacementIndex, tokenPlacementQueue } = get();
+    const nextIndex = tokenPlacementIndex + 1;
+    if (nextIndex >= tokenPlacementQueue.length) {
+      // Queue exhausted
+      set({ tokenPlacementQueue: [], tokenPlacementIndex: 0, selectedTool: "select" });
+    } else {
+      set({ tokenPlacementIndex: nextIndex });
+    }
+  },
+  cancelPlacementQueue: () =>
+    set({ tokenPlacementQueue: [], tokenPlacementIndex: 0, selectedTool: "select" }),
+  currentPlacementToken: () => {
+    const { tokenPlacementQueue, tokenPlacementIndex } = get();
+    return tokenPlacementQueue[tokenPlacementIndex] ?? null;
+  },
 
   // Permission helpers
   isDungeonMaster: () => get().permission === "dm",

@@ -5,6 +5,7 @@ import { ChatPanel } from "./ChatPanel";
 import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
 import { InitiativeSetupModal } from "./InitiativeSetupModal";
+import { SceneTokenImportModal } from "./SceneTokenImportModal";
 import { MobileSidebarRail } from "./Mobile";
 import { useMapStore, useEditorStore, useChatStore } from "../store";
 import { useMapSync, useIsMobile } from "../hooks";
@@ -14,7 +15,7 @@ import type { ChatMessageData } from "../store/chat-store";
 import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import { filterMessagesForAI } from "../utils/ai-context-utils";
 import { VALID_CONDITIONS } from "../types";
-import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape } from "../types";
+import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape, MonsterGroup } from "../types";
 import type { AccountTier, TierLimits } from "~/lib/tier-limits";
 import { getTierLimits } from "~/lib/tier-limits";
 
@@ -146,6 +147,12 @@ export function MapEditor({
 
   // Scene switch confirmation dialog state
   const [pendingSceneSwitch, setPendingSceneSwitch] = useState<string | null>(null);
+
+  // Token import modal state (scene switch)
+  const [showTokenImportModal, setShowTokenImportModal] = useState(false);
+  const [preSceneTokens, setPreSceneTokens] = useState<Token[]>([]);
+  const [preSceneMonsterGroups, setPreSceneMonsterGroups] = useState<MonsterGroup[]>([]);
+  const [pendingSceneSwitchTarget, setPendingSceneSwitchTarget] = useState<{ sceneId: string; sceneName: string } | null>(null);
 
   // AI Battle Engine toggle state
   const [aiBattleEngine, setAiBattleEngine] = useState(false);
@@ -973,13 +980,34 @@ export function MapEditor({
     }
   }, [switchScene, temporalStore, broadcastMapSync, syncNow]);
 
+  const initiateSceneSwitch = useCallback((sceneId: string) => {
+    const currentMap = useMapStore.getState().map;
+    if (!currentMap) return;
+
+    // Find target scene name
+    const targetScene = currentMap.scenes.find((s) => s.id === sceneId);
+    if (!targetScene) return;
+
+    // If current scene has tokens, show import modal
+    if (currentMap.tokens.length > 0) {
+      setPreSceneTokens([...currentMap.tokens]);
+      setPreSceneMonsterGroups([...(currentMap.monsterGroups || [])]);
+      setPendingSceneSwitchTarget({ sceneId, sceneName: targetScene.name });
+      setShowTokenImportModal(true);
+      return;
+    }
+
+    // No tokens — switch directly
+    performSceneSwitch(sceneId);
+  }, [performSceneSwitch]);
+
   const handleSwitchScene = useCallback((sceneId: string) => {
     if (isInCombat) {
       setPendingSceneSwitch(sceneId);
       return;
     }
-    performSceneSwitch(sceneId);
-  }, [isInCombat, performSceneSwitch]);
+    initiateSceneSwitch(sceneId);
+  }, [isInCombat, initiateSceneSwitch]);
 
   const handleCreateScene = useCallback((name: string) => {
     createScene(name);
@@ -1014,6 +1042,52 @@ export function MapEditor({
       syncNow();
     }
   }, [duplicateScene, broadcastMapSync, syncNow]);
+
+  // Token import modal handlers (scene switch)
+  const handleTokenImportConfirm = useCallback((importedTokens: Token[], importedGroups: MonsterGroup[]) => {
+    if (!pendingSceneSwitchTarget) return;
+    setShowTokenImportModal(false);
+
+    // Perform the scene switch first
+    performSceneSwitch(pendingSceneSwitchTarget.sceneId);
+
+    // Inject monster groups into the new scene's map state
+    if (importedGroups.length > 0) {
+      const currentMap = useMapStore.getState().map;
+      if (currentMap) {
+        useMapStore.setState({
+          map: {
+            ...currentMap,
+            monsterGroups: [...currentMap.monsterGroups, ...importedGroups],
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      }
+    }
+
+    // Set placement queue to place tokens one-by-one
+    useEditorStore.getState().setTokenPlacementQueue(importedTokens);
+
+    setPendingSceneSwitchTarget(null);
+    setPreSceneTokens([]);
+    setPreSceneMonsterGroups([]);
+  }, [pendingSceneSwitchTarget, performSceneSwitch]);
+
+  const handleTokenImportSkip = useCallback(() => {
+    if (!pendingSceneSwitchTarget) return;
+    setShowTokenImportModal(false);
+    performSceneSwitch(pendingSceneSwitchTarget.sceneId);
+    setPendingSceneSwitchTarget(null);
+    setPreSceneTokens([]);
+    setPreSceneMonsterGroups([]);
+  }, [pendingSceneSwitchTarget, performSceneSwitch]);
+
+  const handleTokenImportCancel = useCallback(() => {
+    setShowTokenImportModal(false);
+    setPendingSceneSwitchTarget(null);
+    setPreSceneTokens([]);
+    setPreSceneMonsterGroups([]);
+  }, []);
 
   // Keyboard shortcuts - undo/redo for fog, drawing, and token operations
   const handleKeyDown = useCallback(
@@ -1203,6 +1277,7 @@ export function MapEditor({
           <MapCanvas
             onTokenMoved={handleTokenMoved}
             onTokenFlip={handleTokenFlip}
+            onTokenCreate={handleTokenCreate}
             onFogPaint={handleFogPaint}
             onFogErase={handleFogErase}
             onFogPaintRange={handleFogPaintRange}
@@ -1305,6 +1380,18 @@ export function MapEditor({
         onCancel={handleCancelInitiativeSetup}
       />
 
+      {/* Scene Token Import Modal */}
+      <SceneTokenImportModal
+        isOpen={showTokenImportModal}
+        tokens={preSceneTokens}
+        monsterGroups={preSceneMonsterGroups}
+        sceneName={map.activeSceneName}
+        targetSceneName={pendingSceneSwitchTarget?.sceneName ?? ""}
+        onConfirm={handleTokenImportConfirm}
+        onSkip={handleTokenImportSkip}
+        onCancel={handleTokenImportCancel}
+      />
+
       {/* Scene Switch During Combat Confirmation */}
       {pendingSceneSwitch && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -1324,8 +1411,9 @@ export function MapEditor({
                 onClick={() => {
                   const endCombatAction = useMapStore.getState().endCombat;
                   endCombatAction();
-                  performSceneSwitch(pendingSceneSwitch);
+                  const target = pendingSceneSwitch;
                   setPendingSceneSwitch(null);
+                  initiateSceneSwitch(target);
                 }}
                 className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-amber-600 hover:bg-amber-700 text-white"
               >
@@ -1333,8 +1421,9 @@ export function MapEditor({
               </button>
               <button
                 onClick={() => {
-                  performSceneSwitch(pendingSceneSwitch);
+                  const target = pendingSceneSwitch;
                   setPendingSceneSwitch(null);
+                  initiateSceneSwitch(target);
                 }}
                 className="w-full px-4 py-2 rounded font-medium cursor-pointer transition-colors bg-blue-600 hover:bg-blue-700 text-white"
               >
