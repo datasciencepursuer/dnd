@@ -58,7 +58,7 @@ export async function action({ request }: { request: Request }) {
     customer: customerId,
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${baseUrl}/pricing?subscription=success`,
+    success_url: `${baseUrl}/api/stripe/success`,
     cancel_url: `${baseUrl}/pricing?subscription=cancelled`,
     metadata: { userId },
   });

@@ -1,125 +1,38 @@
-import { eq } from "drizzle-orm";
-import { db } from "~/.server/db";
-import { user } from "~/.server/db/schema";
-import type { AccountTier } from "~/.server/db/schema";
 import { stripe } from "~/.server/stripe";
 import { env } from "~/.server/env";
+import { syncStripeData } from "~/.server/stripe-sync";
 import type Stripe from "stripe";
 
-function resolveTierFromPriceId(priceId: string): AccountTier | null {
-  if (priceId === env.STRIPE_ADVENTURER_PRICE_ID) return "adventurer";
-  if (priceId === env.STRIPE_HERO_PRICE_ID) return "dungeon_master";
-  return null;
-}
+const allowedEvents = new Set([
+  "checkout.session.completed",
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "customer.subscription.paused",
+  "customer.subscription.resumed",
+  "customer.subscription.pending_update_applied",
+  "customer.subscription.pending_update_expired",
+  "invoice.paid",
+  "invoice.payment_failed",
+  "invoice.payment_action_required",
+  "invoice.payment_succeeded",
+  "invoice.marked_uncollectible",
+]);
 
-function getPeriodEnd(subscription: Stripe.Subscription): Date {
-  const itemEnd = subscription.items.data[0]?.current_period_end;
-  return new Date((itemEnd ?? 0) * 1000);
-}
+function extractCustomerId(event: Stripe.Event): string | null {
+  const obj = event.data.object as unknown as Record<string, unknown>;
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const subscriptionId =
-    typeof session.subscription === "string"
-      ? session.subscription
-      : session.subscription?.id;
+  // checkout.session.completed has `customer` at top level
+  // subscription events have `customer` at top level
+  // invoice events have `customer` at top level
+  const raw = obj.customer;
 
-  if (!subscriptionId) return;
-
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const priceId = subscription.items.data[0]?.price.id;
-  if (!priceId) return;
-
-  const tier = resolveTierFromPriceId(priceId);
-  if (!tier) return;
-
-  const customerId =
-    typeof session.customer === "string"
-      ? session.customer
-      : session.customer?.id;
-
-  if (!customerId) return;
-
-  await db
-    .update(user)
-    .set({
-      accountTier: tier,
-      stripeSubscriptionId: subscriptionId,
-      stripeCurrentPeriodEnd: getPeriodEnd(subscription),
-      stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
-    })
-    .where(eq(user.stripeCustomerId, customerId));
-}
-
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const priceId = subscription.items.data[0]?.price.id;
-  if (!priceId) return;
-
-  const customerId =
-    typeof subscription.customer === "string"
-      ? subscription.customer
-      : subscription.customer?.id;
-
-  if (!customerId) return;
-
-  // Never downgrade admin (Lodestar) users via webhook
-  const existing = await db
-    .select({ accountTier: user.accountTier })
-    .from(user)
-    .where(eq(user.stripeCustomerId, customerId))
-    .limit(1);
-  if (existing[0]?.accountTier === "admin") return;
-
-  // past_due keeps current tier (Stripe retries automatically)
-  if (subscription.status === "past_due") {
-    await db
-      .update(user)
-      .set({
-        stripeCurrentPeriodEnd: getPeriodEnd(subscription),
-        stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
-      })
-      .where(eq(user.stripeCustomerId, customerId));
-    return;
+  if (typeof raw === "string") return raw;
+  if (raw && typeof raw === "object" && "id" in raw) {
+    return (raw as { id: string }).id;
   }
 
-  const tier = resolveTierFromPriceId(priceId);
-  if (!tier) return;
-
-  await db
-    .update(user)
-    .set({
-      accountTier: subscription.status === "active" ? tier : "free",
-      stripeSubscriptionId: subscription.id,
-      stripeCurrentPeriodEnd: getPeriodEnd(subscription),
-      stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,
-    })
-    .where(eq(user.stripeCustomerId, customerId));
-}
-
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  const customerId =
-    typeof subscription.customer === "string"
-      ? subscription.customer
-      : subscription.customer?.id;
-
-  if (!customerId) return;
-
-  // Never downgrade admin (Lodestar) users via webhook
-  const existing = await db
-    .select({ accountTier: user.accountTier })
-    .from(user)
-    .where(eq(user.stripeCustomerId, customerId))
-    .limit(1);
-  if (existing[0]?.accountTier === "admin") return;
-
-  await db
-    .update(user)
-    .set({
-      accountTier: "free",
-      stripeSubscriptionId: null,
-      stripeCurrentPeriodEnd: null,
-      stripeCancelAtPeriodEnd: false,
-    })
-    .where(eq(user.stripeCustomerId, customerId));
+  return null;
 }
 
 export async function action({ request }: { request: Request }) {
@@ -142,16 +55,16 @@ export async function action({ request }: { request: Request }) {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  switch (event.type) {
-    case "checkout.session.completed":
-      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-      break;
-    case "customer.subscription.updated":
-      await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-      break;
-    case "customer.subscription.deleted":
-      await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
-      break;
+  if (allowedEvents.has(event.type)) {
+    const customerId = extractCustomerId(event);
+    if (customerId) {
+      try {
+        await syncStripeData(customerId);
+      } catch (err) {
+        console.error(`Stripe sync failed for ${event.type}:`, err);
+        // Always return 200 to prevent Stripe retry storms
+      }
+    }
   }
 
   return Response.json({ received: true });
