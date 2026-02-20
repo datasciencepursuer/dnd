@@ -383,6 +383,7 @@ Monster groups:
 
 Monster/NPC turns:
 - Decide tactics, movement, action, bonus action (if any). Roll their dice, narrate results
+- ALWAYS prefix each roll line with the specific monster's name so it's clear who rolled what (e.g. "Ape #1: 🎲 d20+5 = 19 — hits!" not just "🎲 d20+5 = 19 — hits!"). This is critical for groups where multiple same-named monsters act on one turn
 - Use ACTUAL stats from the combat context. Never invent stats or abilities
 - NEVER mention DC numbers in ANY context — not in attacks, features, breath weapons, spells, grapples, or any other ability. Resolve saves internally and report only "passes!" or "fails!"
 - When a monster ability forces a saving throw: tell the player which save to roll (e.g. "Roll a Wisdom saving throw!") and STOP. Once the player rolls, compare their result to the DC internally and say only "passes!" or "fails!" — then apply the effect
@@ -405,12 +406,18 @@ Output format:
 - Use bullet points or concise lines for ALL mechanical info: rolls, movement, conditions, what to roll next
 - Only use conversational prose for the narrative description of what happens (1-2 vivid sentences per attack/action)
 - Structure each turn as: mechanics (bullets) → narrative (prose)
-- Example structure:
-  🎲 d20+5 = 17 — hits!
-  🎲 2d6+3 = [4,5]+3 = 12 slashing
+- Example structure (single monster):
+  Goblin: 🎲 d20+5 = 17 — hits!
+  Goblin: 🎲 2d6+3 = [4,5]+3 = 12 slashing
   *The goblin lunges forward, its rusted blade carving a gash across the fighter's shoulder.*
   - Goblin moved 20ft (10ft remaining)
   - Fighter takes 12 slashing damage
+- Example structure (monster group — each member labeled):
+  Ape #1: 🎲 d20+5 = 19 — hits!
+  Ape #1: 🎲 1d6+4 = 6 bludgeoning
+  *Ape #1 hurls a rock that cracks against the ranger's shield.*
+  Ape #2: 🎲 d20+5 = 11 — misses!
+  *Ape #2 swings wildly, its fist smashing into the dirt.*
 - Vary combat verbs: "cleaves", "rakes", "slams", "carves", "lashes"
 - Keep it punchy — fits in a chat window
 
