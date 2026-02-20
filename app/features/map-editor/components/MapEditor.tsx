@@ -62,6 +62,8 @@ export function MapEditor({
   const map = useMapStore((s) => s.map);
   const newMap = useMapStore((s) => s.newMap);
   const updateToken = useMapStore((s) => s.updateToken);
+  const removeToken = useMapStore((s) => s.removeToken);
+  const duplicateToken = useMapStore((s) => s.duplicateToken);
   const moveToken = useMapStore((s) => s.moveToken);
   const updateCharacterSheet = useMapStore((s) => s.updateCharacterSheet);
   const initializeCharacterSheet = useMapStore((s) => s.initializeCharacterSheet);
@@ -302,11 +304,16 @@ export function MapEditor({
 
           // Apply HP/condition updates from AI
           const updates = data.updates as { tokenName: string; hpCurrent?: number; condition?: string; moveTo?: { col: number; row: number } }[] | undefined;
+          const nameToId = data.displayNameToTokenId as Record<string, string> | undefined;
           if (updates && updates.length > 0) {
             const currentMap = useMapStore.getState().map;
             if (currentMap) {
               for (const u of updates) {
-                const token = currentMap.tokens.find((t) => t.name === u.tokenName);
+                // Resolve token: first try the display-name→ID mapping, then fall back to name match
+                const resolvedId = nameToId?.[u.tokenName];
+                const token = resolvedId
+                  ? currentMap.tokens.find((t) => t.id === resolvedId)
+                  : currentMap.tokens.find((t) => t.name === u.tokenName);
                 if (!token) continue;
 
                 // Apply HP/condition changes (requires character sheet)
@@ -1119,6 +1126,22 @@ export function MapEditor({
     }
   }, [map, mapId, newMap]);
 
+  const handleEditTokenDelete = useCallback(
+    (tokenId: string) => {
+      removeToken(tokenId);
+      handleTokenDelete(tokenId);
+    },
+    [removeToken, handleTokenDelete]
+  );
+
+  const handleEditTokenClone = useCallback(
+    (tokenId: string) => {
+      const newToken = duplicateToken(tokenId, { sameGroup: true });
+      if (newToken) handleTokenCreate(newToken);
+    },
+    [duplicateToken, handleTokenCreate]
+  );
+
   const handleEditToken = (token: Token) => {
     setEditingToken(token);
   };
@@ -1263,6 +1286,8 @@ export function MapEditor({
           groupMembers={groupMembers}
           onSave={syncNow}
           onTokenUpdate={handleTokenUpdate}
+          onDelete={canEditToken(editingToken.ownerId) || isDungeonMaster() ? handleEditTokenDelete : undefined}
+          onClone={isDungeonMaster() ? handleEditTokenClone : undefined}
           mapId={mapId}
           onNext={handleEditTokenNext}
           onPrev={handleEditTokenPrev}

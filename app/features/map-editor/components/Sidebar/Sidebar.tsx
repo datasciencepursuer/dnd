@@ -187,17 +187,6 @@ export function Sidebar({
           <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
         </svg>
       </button>
-      {/* Scene Selector - DM only, hidden in local play */}
-      {isDungeonMaster() && !isPlayingLocally && onSwitchScene && onCreateScene && onDeleteScene && onRenameScene && onDuplicateScene && (
-        <SceneSelector
-          onSwitchScene={onSwitchScene}
-          onCreateScene={onCreateScene}
-          onDeleteScene={onDeleteScene}
-          onRenameScene={onRenameScene}
-          onDuplicateScene={onDuplicateScene}
-          maxScenes={tierLimits?.maxScenesPerMap}
-        />
-      )}
       {/* Action Buttons */}
       <div className="p-3 space-y-2 border-b border-gray-200 dark:border-gray-700">
         {/* Edit Map - DM only */}
@@ -232,6 +221,17 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto">
         {canEditMap() && activePanel === "editMap" && (
           <>
+            {/* Scene Selector - DM only, hidden in local play */}
+            {isDungeonMaster() && !isPlayingLocally && onSwitchScene && onCreateScene && onDeleteScene && onRenameScene && onDuplicateScene && (
+              <SceneSelector
+                onSwitchScene={onSwitchScene}
+                onCreateScene={onCreateScene}
+                onDeleteScene={onDeleteScene}
+                onRenameScene={onRenameScene}
+                onDuplicateScene={onDuplicateScene}
+                maxScenes={tierLimits?.maxScenesPerMap}
+              />
+            )}
             <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />
             {/* DM Tools: Fog, Wall, Area */}
             <div className="px-3 py-2 space-y-2 border-b border-gray-200 dark:border-gray-700">

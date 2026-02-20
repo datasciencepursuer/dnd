@@ -516,14 +516,12 @@ export function DragOverlay({ dragState, token, cellSize, walls, areas }: DragOv
   const isOverSpeed = distanceInFeet > walkSpeed;
   const lineColor = distanceInFeet === 0 ? token.color : isOverSpeed ? "#ef4444" : "#22c55e";
 
-  // Build display text with terrain indicators
+  // Build display text: distance + wall crossing only
   const feetText = Number.isInteger(distanceInFeet)
     ? `${distanceInFeet}ft`
     : `${distanceInFeet.toFixed(1)}ft`;
   const indicators: string[] = [feetText];
   if (moveInfo.crossedWallIds.length > 0) indicators.push("Wall");
-  if (moveInfo.hasImpassable) indicators.push("Impassable");
-  else if (moveInfo.hasDifficultTerrain) indicators.push("Difficult");
   const displayText = indicators.join(" | ");
 
   // Position the label at the midpoint of the line
@@ -532,8 +530,8 @@ export function DragOverlay({ dragState, token, cellSize, walls, areas }: DragOv
 
   const labelWidth = Math.max(40, displayText.length * 8 + 12);
 
-  // Warning color for wall/terrain indicators
-  const hasWarning = moveInfo.crossedWallIds.length > 0 || moveInfo.hasImpassable;
+  // Warning color for wall crossing
+  const hasWarning = moveInfo.crossedWallIds.length > 0;
 
   return (
     <>

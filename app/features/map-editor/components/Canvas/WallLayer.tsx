@@ -1,7 +1,19 @@
-import { Line, Circle } from "react-konva";
+import { Line, Circle, Rect, Text, Group } from "react-konva";
 import { memo, useState } from "react";
-import type { WallSegment } from "../../types";
+import type { WallSegment, WallType } from "../../types";
 import { WALL_STYLES } from "../../utils/terrain-utils";
+
+const WALL_LABELS: Record<WallType, string> = {
+  wall: "Wall",
+  "half-wall": "Half Wall",
+  window: "Window",
+  "arrow-slit": "Arrow Slit",
+  "door-closed": "Door (Closed)",
+  "door-open": "Door (Open)",
+  "door-locked": "Door (Locked)",
+  pillar: "Pillar",
+  fence: "Fence",
+};
 
 interface WallLayerProps {
   walls: WallSegment[];
@@ -10,6 +22,7 @@ interface WallLayerProps {
   isSelectMode: boolean;
   isEraseMode: boolean;
   isDragging: boolean;
+  isDmView?: boolean;
   onSelectWall?: (wallId: string) => void;
   onEraseWall?: (wallId: string) => void;
 }
@@ -21,11 +34,13 @@ export const WallLayer = memo(function WallLayer({
   isSelectMode,
   isEraseMode,
   isDragging,
+  isDmView,
   onSelectWall,
   onEraseWall,
 }: WallLayerProps) {
   const [hoveredWallId, setHoveredWallId] = useState<string | null>(null);
   const isInteractive = (isSelectMode || isEraseMode) && !isDragging;
+  const canHover = isInteractive || (isDmView && !isDragging);
 
   return (
     <>
@@ -61,15 +76,15 @@ export const WallLayer = memo(function WallLayer({
             dash={style.dash.length > 0 ? style.dash : undefined}
             lineCap="round"
             lineJoin="round"
-            listening={isInteractive}
-            hitStrokeWidth={isInteractive ? 20 : 0}
+            listening={canHover}
+            hitStrokeWidth={canHover ? 20 : 0}
             onMouseEnter={
-              isInteractive
+              canHover
                 ? () => setHoveredWallId(wall.id)
                 : undefined
             }
             onMouseLeave={
-              isInteractive
+              canHover
                 ? () => setHoveredWallId(null)
                 : undefined
             }
@@ -111,6 +126,41 @@ export const WallLayer = memo(function WallLayer({
               />
             ))
           )}
+
+      {/* DM hover tooltip */}
+      {isDmView && hoveredWallId && walls.map((wall) => {
+        if (wall.id !== hoveredWallId || wall.points.length < 2) return null;
+
+        // Position tooltip at midpoint of the wall
+        const midIdx = Math.floor(wall.points.length / 2);
+        const p0 = wall.points[midIdx - 1] || wall.points[0];
+        const p1 = wall.points[midIdx];
+        const midX = ((p0.x + p1.x) / 2) * cellSize;
+        const midY = ((p0.y + p1.y) / 2) * cellSize;
+        const label = WALL_LABELS[wall.wallType] || wall.wallType;
+        const tooltipWidth = label.length * 7 + 12;
+
+        return (
+          <Group key={`${wall.id}-tooltip`} listening={false}>
+            <Rect
+              x={midX - tooltipWidth / 2}
+              y={midY - 24}
+              width={tooltipWidth}
+              height={18}
+              fill="rgba(0,0,0,0.8)"
+              cornerRadius={4}
+            />
+            <Text
+              x={midX - tooltipWidth / 2 + 6}
+              y={midY - 21}
+              text={label}
+              fontSize={11}
+              fill="#fff"
+              listening={false}
+            />
+          </Group>
+        );
+      })}
     </>
   );
 });

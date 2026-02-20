@@ -42,38 +42,90 @@ function shortenFeatureName(name: string): string {
   return name;
 }
 
-export function serializeCombatContext(ctx: CombatContext): string {
+export interface SerializedCombatResult {
+  text: string;
+  /** Maps disambiguated display names (e.g. "Ape #1") back to token IDs */
+  displayNameToTokenId: Record<string, string>;
+}
+
+export function serializeCombatContext(ctx: CombatContext): SerializedCombatResult {
   const { combat, tokens, grid, monsterGroups, recentMessages, walls, areas, abilityDescriptions } = ctx;
   const lines: string[] = [];
+
+  // Build disambiguated display names for all combatant tokens.
+  // Tokens with duplicate names get "#1", "#2" suffixes.
+  const displayNameToTokenId: Record<string, string> = {};
+  const tokenIdToDisplayName = new Map<string, string>();
+
+  // First pass: collect all individual combatant tokens in initiative order
+  const allCombatantTokens: { tokenId: string; token: Token | undefined; entry: typeof combat.initiativeOrder[0] }[] = [];
+  for (const entry of combat.initiativeOrder) {
+    if (entry.groupTokenIds && entry.groupTokenIds.length > 1) {
+      for (const tid of entry.groupTokenIds) {
+        const t = tokens.find((tok) => tok.id === tid);
+        allCombatantTokens.push({ tokenId: tid, token: t, entry });
+      }
+    } else {
+      const t = tokens.find((tok) => tok.id === entry.tokenId);
+      allCombatantTokens.push({ tokenId: entry.tokenId, token: t, entry });
+    }
+  }
+
+  // Count occurrences of each base name
+  const nameCounts = new Map<string, number>();
+  for (const c of allCombatantTokens) {
+    const baseName = c.token?.name ?? c.entry.tokenName;
+    nameCounts.set(baseName, (nameCounts.get(baseName) ?? 0) + 1);
+  }
+
+  // Assign disambiguated names
+  const nameCounters = new Map<string, number>();
+  for (const c of allCombatantTokens) {
+    const baseName = c.token?.name ?? c.entry.tokenName;
+    let displayName: string;
+    if (nameCounts.get(baseName)! > 1) {
+      const idx = (nameCounters.get(baseName) ?? 0) + 1;
+      nameCounters.set(baseName, idx);
+      displayName = `${baseName} #${idx}`;
+    } else {
+      displayName = baseName;
+    }
+    displayNameToTokenId[displayName] = c.tokenId;
+    tokenIdToDisplayName.set(c.tokenId, displayName);
+  }
 
   // Combat state header
   const totalEntries = combat.initiativeOrder.length;
   const currentEntry = combat.initiativeOrder[combat.currentTurnIndex];
+  const currentDisplayName = currentEntry
+    ? (currentEntry.groupTokenIds && currentEntry.groupTokenIds.length > 1
+      ? tokenIdToDisplayName.get(currentEntry.groupTokenIds[0]) ?? currentEntry.tokenName
+      : tokenIdToDisplayName.get(currentEntry.tokenId) ?? currentEntry.tokenName)
+    : "Unknown";
   lines.push("COMBAT STATE:");
   lines.push(
-    `Turn ${combat.currentTurnIndex + 1}/${totalEntries} | Current: ${currentEntry?.tokenName ?? "Unknown"} (${currentEntry?.layer ?? "unknown"})`
+    `Turn ${combat.currentTurnIndex + 1}/${totalEntries} | Current: ${currentEntry?.groupTokenIds && currentEntry.groupTokenIds.length > 1 ? `${currentEntry.tokenName} group` : currentDisplayName} (${currentEntry?.layer ?? "unknown"})`
   );
   lines.push("");
 
-  // Combatants with stats
-  lines.push("COMBATANTS:");
-  for (let i = 0; i < combat.initiativeOrder.length; i++) {
-    const entry = combat.initiativeOrder[i];
-    const token = tokens.find((t) => t.id === entry.tokenId);
-    const isCurrent = i === combat.currentTurnIndex;
+  // Helper to serialize one combatant token's stats
+  const serializeCombatant = (
+    num: string,
+    displayName: string,
+    token: Token | undefined,
+    layer: string,
+    initiative: number,
+    isCurrent: boolean,
+  ) => {
     const marker = isCurrent ? " ← CURRENT" : "";
-    const layer = entry.layer ?? token?.layer ?? "unknown";
     const cs = token?.characterSheet;
-
-    // Core stats — always present for every combatant
     const ac = cs ? `AC ${cs.ac}` : "AC ?";
     const hp = cs ? `HP ${cs.hpCurrent}/${cs.hpMax}` : "HP ?/?";
     const cellStr = token
       ? `Cell:(${token.position.col},${token.position.row}) Size:${token.size}`
       : "Cell:?";
-    let line = `${i + 1}. ${entry.tokenName} (${layer}) Init:${entry.initiative} | ${ac} | ${hp} | ${cellStr}${marker}`;
+    let line = `${num} ${displayName} (${layer}) Init:${initiative} | ${ac} | ${hp} | ${cellStr}${marker}`;
 
-    // Condition
     const condition = cs?.condition;
     if (condition && condition !== "Healthy") {
       line += ` | Condition: ${condition}`;
@@ -81,9 +133,8 @@ export function serializeCombatContext(ctx: CombatContext): string {
 
     lines.push(line);
 
-    // Extended stats from character sheet
+    // Print combat stats for every combatant so the AI has full context
     if (cs) {
-      // Weapons
       if (cs.weapons.length > 0) {
         const weaponStrs = cs.weapons.map(
           (w) =>
@@ -92,7 +143,6 @@ export function serializeCombatContext(ctx: CombatContext): string {
         lines.push(`   Weapons: ${weaponStrs.join(", ")}`);
       }
 
-      // Spells (first 10 for token efficiency)
       if (cs.spells.length > 0) {
         const spellStrs = cs.spells.slice(0, 10).map((s) => {
           const levelStr = s.level === 0 ? "cantrip" : `${s.level}${getOrdinalSuffix(s.level)}`;
@@ -101,7 +151,6 @@ export function serializeCombatContext(ctx: CombatContext): string {
         lines.push(`   Spells: ${spellStrs.join(", ")}`);
       }
 
-      // Class features with charges (shortened names — full descriptions in ABILITY DETAILS)
       const usableFeatures = cs.classFeatures.filter(
         (f) => f.charges === null || f.charges.current > 0
       );
@@ -116,7 +165,6 @@ export function serializeCombatContext(ctx: CombatContext): string {
         lines.push(`   Features: ${featureStrs.join(", ")}`);
       }
 
-      // Speed
       const speeds: string[] = [];
       if (cs.speed.walk) speeds.push(`${cs.speed.walk}ft walk`);
       if (cs.speed.fly) speeds.push(`${cs.speed.fly}ft fly`);
@@ -127,20 +175,36 @@ export function serializeCombatContext(ctx: CombatContext): string {
         lines.push(`   Speed: ${speeds.join(", ")}`);
       }
     }
+  };
+
+  // Combatants with stats — expand groups into individual tokens
+  lines.push("COMBATANTS:");
+  let combatantNum = 1;
+  for (let i = 0; i < combat.initiativeOrder.length; i++) {
+    const entry = combat.initiativeOrder[i];
+    const isCurrent = i === combat.currentTurnIndex;
+    const layer = entry.layer ?? "unknown";
+
+    if (entry.groupTokenIds && entry.groupTokenIds.length > 1) {
+      // Monster group: list each member individually with shared initiative
+      const groupName = entry.tokenName; // e.g. "Ape x4" or "Goblin Pack (4)"
+      lines.push(`  [Group: ${groupName}, shared initiative ${entry.initiative}]`);
+      for (let j = 0; j < entry.groupTokenIds.length; j++) {
+        const tid = entry.groupTokenIds[j];
+        const t = tokens.find((tok) => tok.id === tid);
+        const dName = tokenIdToDisplayName.get(tid) ?? t?.name ?? entry.tokenName;
+        serializeCombatant(`${combatantNum}.`, dName, t, layer, entry.initiative, isCurrent);
+        combatantNum++;
+      }
+    } else {
+      // Single combatant
+      const t = tokens.find((tok) => tok.id === entry.tokenId);
+      const dName = tokenIdToDisplayName.get(entry.tokenId) ?? entry.tokenName;
+      serializeCombatant(`${combatantNum}.`, dName, t, layer, entry.initiative, isCurrent);
+      combatantNum++;
+    }
   }
   lines.push("");
-
-  // Monster groups
-  if (monsterGroups.length > 0) {
-    lines.push("MONSTER GROUPS:");
-    for (const group of monsterGroups) {
-      const groupTokens = tokens.filter((t) => t.monsterGroupId === group.id);
-      lines.push(
-        `- ${group.name}: ${groupTokens.map((t) => t.name).join(", ")}`
-      );
-    }
-    lines.push("");
-  }
 
   // Grid info
   lines.push(
@@ -161,25 +225,11 @@ export function serializeCombatContext(ctx: CombatContext): string {
     ? combat.distances
     : computeDistanceMatrix(combat.initiativeOrder, tokens);
 
-  // Build token ID → name map (including group members)
-  const tokenNameMap = new Map<string, string>();
-  for (const entry of combat.initiativeOrder) {
-    if (entry.groupTokenIds && entry.groupTokenIds.length > 0) {
-      // Map each group member to its actual token name
-      for (const tid of entry.groupTokenIds) {
-        const t = tokens.find((tok) => tok.id === tid);
-        tokenNameMap.set(tid, t?.name ?? entry.tokenName);
-      }
-    } else {
-      tokenNameMap.set(entry.tokenId, entry.tokenName);
-    }
-  }
-
   if (distances.length > 0) {
     lines.push("DISTANCES (D&D 5e grid counting, in feet):");
     for (const d of distances) {
-      const nameA = tokenNameMap.get(d.tokenIdA) ?? d.tokenIdA;
-      const nameB = tokenNameMap.get(d.tokenIdB) ?? d.tokenIdB;
+      const nameA = tokenIdToDisplayName.get(d.tokenIdA) ?? d.tokenIdA;
+      const nameB = tokenIdToDisplayName.get(d.tokenIdB) ?? d.tokenIdB;
       const display = Number.isInteger(d.feet) ? `${d.feet}ft` : `${d.feet.toFixed(1)}ft`;
 
       let coverNote = "";
@@ -204,21 +254,25 @@ export function serializeCombatContext(ctx: CombatContext): string {
     lines.push("ABILITY DETAILS:");
     // Group tokens by srdMonsterIndex to deduplicate
     const indexToNames = new Map<string, string[]>();
-    for (const entry of combat.initiativeOrder) {
-      const token = tokens.find((t) => t.id === entry.tokenId);
-      const idx = token?.characterSheet?.srdMonsterIndex;
+    for (const c of allCombatantTokens) {
+      const idx = c.token?.characterSheet?.srdMonsterIndex;
       if (idx && abilityDescriptions.has(idx)) {
         const names = indexToNames.get(idx) ?? [];
-        names.push(entry.tokenName);
+        const dName = tokenIdToDisplayName.get(c.tokenId) ?? c.token?.name ?? c.entry.tokenName;
+        if (!names.includes(dName)) names.push(dName);
         indexToNames.set(idx, names);
       }
     }
 
+    // Deduplicate: only print abilities once per srdMonsterIndex
+    const printedIndices = new Set<string>();
     for (const [idx, names] of indexToNames) {
+      if (printedIndices.has(idx)) continue;
+      printedIndices.add(idx);
       const abilities = abilityDescriptions.get(idx);
       if (!abilities || abilities.length === 0) continue;
 
-      const label = names.length > 1 ? `${idx} (all)` : names[0];
+      const label = names.length > 1 ? `${names[0]} (shared by all ${idx})` : names[0];
       lines.push(`  ${label}:`);
       for (const ability of abilities) {
         const prefix =
@@ -280,7 +334,7 @@ export function serializeCombatContext(ctx: CombatContext): string {
     }
   }
 
-  return lines.join("\n");
+  return { text: lines.join("\n"), displayNameToTokenId };
 }
 
 function getOrdinalSuffix(n: number): string {
@@ -321,6 +375,11 @@ Reading rolls:
 - "(advantage, kept highest)" = advantage roll, total already uses the higher die
 - Only use rolls from PENDING DICE ROLLS or typed after the last AI response. Never reuse old resolved rolls
 - Do NOT decide what a player character does — only resolve declared/directed actions
+
+Monster groups:
+- Monsters that share initiative are listed in a [Group:] header, but each is a SEPARATE creature with its own HP, position, condition, and stats (e.g. "Ape #1", "Ape #2")
+- Each group member acts independently on the group's turn: they each have their own movement, action, bonus action, and reaction
+- Target and track each member individually in UPDATES using its exact name (e.g. "Ape #1", not "Ape" or "Ape x4")
 
 Monster/NPC turns:
 - Decide tactics, movement, action, bonus action (if any). Roll their dice, narrate results

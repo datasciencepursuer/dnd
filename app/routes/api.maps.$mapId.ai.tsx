@@ -122,7 +122,7 @@ export async function action({ request, params }: RouteArgs) {
   }
 
   // Serialize combat context and generate response
-  const contextText = serializeCombatContext({
+  const { text: contextText, displayNameToTokenId } = serializeCombatContext({
     ...combatContext,
     abilityDescriptions,
   });
@@ -132,5 +132,5 @@ export async function action({ request, params }: RouteArgs) {
     prompt.trim()
   );
 
-  return Response.json({ response: result.narrative, updates: result.updates });
+  return Response.json({ response: result.narrative, updates: result.updates, displayNameToTokenId });
 }

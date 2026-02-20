@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 
 interface ComboboxProps {
   value: string;
@@ -27,6 +28,7 @@ export function Combobox({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // For delimiter mode: extract the current segment being typed and already-chosen values
   const { currentSegment, existingValues } = delimiter
@@ -62,6 +64,42 @@ export function Combobox({
       item?.scrollIntoView({ block: "nearest" });
     }
   }, [highlightIndex]);
+
+  // Update dropdown position when open and filtered results exist
+  useEffect(() => {
+    if (!isOpen || filtered.length === 0 || !inputRef.current) {
+      setDropdownPos(null);
+      return;
+    }
+    const updatePos = () => {
+      if (!inputRef.current) return;
+      const rect = inputRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = Math.min(filtered.length * 26, 160); // max-h-40 = 160px
+      // Show above if not enough space below
+      const top = spaceBelow < dropdownHeight + 4
+        ? rect.top - dropdownHeight - 2
+        : rect.bottom + 2;
+      setDropdownPos({ top, left: rect.left, width: rect.width });
+    };
+    updatePos();
+    // Reposition on scroll/resize of any ancestor
+    const scrollParents: Element[] = [];
+    let el: Element | null = inputRef.current.parentElement;
+    while (el) {
+      if (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth) {
+        scrollParents.push(el);
+      }
+      el = el.parentElement;
+    }
+    const handler = () => updatePos();
+    scrollParents.forEach((p) => p.addEventListener("scroll", handler, { passive: true }));
+    window.addEventListener("resize", handler, { passive: true });
+    return () => {
+      scrollParents.forEach((p) => p.removeEventListener("scroll", handler));
+      window.removeEventListener("resize", handler);
+    };
+  }, [isOpen, filtered.length]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -149,13 +187,11 @@ export function Combobox({
   };
 
   const handleBlur = (e: React.FocusEvent) => {
-    // Don't close if clicking inside the dropdown
-    if (
-      wrapperRef.current &&
-      e.relatedTarget &&
-      wrapperRef.current.contains(e.relatedTarget as Node)
-    ) {
-      return;
+    // Don't close if clicking inside the dropdown (portal or wrapper)
+    const related = e.relatedTarget as Node | null;
+    if (related) {
+      if (wrapperRef.current?.contains(related)) return;
+      if (listRef.current?.contains(related)) return;
     }
     close();
     // Collapse back to single line
@@ -200,31 +236,38 @@ export function Combobox({
         style={{ lineHeight: "1.4" }}
         autoComplete="off"
       />
-      {isOpen && filtered.length > 0 && (
-        <ul
-          ref={listRef}
-          className="absolute left-0 right-0 top-full mt-0.5 z-50 max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg"
-        >
-          {filtered.map((item, i) => (
-            <li
-              key={item}
-              tabIndex={-1}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                selectItem(item);
-              }}
-              onMouseEnter={() => setHighlightIndex(i)}
-              className={`px-2 py-1 text-xs cursor-pointer ${
-                i === highlightIndex
-                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
-                  : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      )}
+      {isOpen && filtered.length > 0 && dropdownPos &&
+        createPortal(
+          <ul
+            ref={listRef}
+            className="fixed z-[100] max-h-40 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg"
+            style={{
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+            }}
+          >
+            {filtered.map((item, i) => (
+              <li
+                key={item}
+                tabIndex={-1}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectItem(item);
+                }}
+                onMouseEnter={() => setHighlightIndex(i)}
+                className={`px-2 py-1 text-xs cursor-pointer ${
+                  i === highlightIndex
+                    ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                    : "text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+              >
+                {item}
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
     </div>
   );
 }

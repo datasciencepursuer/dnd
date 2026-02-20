@@ -614,10 +614,30 @@ export const useMapStore = create<MapState>()(
       addWall: (wall) =>
         set((state) => {
           if (!state.map) return state;
+          // Remove existing walls that share any segment with the new wall to prevent stacking
+          const newSegs = new Set<string>();
+          for (let i = 0; i < wall.points.length - 1; i++) {
+            const a = wall.points[i], b = wall.points[i + 1];
+            // Normalize segment key so (a→b) === (b→a)
+            const key = a.x <= b.x || (a.x === b.x && a.y <= b.y)
+              ? `${a.x},${a.y}-${b.x},${b.y}`
+              : `${b.x},${b.y}-${a.x},${a.y}`;
+            newSegs.add(key);
+          }
+          const filtered = state.map.walls.filter((existing) => {
+            for (let i = 0; i < existing.points.length - 1; i++) {
+              const a = existing.points[i], b = existing.points[i + 1];
+              const key = a.x <= b.x || (a.x === b.x && a.y <= b.y)
+                ? `${a.x},${a.y}-${b.x},${b.y}`
+                : `${b.x},${b.y}-${a.x},${a.y}`;
+              if (newSegs.has(key)) return false;
+            }
+            return true;
+          });
           return {
             map: {
               ...state.map,
-              walls: [...state.map.walls, wall],
+              walls: [...filtered, wall],
               updatedAt: new Date().toISOString(),
             },
           };
@@ -653,10 +673,20 @@ export const useMapStore = create<MapState>()(
       addArea: (area) =>
         set((state) => {
           if (!state.map) return state;
+          // Remove existing areas that overlap with the new area to prevent stacking
+          const [newMinX, newMinY] = [Math.min(area.points[0].x, area.points[1]?.x ?? area.points[0].x), Math.min(area.points[0].y, area.points[1]?.y ?? area.points[0].y)];
+          const [newMaxX, newMaxY] = [Math.max(area.points[0].x, area.points[1]?.x ?? area.points[0].x), Math.max(area.points[0].y, area.points[1]?.y ?? area.points[0].y)];
+          const filtered = state.map.areas.filter((existing) => {
+            if (existing.type !== "rectangle" || existing.points.length < 2) return true;
+            const [exMinX, exMinY] = [Math.min(existing.points[0].x, existing.points[1].x), Math.min(existing.points[0].y, existing.points[1].y)];
+            const [exMaxX, exMaxY] = [Math.max(existing.points[0].x, existing.points[1].x), Math.max(existing.points[0].y, existing.points[1].y)];
+            // Check rectangle intersection
+            return exMaxX <= newMinX || newMaxX <= exMinX || exMaxY <= newMinY || newMaxY <= exMinY;
+          });
           return {
             map: {
               ...state.map,
-              areas: [...state.map.areas, area],
+              areas: [...filtered, area],
               updatedAt: new Date().toISOString(),
             },
           };

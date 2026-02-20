@@ -492,6 +492,28 @@ export function TokenPanel({
                   }`}>
                     {token.name}
                   </span>
+                  {/* Duplicate button - DM only, any token */}
+                  {isDungeonMaster() && (
+                    <button
+                      onClick={(e) => handleDuplicateToken(e, token.id)}
+                      className="text-xs font-bold text-gray-400 hover:text-purple-500 dark:text-gray-500 dark:hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer px-1"
+                      title="Clone token"
+                    >
+                      +1
+                    </button>
+                  )}
+                  {/* Delete button - available for anyone who can edit, persists in combat */}
+                  {(canDelete || canEdit) && (
+                    <button
+                      onClick={(e) => handleDeleteToken(e, token)}
+                      className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 -m-1"
+                      title="Remove token"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  )}
                   {/* Initiative score during combat */}
                   {isInCombat && initEntry && (
                     <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
@@ -501,32 +523,6 @@ export function TokenPanel({
                     }`}>
                       {initEntry.initiative}
                     </span>
-                  )}
-                  {!isInCombat && canEdit && onEditToken && (
-                    <span className="text-xs text-blue-500 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                      Edit
-                    </span>
-                  )}
-                  {/* Duplicate button - DM only, for monster tokens, not during combat */}
-                  {!isInCombat && isDungeonMaster() && token.layer === "monster" && (
-                    <button
-                      onClick={(e) => handleDuplicateToken(e, token.id)}
-                      className="text-xs font-bold text-gray-400 hover:text-purple-500 dark:text-gray-500 dark:hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer px-1"
-                      title="Add another monster (keeps same group)"
-                    >
-                      +1
-                    </button>
-                  )}
-                  {!isInCombat && canDelete && (
-                    <button
-                      onClick={(e) => handleDeleteToken(e, token)}
-                      className="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 -m-1"
-                      title="Delete unit"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    </button>
                   )}
                   {!isInCombat && !isOwnToken && !isDungeonMaster() && (
                     <span className="text-xs text-gray-400 dark:text-gray-500">

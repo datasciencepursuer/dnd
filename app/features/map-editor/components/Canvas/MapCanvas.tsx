@@ -797,9 +797,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
 
         // Also erase areas that overlap the rectangle
         const eraseMinCol = Math.min(startCol, endCol);
-        const eraseMaxCol = Math.max(startCol, endCol);
         const eraseMinRow = Math.min(startRow, endRow);
-        const eraseMaxRow = Math.max(startRow, endRow);
+        // For single clicks, expand to cover the full cell so edge-aligned areas are caught
+        const eraseMaxCol = Math.max(startCol, endCol) + (startCol === endCol ? 1 : 0);
+        const eraseMaxRow = Math.max(startRow, endRow) + (startRow === endRow ? 1 : 0);
         areasRef.current?.forEach((area) => {
           if (area.points.length < 2) return;
           const aMinX = Math.min(area.points[0].x, area.points[1].x);
@@ -1157,7 +1158,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       {/* Erase tool hint */}
       {selectedTool === "erase" && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium">
-          Drag to erase fog, drawings, walls and areas | Click on drawing to erase
+          Click to erase at cell | Drag to erase a region
         </div>
       )}
       {/* Wall tool hint */}
@@ -1258,6 +1259,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
                   isSelectMode={buildMode && selectedTool === "select"}
                   isEraseMode={buildMode && selectedTool === "erase"}
                   isDragging={isDraggingRect}
+                  isDmView={isDungeonMaster() && !isPlayingLocally}
                   onSelectArea={handleSelectArea}
                   onEraseArea={handleEraseArea}
                 />
@@ -1270,6 +1272,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
                   isSelectMode={buildMode && selectedTool === "select"}
                   isEraseMode={buildMode && selectedTool === "erase"}
                   isDragging={isDraggingRect}
+                  isDmView={isDungeonMaster() && !isPlayingLocally}
                   onSelectWall={handleSelectWall}
                   onEraseWall={handleEraseWall}
                 />
