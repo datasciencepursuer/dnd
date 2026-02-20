@@ -1,6 +1,6 @@
 import type { Route } from "./+types/g.$groupId";
 import { useState, useEffect, useMemo } from "react";
-import { Link, Form, useNavigate, useLoaderData } from "react-router";
+import { Link, Form, useNavigate, useLoaderData, useFetcher } from "react-router";
 import { redirect } from "react-router";
 import {
   createNewMap,
@@ -215,9 +215,10 @@ export default function GroupMaps() {
   const [migrationDismissed, setMigrationDismissed] = useState(false);
 
   // Token import state
-  const [availableTokens, setAvailableTokens] = useState<ImportableToken[]>([]);
+  const tokenFetcher = useFetcher<{ tokens: ImportableToken[] }>();
+  const availableTokens = tokenFetcher.data?.tokens ?? [];
+  const isLoadingTokens = tokenFetcher.state === "loading";
   const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(new Set());
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [showAllLayers, setShowAllLayers] = useState(false);
 
   // Delete modal state
@@ -234,26 +235,11 @@ export default function GroupMaps() {
 
   // Fetch available tokens for this group
   useEffect(() => {
-    const fetchTokens = async () => {
-      setIsLoadingTokens(true);
-      try {
-        const url = showAllLayers
-          ? `/api/groups/${groupId}/tokens?all=true`
-          : `/api/groups/${groupId}/tokens`;
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableTokens(data.tokens || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch tokens:", error);
-      } finally {
-        setIsLoadingTokens(false);
-      }
-    };
-
-    fetchTokens();
-  }, [groupId, showAllLayers]);
+    const url = showAllLayers
+      ? `/api/groups/${groupId}/tokens?all=true`
+      : `/api/groups/${groupId}/tokens`;
+    tokenFetcher.load(url);
+  }, [groupId, showAllLayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDeleteModal = (id: string, name: string) => {
     setDeleteModal({ id, name });

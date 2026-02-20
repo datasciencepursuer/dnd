@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useFetcher } from "react-router";
 import { useChatStore } from "../store/chat-store";
 import { parseDiceNotation, rollDice } from "../store/chat-store";
 import { useMapStore, useEditorStore } from "../store";
@@ -197,17 +198,18 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
   }, [mapId]);
 
   // Load messages from API on mount
+  const chatFetcher = useFetcher<{ messages: ChatMessageData[] }>();
   useEffect(() => {
     if (isLoaded) return;
-    fetch(`/api/maps/${mapId}/chat`)
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data?.messages) {
-          setMessages(data.messages);
-        }
-      })
-      .catch(() => {});
-  }, [mapId, isLoaded, setMessages]);
+    chatFetcher.load(`/api/maps/${mapId}/chat`);
+  }, [mapId, isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sync fetcher data into chat store
+  useEffect(() => {
+    if (chatFetcher.data?.messages && !isLoaded) {
+      setMessages(chatFetcher.data.messages);
+    }
+  }, [chatFetcher.data, isLoaded, setMessages]);
 
   // Track if user is at bottom for auto-scroll
   const handleScroll = useCallback(() => {

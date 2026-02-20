@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
+import { useFetcher } from "react-router";
 import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
 import { DAMAGE_TYPES } from "../../types";
 import { AbilityScoreCard } from "./AbilityScoreCard";
@@ -279,7 +280,8 @@ export function CharacterSheetPanel({
       sessionStorage.setItem(sheetPageKey, String(maxPage));
     }
   }, [isMobile, currentPage, sheetPageKey]);
-  const [availableCharacters, setAvailableCharacters] = useState<LibraryCharacter[]>([]);
+  const charLibFetcher = useFetcher<{ characters: LibraryCharacter[] }>();
+  const availableCharacters = charLibFetcher.data?.characters ?? [];
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSheetRef = useRef<CharacterSheet | null>(null);
@@ -290,74 +292,50 @@ export function CharacterSheetPanel({
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(charImageUrl);
+  const prevCharImageUrlRef = useRef(charImageUrl);
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const imagePickerRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Keep currentImageUrl in sync with prop changes
-  useEffect(() => {
+  // Keep currentImageUrl in sync with prop changes (render-time state reset)
+  if (charImageUrl !== prevCharImageUrlRef.current) {
+    prevCharImageUrlRef.current = charImageUrl;
     setCurrentImageUrl(charImageUrl);
-  }, [charImageUrl]);
+  }
 
   // Fetch linked character's sheet on mount (for token-based linked characters)
   // Linked tokens have characterSheet = null, so we always fetch from library
+  const linkedCharFetcher = useFetcher<{ character: { characterSheet: CharacterSheet | null } }>();
   useEffect(() => {
-    if (isStandalone || !token?.characterId) {
+    if (isStandalone || !token?.characterId) return;
+    setIsLoadingLinked(true);
+    linkedCharFetcher.load(`/api/characters/${token.characterId}`);
+  }, [isStandalone, token?.characterId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Process linked character fetch result
+  const linkedCharProcessedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!token?.characterId || linkedCharFetcher.state === "loading") return;
+    // Avoid reprocessing the same result
+    if (linkedCharProcessedRef.current === token.characterId && linkedCharFetcher.state === "idle" && linkedCharFetcher.data !== undefined) {
       return;
     }
-
-    setIsLoadingLinked(true);
-    fetch(`/api/characters/${token.characterId}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch character");
-        return res.json();
-      })
-      .then((data) => {
-        // API returns { character: { characterSheet, ... } }
-        // Library is the single source of truth for linked characters
-        const fetchedSheet = data.character?.characterSheet || null;
-        setLinkedCharacterSheet(fetchedSheet);
-
-        // Also update token's cached copy for display (HP bar, AC icon on hover)
-        // This ensures hover display works even before any edits are made
-        if (fetchedSheet && onUpdate) {
-          onUpdate(fetchedSheet);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch linked character:", err);
-        // Fall back to token's cached sheet if available (e.g. token assigned to new owner
-        // who doesn't have access to the original owner's library)
-        if (token?.characterSheet) {
-          setLinkedCharacterSheet(token.characterSheet);
-        } else {
-          setLinkedCharacterSheet(null);
-        }
-        setLinkedFetchFailed(true);
-      })
-      .finally(() => {
-        setIsLoadingLinked(false);
-      });
-  }, [isStandalone, token?.characterId, onUpdate]);
+    if (linkedCharFetcher.state === "idle" && linkedCharFetcher.data !== undefined) {
+      linkedCharProcessedRef.current = token.characterId;
+      const fetchedSheet = linkedCharFetcher.data.character?.characterSheet || null;
+      setLinkedCharacterSheet(fetchedSheet);
+      if (fetchedSheet && onUpdate) {
+        onUpdate(fetchedSheet);
+      }
+      setIsLoadingLinked(false);
+    }
+  }, [linkedCharFetcher.state, linkedCharFetcher.data, token?.characterId, onUpdate]);
 
   // Fetch available characters from library (for "Link from Library" picker)
   useEffect(() => {
     if (isStandalone || isLinked || !onLinkCharacter) return;
-
-    const fetchCharacters = async () => {
-      try {
-        const response = await fetch("/api/characters");
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableCharacters(data.characters || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch characters:", error);
-      }
-    };
-
-    fetchCharacters();
-  }, [isStandalone, isLinked, onLinkCharacter]);
+    charLibFetcher.load("/api/characters");
+  }, [isStandalone, isLinked, onLinkCharacter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync to server function (for API-saved characters)
   const syncToServer = useCallback(async (sheetToSync: CharacterSheet) => {

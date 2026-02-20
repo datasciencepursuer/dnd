@@ -1,6 +1,6 @@
 import type { Route } from "./+types/maps";
 import { useState, useEffect } from "react";
-import { Link, Form, useNavigate, useLoaderData } from "react-router";
+import { Link, Form, useNavigate, useLoaderData, useFetcher } from "react-router";
 import { redirect } from "react-router";
 import {
   createNewMap,
@@ -174,9 +174,10 @@ export default function Maps() {
   const [migrationDismissed, setMigrationDismissed] = useState(false);
 
   // Token import state
-  const [availableTokens, setAvailableTokens] = useState<ImportableToken[]>([]);
+  const tokenFetcher = useFetcher<{ tokens: ImportableToken[] }>();
+  const availableTokens = selectedGroupId ? (tokenFetcher.data?.tokens ?? []) : [];
+  const isLoadingTokens = tokenFetcher.state === "loading";
   const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(new Set());
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false);
   const [showAllLayers, setShowAllLayers] = useState(false);
 
   // Delete modal state
@@ -194,31 +195,14 @@ export default function Maps() {
   // Fetch available tokens when group selection changes
   useEffect(() => {
     if (!selectedGroupId) {
-      setAvailableTokens([]);
       setSelectedTokenIds(new Set());
       return;
     }
-
-    const fetchTokens = async () => {
-      setIsLoadingTokens(true);
-      try {
-        const url = showAllLayers
-          ? `/api/groups/${selectedGroupId}/tokens?all=true`
-          : `/api/groups/${selectedGroupId}/tokens`;
-        const response = await fetch(url);
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableTokens(data.tokens || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch tokens:", error);
-      } finally {
-        setIsLoadingTokens(false);
-      }
-    };
-
-    fetchTokens();
-  }, [selectedGroupId, showAllLayers]);
+    const url = showAllLayers
+      ? `/api/groups/${selectedGroupId}/tokens?all=true`
+      : `/api/groups/${selectedGroupId}/tokens`;
+    tokenFetcher.load(url);
+  }, [selectedGroupId, showAllLayers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDeleteModal = (id: string, name: string) => {
     setDeleteModal({ id, name });

@@ -25,6 +25,7 @@ export function Combobox({
 }: ComboboxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const prevValueRef = useRef(value);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -52,10 +53,11 @@ export function Combobox({
         .slice(0, maxSuggestions)
     : [];
 
-  // Reset highlight when filtered results change
-  useEffect(() => {
+  // Reset highlight when value changes (render-time state reset)
+  if (value !== prevValueRef.current) {
+    prevValueRef.current = value;
     setHighlightIndex(-1);
-  }, [value]);
+  }
 
   // Scroll highlighted item into view
   useEffect(() => {

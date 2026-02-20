@@ -71,6 +71,7 @@ export function WeeklyCalendar({
     clientY: number; // last known cursor/finger Y for slot recalc during scroll
   }>({ rafId: null, direction: 0, clientY: 0 });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const prevWeekStartRef = useRef(weekStart);
 
   const gutterWidth = isMobile ? GUTTER_WIDTH_MOBILE : GUTTER_WIDTH_DESKTOP;
   const days = useMemo(() => getWeekDaysInTz(weekStart, userTimezone), [weekStart, userTimezone]);
@@ -124,10 +125,11 @@ export function WeeklyCalendar({
     }
   }, [weekStart]);
 
-  // Clear selection when week changes
-  useEffect(() => {
+  // Clear selection when week changes (render-time state reset)
+  if (weekStart !== prevWeekStartRef.current) {
+    prevWeekStartRef.current = weekStart;
     setSelectedBlockId(null);
-  }, [weekStart]);
+  }
 
   const getSlotFromY = useCallback((clientY: number): number => {
     if (!gridRef.current) return -1;

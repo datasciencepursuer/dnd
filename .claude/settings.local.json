@@ -45,7 +45,22 @@
       "Bash(gzip:*)",
       "Bash(node -e:*)",
       "Bash(git stash:*)",
-      "WebFetch(domain:docs.stripe.com)"
+      "WebFetch(domain:docs.stripe.com)",
+      "Bash(npx:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));const t=require('fs').readFileSync(d.transcript_path,'utf8');if(t.includes('EnterPlanMode'))require('child_process').execSync('npx -y react-doctor@latest . --verbose --diff',{cwd:process.env.CLAUDE_PROJECT_DIR,stdio:'inherit'})\"",
+            "timeout": 120,
+            "statusMessage": "Running React Doctor scan..."
+          }
+        ]
+      }
     ]
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useFetcher } from "react-router";
 import { useMapStore, useEditorStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
@@ -82,7 +83,8 @@ export function TokenEditDialog({
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Character library state
-  const [availableCharacters, setAvailableCharacters] = useState<LibraryCharacter[]>([]);
+  const characterFetcher = useFetcher<{ characters: LibraryCharacter[] }>();
+  const availableCharacters = characterFetcher.data?.characters ?? [];
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
   const [saveToLibraryError, setSaveToLibraryError] = useState<string | null>(null);
@@ -109,20 +111,8 @@ export function TokenEditDialog({
 
   // Fetch available characters from library
   useEffect(() => {
-    const fetchCharacters = async () => {
-      try {
-        const response = await fetch("/api/characters");
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableCharacters(data.characters || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch characters:", error);
-      }
-    };
-
-    fetchCharacters();
-  }, []);
+    characterFetcher.load("/api/characters");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -296,7 +286,7 @@ export function TokenEditDialog({
         // Import this token from the new library character
         setCharacterId(data.character.id);
         // Refresh available characters
-        setAvailableCharacters((prev) => [data.character, ...prev]);
+        characterFetcher.load("/api/characters");
         setSaveToLibraryError(null);
       } else {
         const result = await response.json();

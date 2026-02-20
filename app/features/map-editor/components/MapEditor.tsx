@@ -1,4 +1,5 @@
 import { useEffect, lazy, Suspense, useState, useCallback, useRef, useMemo } from "react";
+import { useFetcher } from "react-router";
 import { Toolbar } from "./Toolbar/Toolbar";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { ChatPanel } from "./ChatPanel";
@@ -41,6 +42,23 @@ interface MapEditorProps {
   accountTier?: AccountTier;
   tierLimits?: TierLimits;
   realtimeSyncEnabled?: boolean;
+}
+
+/** Fetch a character sheet from the library API */
+function fetchCharacterSheet(
+  characterId: string,
+  signal: AbortSignal
+): Promise<{ characterSheet: CharacterSheet | null } | null> {
+  return fetch(`/api/characters/${characterId}`, { signal })
+    .then((res) => {
+      if (!res.ok) throw new Error("Failed to fetch character");
+      return res.json();
+    })
+    .then((data) => data.character ?? null)
+    .catch((err) => {
+      if (err.name === "AbortError") return null;
+      throw err;
+    });
 }
 
 export function MapEditor({
@@ -876,10 +894,17 @@ export function MapEditor({
     [openCharacterSheetTokenId, updateToken, syncDebounced]
   );
 
-  // Set editor context on mount/update
-  useEffect(() => {
+  // Set editor context on mount/update (render-time sync)
+  const prevEditorContextRef = useRef<{ userId: string | null; permission: string; customPermissions: typeof customPermissions } | null>(null);
+  if (
+    !prevEditorContextRef.current ||
+    prevEditorContextRef.current.userId !== userId ||
+    prevEditorContextRef.current.permission !== permission ||
+    prevEditorContextRef.current.customPermissions !== customPermissions
+  ) {
+    prevEditorContextRef.current = { userId, permission, customPermissions };
     setEditorContext(userId, permission, customPermissions);
-  }, [userId, permission, customPermissions, setEditorContext]);
+  }
 
   // Auto-select and center on a token when first opening a map
   const hasAutoSelectedRef = useRef(false);
@@ -925,15 +950,13 @@ export function MapEditor({
     // Mark these tokens as being fetched to avoid duplicate requests
     tokensNeedingSheets.forEach((t) => fetchedTokenSheetsRef.current.add(t.id));
 
+    const controller = new AbortController();
+
     // Fetch character sheets from the library
     tokensNeedingSheets.forEach((token) => {
-      fetch(`/api/characters/${token.characterId}`)
-        .then((res) => {
-          if (!res.ok) throw new Error("Failed to fetch character");
-          return res.json();
-        })
+      fetchCharacterSheet(token.characterId!, controller.signal)
         .then((data) => {
-          const sheet = data.character?.characterSheet;
+          const sheet = data?.characterSheet;
           if (sheet) {
             // Update token's cached copy for display (HP bar, AC icon)
             updateToken(token.id, { characterSheet: sheet });
@@ -945,6 +968,8 @@ export function MapEditor({
           fetchedTokenSheetsRef.current.delete(token.id);
         });
     });
+
+    return () => controller.abort();
   }, [map?.tokens, updateToken]);
 
   // Undo/Redo - for fog, drawing, and token operations
@@ -1072,6 +1097,7 @@ export function MapEditor({
   }, [handleKeyDown]);
 
   // Auto-save with proper debouncing to prevent excessive API calls
+  const saveFetcher = useFetcher();
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const mapRef = useRef(map);
@@ -1096,20 +1122,21 @@ export function MapEditor({
       const currentMap = mapRef.current;
       if (!currentMap) return;
 
-      // Save to server
-      fetch(`/api/maps/${mapId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: currentMap.name, data: currentMap }),
-      })
-        .then(() => {
-          // Update last saved hash on success
-          lastSavedRef.current = JSON.stringify({
-            name: currentMap.name,
-            updatedAt: currentMap.updatedAt
-          });
-        })
-        .catch(console.error);
+      // Save to server via fetcher
+      saveFetcher.submit(
+        JSON.stringify({ name: currentMap.name, data: currentMap }),
+        {
+          method: "PUT",
+          action: `/api/maps/${mapId}`,
+          encType: "application/json",
+        }
+      );
+
+      // Update last saved hash
+      lastSavedRef.current = JSON.stringify({
+        name: currentMap.name,
+        updatedAt: currentMap.updatedAt,
+      });
     }, AUTO_SAVE_DELAY);
 
     return () => {
@@ -1117,7 +1144,7 @@ export function MapEditor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [map?.updatedAt, mapId]); // Only trigger on updatedAt changes, not entire map
+  }, [map?.updatedAt, mapId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create new map if none loaded
   useEffect(() => {

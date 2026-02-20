@@ -340,8 +340,9 @@ export function TokenPanel({
     return currentEntry.tokenId === tokenId;
   };
 
-  // Token list component (reused in both modes)
-  const TokenList = () => (
+  // Token list JSX (reused in both modes — stored as a variable, not a component,
+  // to avoid recreating a component instance every render)
+  const tokenListContent = (
     <>
       {map && displayTokens.length > 0 && (
         <div className={mode === "create" ? "pt-4 border-t border-gray-200 dark:border-gray-700" : ""}>
@@ -569,7 +570,7 @@ export function TokenPanel({
   if (mode === "list") {
     return (
       <div className="p-4 space-y-4">
-        <TokenList />
+        {tokenListContent}
       </div>
     );
   }
@@ -855,7 +856,7 @@ export function TokenPanel({
         </div>
       )}
 
-      <TokenList />
+      {tokenListContent}
     </div>
   );
 }
