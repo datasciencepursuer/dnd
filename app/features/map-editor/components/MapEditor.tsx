@@ -274,9 +274,21 @@ export function MapEditor({
       .slice(-15);
     const recentMessages = filterMessagesForAI(allRecent, mapState.combat?.turnStartedAt);
 
+    // Only include tokens that are in the initiative order — prevents AI from
+    // hallucinating actions for tokens that exist on the map but aren't in combat.
+    const initiativeTokenIds = new Set<string>();
+    for (const entry of mapState.combat!.initiativeOrder) {
+      if (entry.groupTokenIds && entry.groupTokenIds.length > 1) {
+        for (const tid of entry.groupTokenIds) initiativeTokenIds.add(tid);
+      } else {
+        initiativeTokenIds.add(entry.tokenId);
+      }
+    }
+    const combatTokens = mapState.tokens.filter((t) => initiativeTokenIds.has(t.id));
+
     const combatContext = {
       combat: mapState.combat!,
-      tokens: mapState.tokens,
+      tokens: combatTokens,
       grid: mapState.grid,
       monsterGroups: mapState.monsterGroups,
       recentMessages,

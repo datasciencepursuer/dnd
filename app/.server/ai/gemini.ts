@@ -57,17 +57,18 @@ export function serializeCombatContext(ctx: CombatContext): SerializedCombatResu
   const displayNameToTokenId: Record<string, string> = {};
   const tokenIdToDisplayName = new Map<string, string>();
 
-  // First pass: collect all individual combatant tokens in initiative order
-  const allCombatantTokens: { tokenId: string; token: Token | undefined; entry: typeof combat.initiativeOrder[0] }[] = [];
+  // First pass: collect all individual combatant tokens in initiative order.
+  // Skip entries whose tokens no longer exist to prevent ghost combatants.
+  const allCombatantTokens: { tokenId: string; token: Token; entry: typeof combat.initiativeOrder[0] }[] = [];
   for (const entry of combat.initiativeOrder) {
     if (entry.groupTokenIds && entry.groupTokenIds.length > 1) {
       for (const tid of entry.groupTokenIds) {
         const t = tokens.find((tok) => tok.id === tid);
-        allCombatantTokens.push({ tokenId: tid, token: t, entry });
+        if (t) allCombatantTokens.push({ tokenId: tid, token: t, entry });
       }
     } else {
       const t = tokens.find((tok) => tok.id === entry.tokenId);
-      allCombatantTokens.push({ tokenId: entry.tokenId, token: t, entry });
+      if (t) allCombatantTokens.push({ tokenId: entry.tokenId, token: t, entry });
     }
   }
 
@@ -112,18 +113,16 @@ export function serializeCombatContext(ctx: CombatContext): SerializedCombatResu
   const serializeCombatant = (
     num: string,
     displayName: string,
-    token: Token | undefined,
+    token: Token,
     layer: string,
     initiative: number,
     isCurrent: boolean,
   ) => {
     const marker = isCurrent ? " ← CURRENT" : "";
-    const cs = token?.characterSheet;
+    const cs = token.characterSheet;
     const ac = cs ? `AC ${cs.ac}` : "AC ?";
     const hp = cs ? `HP ${cs.hpCurrent}/${cs.hpMax}` : "HP ?/?";
-    const cellStr = token
-      ? `Cell:(${token.position.col},${token.position.row}) Size:${token.size}`
-      : "Cell:?";
+    const cellStr = `Cell:(${token.position.col},${token.position.row}) Size:${token.size}`;
     let line = `${num} ${displayName} (${layer}) Init:${initiative} | ${ac} | ${hp} | ${cellStr}${marker}`;
 
     const condition = cs?.condition;
@@ -177,7 +176,8 @@ export function serializeCombatContext(ctx: CombatContext): SerializedCombatResu
     }
   };
 
-  // Combatants with stats — expand groups into individual tokens
+  // Combatants with stats — expand groups into individual tokens.
+  // Only include tokens that actually exist (skip stale initiative entries).
   lines.push("COMBATANTS:");
   let combatantNum = 1;
   for (let i = 0; i < combat.initiativeOrder.length; i++) {
@@ -187,18 +187,21 @@ export function serializeCombatContext(ctx: CombatContext): SerializedCombatResu
 
     if (entry.groupTokenIds && entry.groupTokenIds.length > 1) {
       // Monster group: list each member individually with shared initiative
-      const groupName = entry.tokenName; // e.g. "Ape x4" or "Goblin Pack (4)"
+      const validGroupTokens = entry.groupTokenIds
+        .map((tid) => ({ tid, token: tokens.find((tok) => tok.id === tid) }))
+        .filter((x): x is { tid: string; token: Token } => x.token != null);
+      if (validGroupTokens.length === 0) continue;
+      const groupName = entry.tokenName;
       lines.push(`  [Group: ${groupName}, shared initiative ${entry.initiative}]`);
-      for (let j = 0; j < entry.groupTokenIds.length; j++) {
-        const tid = entry.groupTokenIds[j];
-        const t = tokens.find((tok) => tok.id === tid);
-        const dName = tokenIdToDisplayName.get(tid) ?? t?.name ?? entry.tokenName;
-        serializeCombatant(`${combatantNum}.`, dName, t, layer, entry.initiative, isCurrent);
+      for (const { tid, token } of validGroupTokens) {
+        const dName = tokenIdToDisplayName.get(tid) ?? token.name ?? entry.tokenName;
+        serializeCombatant(`${combatantNum}.`, dName, token, layer, entry.initiative, isCurrent);
         combatantNum++;
       }
     } else {
       // Single combatant
       const t = tokens.find((tok) => tok.id === entry.tokenId);
+      if (!t) continue;
       const dName = tokenIdToDisplayName.get(entry.tokenId) ?? entry.tokenName;
       serializeCombatant(`${combatantNum}.`, dName, t, layer, entry.initiative, isCurrent);
       combatantNum++;
@@ -431,7 +434,7 @@ Terrain & environment:
 
 Action economy (STRICT):
 - 1 Movement, 1 Action, 1 Bonus Action, 1 Reaction per turn
-- Multiattack = ONE Action with multiple attacks. Without Multiattack = ONE attack
+- Multiattack = ONE Action with multiple attacks. The Multiattack description specifies EXACTLY which attacks are made (e.g. "two fist attacks" = Fist only, NOT Rock or any other weapon). You MUST follow the Multiattack description literally — never substitute different attacks. Without Multiattack = ONE attack per Action
 - Bonus Actions only if a feature grants one. Most creatures have none
 - Once-per-turn features (e.g. Sneak Attack, Divine Smite, Savage Attacker) cannot be used again on a bonus action or any other action in the same turn. Track what has been used THIS turn and do not allow repeats
 - Legendary Actions: only if listed, at END of another creature's turn, respect uses per round

@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { Fragment, useCallback, useState, useEffect, useRef } from "react";
 import { useFetcher } from "react-router";
 import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
 import { DAMAGE_TYPES } from "../../types";
@@ -1618,40 +1618,49 @@ export function CharacterSheetPanel({
                   ))}
                 </div>
               ) : (
-                /* Desktop: Inline row layout */
-                <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                  {(sheet.weapons || []).map((weapon, index) => (
-                    <div key={weapon.id} className="flex items-center gap-1 text-xs">
-                      {readOnly ? (
-                        <>
-                          <span className="font-medium text-gray-900 dark:text-white">{weapon.name || "Unnamed"}</span>
-                          <span className="text-blue-600 dark:text-blue-400">+{weapon.bonus}</span>
+                /* Desktop: Grid layout with aligned columns */
+                <div className="max-h-40 overflow-y-auto">
+                  <div className="grid grid-cols-[5rem_auto_2.5rem_3.5rem_7rem_1fr_auto] gap-x-1 gap-y-1 items-center text-xs">
+                    {/* Column headers */}
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">Name</span>
+                    <span />
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 text-center">Mod</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">Dice</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">Type</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500">Notes</span>
+                    <span />
+                    {/* Weapon rows */}
+                    {(sheet.weapons || []).map((weapon, index) => (
+                      readOnly ? (
+                        <Fragment key={weapon.id}>
+                          <span className="font-medium text-gray-900 dark:text-white truncate min-w-0">{weapon.name || "Unnamed"}</span>
+                          <span className="text-blue-600 dark:text-blue-400">{weapon.bonus >= 0 ? "+" : ""}</span>
+                          <span className="text-blue-600 dark:text-blue-400 text-center">{weapon.bonus}</span>
                           <span className="text-gray-600 dark:text-gray-400">{weapon.dice}</span>
-                          <span className="text-gray-500">{weapon.damageType}</span>
-                          {weapon.notes && <span className="text-gray-400 italic">({weapon.notes})</span>}
-                        </>
+                          <span className="text-gray-500 truncate min-w-0">{weapon.damageType}</span>
+                          <span className="text-gray-400 italic truncate min-w-0">{weapon.notes}</span>
+                          <span />
+                        </Fragment>
                       ) : (
-                        <>
-                          <Combobox value={weapon.name} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, name: v }; handleUpdate({ weapons: u }); }} suggestions={DND_WEAPONS} placeholder="Name" className="w-20 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <span className="text-gray-400">+</span>
-                          <NumericInput value={weapon.bonus} onChange={(val) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, bonus: val }; handleUpdate({ weapons: u }); }} min={-10} max={30} defaultValue={0} className="w-8 px-0.5 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <Combobox value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} suggestions={DND_DICE} placeholder="1d6" className="w-12 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-                          <select value={weapon.damageType} onChange={(e) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: e.target.value as DamageType }; handleUpdate({ weapons: u }); }} className="w-24 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
+                        <Fragment key={weapon.id}>
+                          <Combobox value={weapon.name} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, name: v }; handleUpdate({ weapons: u }); }} suggestions={DND_WEAPONS} placeholder="Name" className="min-w-0 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <span className="text-gray-400 text-center">+</span>
+                          <NumericInput value={weapon.bonus} onChange={(val) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, bonus: val }; handleUpdate({ weapons: u }); }} min={-10} max={30} defaultValue={0} className="min-w-0 px-0.5 py-0.5 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <Combobox value={weapon.dice} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, dice: v }; handleUpdate({ weapons: u }); }} suggestions={DND_DICE} placeholder="1d6" className="min-w-0 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <select value={weapon.damageType} onChange={(e) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, damageType: e.target.value as DamageType }; handleUpdate({ weapons: u }); }} className="min-w-0 px-1 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white cursor-pointer">
                             <option value="">Type</option>
-                            {DAMAGE_TYPES.map((type) => (
-                              <option key={type} value={type}>{type}</option>
-                            ))}
+                            {DAMAGE_TYPES.map((type) => (<option key={type} value={type}>{type}</option>))}
                           </select>
-                          <ExpandingTextInput value={weapon.notes} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, notes: v }; handleUpdate({ weapons: u }); }} placeholder="Notes" baseClassName="flex-1 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+                          <ExpandingTextInput value={weapon.notes} onChange={(v) => { const u = [...(sheet.weapons || [])]; u[index] = { ...weapon, notes: v }; handleUpdate({ weapons: u }); }} placeholder="Notes" baseClassName="min-w-0 px-1 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
                           <button onClick={() => { const u = (sheet.weapons || []).filter((_, i) => i !== index); handleUpdate({ weapons: u }); }} className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer" title="Remove">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </button>
-                        </>
-                      )}
-                    </div>
-                  ))}
+                        </Fragment>
+                      )
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
