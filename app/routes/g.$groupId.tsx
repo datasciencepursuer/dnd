@@ -449,9 +449,9 @@ export default function GroupMaps() {
               <Link
                 to="/pricing"
                 className={`text-xs px-2 py-0.5 rounded font-medium ${
-                  currentTier === "free"
+                  currentTier === "adventurer"
                     ? "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                    : currentTier === "adventurer"
+                    : currentTier === "hero"
                       ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
                       : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
                 }`}

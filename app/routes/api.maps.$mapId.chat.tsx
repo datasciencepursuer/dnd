@@ -3,6 +3,7 @@ import { db } from "~/.server/db";
 import { mapChatChunks } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
+import { getUserTierLimits } from "~/.server/subscription";
 import type { ChatMessageData } from "~/features/map-editor/store/chat-store";
 
 interface RouteArgs {
@@ -86,6 +87,17 @@ export async function action({ request, params }: RouteArgs) {
   const isAiResponse = !!(metadata as Record<string, unknown>)?.aiResponse;
   if (!isAiResponse && message.length > 500) {
     return Response.json({ error: "Message too long (max 500 characters)" }, { status: 400 });
+  }
+
+  // Enforce chatWhispers tier gate
+  if (recipientId) {
+    const limits = await getUserTierLimits(session.user.id);
+    if (!limits.chatWhispers) {
+      return Response.json(
+        { error: "Whisper messages require a paid subscription.", upgrade: true },
+        { status: 403 }
+      );
+    }
   }
 
   const role = access.isDungeonMaster ? "dm" : "player";

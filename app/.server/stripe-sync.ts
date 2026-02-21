@@ -6,7 +6,7 @@ import { stripe } from "~/.server/stripe";
 import { env } from "~/.server/env";
 
 function resolveTierFromPriceId(priceId: string): AccountTier | null {
-  if (priceId === env.STRIPE_ADVENTURER_PRICE_ID) return "adventurer";
+  if (priceId === env.STRIPE_ADVENTURER_PRICE_ID) return "hero";
   if (priceId === env.STRIPE_HERO_PRICE_ID) return "dungeon_master";
   return null;
 }
@@ -17,7 +17,7 @@ function resolveTierFromPriceId(priceId: string): AccountTier | null {
  * to call from both webhooks and the post-checkout success route.
  */
 export async function syncStripeData(customerId: string) {
-  // Never downgrade admin (Lodestar) users
+  // Never downgrade manually-assigned tiers (The Six, Lodestar, legacy admin)
   const existing = await db
     .select({ accountTier: user.accountTier })
     .from(user)
@@ -25,7 +25,8 @@ export async function syncStripeData(customerId: string) {
     .limit(1);
 
   if (existing.length === 0) return;
-  if (existing[0].accountTier === "admin") return;
+  const protectedTiers: string[] = ["the_six", "lodestar"];
+  if (protectedTiers.includes(existing[0].accountTier)) return;
 
   // Fetch the latest subscription (any status)
   const subscriptions = await stripe.subscriptions.list({
@@ -42,7 +43,7 @@ export async function syncStripeData(customerId: string) {
     await db
       .update(user)
       .set({
-        accountTier: "free",
+        accountTier: "adventurer",
         stripeSubscriptionId: null,
         stripeCurrentPeriodEnd: null,
         stripeCancelAtPeriodEnd: false,
@@ -74,7 +75,7 @@ export async function syncStripeData(customerId: string) {
   await db
     .update(user)
     .set({
-      accountTier: subscription.status === "active" && tier ? tier : "free",
+      accountTier: subscription.status === "active" && tier ? tier : "adventurer",
       stripeSubscriptionId: subscription.id,
       stripeCurrentPeriodEnd: periodEnd,
       stripeCancelAtPeriodEnd: subscription.cancel_at_period_end,

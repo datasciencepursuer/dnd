@@ -46,6 +46,14 @@
       "Bash(node -e:*)",
       "Bash(git stash:*)",
       "WebFetch(domain:docs.stripe.com)",
-      "Bash(npx:*)"
+      "Bash(npx:*)",
+      "Bash(rtk git status:*)",
+      "Bash(rtk pnpm list:*)",
+      "Bash(rtk npx tsc:*)",
+      "Bash(rtk npx react-router typegen:*)",
+      "Bash(pnpm exec react-router typegen:*)",
+      "Bash(rtk gain:*)",
+      "Bash(rtk grep:*)"
     ]
-  }}
+  }
+}

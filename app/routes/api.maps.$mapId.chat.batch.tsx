@@ -2,6 +2,7 @@ import { db } from "~/.server/db";
 import { mapChatChunks } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
+import { getUserTierLimits } from "~/.server/subscription";
 
 interface RouteArgs {
   request: Request;
@@ -41,13 +42,23 @@ export async function action({ request, params }: RouteArgs) {
     return Response.json({ inserted: 0 });
   }
 
+  // Strip whisper messages if user lacks chatWhispers tier
+  const limits = await getUserTierLimits(session.user.id);
+  const filtered = limits.chatWhispers
+    ? messages
+    : messages.filter((m) => !m.recipientId);
+
+  if (filtered.length === 0) {
+    return Response.json({ inserted: 0 });
+  }
+
   const chunkId = crypto.randomUUID();
   await db.insert(mapChatChunks).values({
     id: chunkId,
     mapId,
-    messages,
+    messages: filtered,
     createdAt: new Date(),
   });
 
-  return Response.json({ inserted: messages.length });
+  return Response.json({ inserted: filtered.length });
 }

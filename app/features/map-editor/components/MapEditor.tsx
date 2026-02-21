@@ -70,7 +70,7 @@ export function MapEditor({
   groupMembers = [],
   groupId = null,
   mapOwnerId = null,
-  accountTier = "free",
+  accountTier = "adventurer",
   tierLimits: tierLimitsProp,
   realtimeSyncEnabled: realtimeSyncProp,
 }: MapEditorProps) {

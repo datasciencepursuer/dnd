@@ -1,11 +1,11 @@
 import type { Route } from "./+types/settings";
 import { Link } from "react-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { requireAuth } from "~/.server/auth/session";
 import { auth } from "~/.server/auth/auth.server";
 import { getUserSubscriptionInfo } from "~/.server/subscription";
 import { authClient, linkSocial } from "~/lib/auth-client";
-import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
+import { tierDisplayName, getTierLimits, type AccountTier } from "~/lib/tier-limits";
 
 export function meta({}: Route.MetaArgs) {
   return [{ title: "Account Settings" }];
@@ -23,12 +23,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   );
 
   const subscription = await getUserSubscriptionInfo(session.user.id);
+  const tier = (subscription?.accountTier ?? "adventurer") as AccountTier;
 
   return {
     userName: session.user.name,
     email: session.user.email,
     hasGoogle,
-    accountTier: (subscription?.accountTier ?? "free") as AccountTier,
+    accountTier: tier,
+    maxMapUploads: getTierLimits(tier).maxMapUploads,
+    maxTokenUploads: getTierLimits(tier).maxTokenUploads,
     stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
     stripeCurrentPeriodEnd: subscription?.stripeCurrentPeriodEnd?.toISOString() ?? null,
     stripeCancelAtPeriodEnd: subscription?.stripeCancelAtPeriodEnd ?? false,
@@ -41,6 +44,8 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
     email,
     hasGoogle: initialHasGoogle,
     accountTier,
+    maxMapUploads,
+    maxTokenUploads,
     stripeSubscriptionId,
     stripeCurrentPeriodEnd,
     stripeCancelAtPeriodEnd,
@@ -50,6 +55,51 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Uploaded images state
+  interface UploadEntry {
+    id: string;
+    url: string;
+    type: "token" | "map";
+    fileName: string;
+    fileSize: number;
+    createdAt: string;
+  }
+  const [uploads, setUploads] = useState<UploadEntry[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [uploadFilter, setUploadFilter] = useState<"all" | "token" | "map">("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const fetchUploads = useCallback(async () => {
+    setUploadsLoading(true);
+    try {
+      const res = await fetch("/api/uploads");
+      const data = await res.json();
+      if (data.uploads) setUploads(data.uploads);
+    } catch { /* ignore */ } finally {
+      setUploadsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUploads(); }, [fetchUploads]);
+
+  async function handleDeleteUpload(id: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch("/api/uploads", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setUploads((prev) => prev.filter((u) => u.id !== id));
+        setConfirmDeleteId(null);
+      }
+    } catch { /* ignore */ } finally {
+      setDeletingId(null);
+    }
+  }
 
   // Check for callback status from URL hash/params
   useEffect(() => {
@@ -207,12 +257,12 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
                 {portalLoading ? "..." : "Manage Subscription"}
               </button>
             ) : null}
-            {accountTier === "free" || stripeCancelAtPeriodEnd ? (
+            {accountTier === "adventurer" || stripeCancelAtPeriodEnd ? (
               <Link
                 to="/pricing"
                 className="px-4 py-2 text-sm bg-amber-600 text-white rounded hover:bg-amber-700"
               >
-                {accountTier === "free" ? "Upgrade" : "Resubscribe"}
+                {accountTier === "adventurer" ? "Upgrade" : "Resubscribe"}
               </Link>
             ) : null}
           </div>
@@ -275,6 +325,99 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
               </button>
             )}
           </div>
+        </div>
+
+        {/* Uploaded Images */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Uploaded Images
+            </h2>
+            <div className="flex gap-1">
+              {(["all", "map", "token"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setUploadFilter(f)}
+                  className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                    uploadFilter === f
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "map" ? "Maps" : "Tokens"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Usage summary */}
+          <div className="flex gap-4 mb-4 text-xs text-gray-500 dark:text-gray-400">
+            <span>
+              Map backgrounds: {uploads.filter((u) => u.type === "map").length}/{maxMapUploads === Infinity ? "\u221E" : maxMapUploads}
+            </span>
+            <span>
+              Token images: {uploads.filter((u) => u.type === "token").length}/{maxTokenUploads === Infinity ? "\u221E" : maxTokenUploads}
+            </span>
+          </div>
+
+          {uploadsLoading ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+          ) : (() => {
+            const filtered = uploadFilter === "all" ? uploads : uploads.filter((u) => u.type === uploadFilter);
+            if (filtered.length === 0) {
+              return <p className="text-sm text-gray-500 dark:text-gray-400">No uploaded images.</p>;
+            }
+            return (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                {filtered.map((upload) => (
+                  <div key={upload.id} className="relative group">
+                    <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700">
+                      <img
+                        src={upload.url}
+                        alt={upload.fileName}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate" title={upload.fileName}>{upload.fileName}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {upload.type === "map" ? "Map" : "Token"} &middot; {(upload.fileSize / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                    {confirmDeleteId === upload.id ? (
+                      <div className="absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center gap-2">
+                        <p className="text-xs text-white font-medium">Delete?</p>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => handleDeleteUpload(upload.id)}
+                            disabled={deletingId === upload.id}
+                            className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 cursor-pointer disabled:opacity-50"
+                          >
+                            {deletingId === upload.id ? "..." : "Yes"}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="text-xs px-2 py-0.5 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
+                          >
+                            No
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteId(upload.id)}
+                        className="absolute top-1 right-1 w-5 h-5 bg-red-600/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center text-xs leading-none hover:bg-red-700"
+                        title="Delete"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

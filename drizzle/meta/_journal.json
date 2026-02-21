@@ -169,6 +169,20 @@
       "when": 1771372991077,
       "tag": "0023_absent_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1771637327389,
+      "tag": "0024_volatile_luke_cage",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1771649551323,
+      "tag": "0025_wide_venus",
+      "breakpoints": true
     }
   ]
 }

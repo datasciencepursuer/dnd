@@ -14,7 +14,7 @@ import {
 import { relations, sql } from "drizzle-orm";
 
 // Account tier enum
-export const accountTierEnum = pgEnum("account_tier", ["free", "adventurer", "dungeon_master", "admin"]);
+export const accountTierEnum = pgEnum("account_tier", ["adventurer", "hero", "dungeon_master", "the_six", "lodestar"]);
 
 // Group role enum
 export const groupRoleEnum = pgEnum("group_role", ["owner", "admin", "member"]);
@@ -31,7 +31,7 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   lastGroupId: text("last_group_id").references((): AnyPgColumn => groups.id, { onDelete: "set null" }),
-  accountTier: accountTierEnum("account_tier").notNull().default("free"),
+  accountTier: accountTierEnum("account_tier").notNull().default("adventurer"),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
@@ -263,6 +263,7 @@ export const userRelations = relations(user, ({ many }) => ({
   characters: many(characters),
   groupAvailabilities: many(groupAvailabilities),
   scheduleVotes: many(groupScheduleVotes),
+  aiImageGenerations: many(aiImageGenerations),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -400,6 +401,30 @@ export const uploadsRelations = relations(uploads, ({ one }) => ({
   }),
 }));
 
+// AI image generation rate limiting table
+export const aiImageGenerations = pgTable(
+  "ai_image_generations",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    prompt: text("prompt").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index("ai_image_generations_user_id_idx").on(table.userId),
+    userCreatedIdx: index("ai_image_generations_user_created_idx").on(table.userId, table.createdAt),
+  })
+);
+
+export const aiImageGenerationsRelations = relations(aiImageGenerations, ({ one }) => ({
+  user: one(user, {
+    fields: [aiImageGenerations.userId],
+    references: [user.id],
+  }),
+}));
+
 // Map chat chunks table (JSONB array of messages per chunk)
 export const mapChatChunks = pgTable(
   "map_chat_chunks",
@@ -451,4 +476,6 @@ export type GroupAvailability = typeof groupAvailabilities.$inferSelect;
 export type NewGroupAvailability = typeof groupAvailabilities.$inferInsert;
 export type GroupScheduleVote = typeof groupScheduleVotes.$inferSelect;
 export type NewGroupScheduleVote = typeof groupScheduleVotes.$inferInsert;
+export type AiImageGeneration = typeof aiImageGenerations.$inferSelect;
+export type NewAiImageGeneration = typeof aiImageGenerations.$inferInsert;
 export type AccountTier = (typeof accountTierEnum.enumValues)[number];

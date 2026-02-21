@@ -297,6 +297,55 @@ export function CharacterSheetPanel({
   const imagePickerRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI portrait generation state
+  const [showPortraitGenerator, setShowPortraitGenerator] = useState(false);
+  const [portraitPrompt, setPortraitPrompt] = useState("");
+  const [isGeneratingPortrait, setIsGeneratingPortrait] = useState(false);
+  const [portraitPreview, setPortraitPreview] = useState<string | null>(null);
+  const [portraitError, setPortraitError] = useState<string | null>(null);
+  const [portraitRemaining, setPortraitRemaining] = useState<number | null>(null);
+  const [portraitWindow, setPortraitWindow] = useState<"daily" | "weekly" | "monthly">("daily");
+  const [isUploadingPortrait, setIsUploadingPortrait] = useState(false);
+  const [portraitStyle, setPortraitStyle] = useState<"jrpg" | "classic" | "pixel">("jrpg");
+
+  const handleGeneratePortrait = useCallback(async () => {
+    if (!portraitPrompt.trim() || isGeneratingPortrait) return;
+    setIsGeneratingPortrait(true);
+    setPortraitError(null);
+    setPortraitPreview(null);
+    try {
+      const res = await fetch("/api/generate-portrait", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: portraitPrompt.trim(), tokenSize: token?.size ?? 1, artStyle: portraitStyle }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPortraitError(data.error ?? "Failed to generate portrait");
+        return;
+      }
+      // Apply chroma key removal to get true transparency
+      let finalBase64 = data.imageBase64;
+      try {
+        const { removeChromaKey } = await import("../../utils/chroma-key");
+        finalBase64 = await removeChromaKey(data.imageBase64, data.mimeType ?? "image/png");
+      } catch (chromaErr) {
+        console.error("Chroma key removal failed, using raw image:", chromaErr);
+      }
+      setPortraitPreview(finalBase64);
+      if (data.remaining !== undefined && data.remaining !== null) {
+        setPortraitRemaining(data.remaining);
+      }
+      if (data.window) {
+        setPortraitWindow(data.window);
+      }
+    } catch {
+      setPortraitError("Network error. Please try again.");
+    } finally {
+      setIsGeneratingPortrait(false);
+    }
+  }, [portraitPrompt, isGeneratingPortrait, portraitStyle]);
+
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
   if (charImageUrl !== prevCharImageUrlRef.current) {
     prevCharImageUrlRef.current = charImageUrl;
@@ -766,7 +815,7 @@ export function CharacterSheetPanel({
 
                   {/* Image picker popover (shared) */}
                   {showImagePicker && !readOnly && (
-                    <div className="absolute top-12 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 w-64">
+                    <div className="absolute top-12 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 w-96 max-h-[70vh] overflow-y-auto">
                       <input ref={imageFileInputRef} type="file" accept="image/*" onChange={handleImageFileSelect} className="hidden" />
                       <button type="button" onClick={() => imageFileInputRef.current?.click()} disabled={isUploadingImage} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer disabled:opacity-50">
                         {isUploadingImage ? (<><div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />Uploading...</>) : (<><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>Upload Image<span className="text-xs text-gray-400 ml-auto">(max {UPLOAD_LIMITS.TOKEN_MAX_SIZE})</span></>)}
@@ -777,7 +826,7 @@ export function CharacterSheetPanel({
                         Choose from uploads
                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 ml-auto transition-transform ${showImageLibrary ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                       </button>
-                      {showImageLibrary && (<div className="mt-2 max-h-48 overflow-y-auto"><ImageLibraryPicker type="token" onSelect={(url) => handleImageSelected(url || null)} selectedUrl={currentImageUrl} /></div>)}
+                      {showImageLibrary && (<div className="mt-2 max-h-64 overflow-y-auto"><ImageLibraryPicker type="token" onSelect={(url) => handleImageSelected(url || null)} selectedUrl={currentImageUrl} /></div>)}
                       {currentImageUrl && (
                         <button type="button" onClick={() => handleImageSelected(null)} className="w-full flex items-center gap-2 px-3 py-2 mt-1 text-sm text-red-600 dark:text-red-400 bg-gray-50 dark:bg-gray-700 rounded hover:bg-red-50 dark:hover:bg-red-900/20 cursor-pointer">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
@@ -1032,7 +1081,7 @@ export function CharacterSheetPanel({
 
               {/* Image picker popover */}
               {showImagePicker && !readOnly && (
-                <div className="absolute top-14 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 w-64">
+                <div className="absolute top-14 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl p-3 w-96 max-h-[70vh] overflow-y-auto">
                   <input
                     ref={imageFileInputRef}
                     type="file"
@@ -1084,7 +1133,7 @@ export function CharacterSheetPanel({
                   </button>
 
                   {showImageLibrary && (
-                    <div className="mt-2 max-h-48 overflow-y-auto">
+                    <div className="mt-2 max-h-64 overflow-y-auto">
                       <ImageLibraryPicker
                         type="token"
                         onSelect={(url) => handleImageSelected(url || null)}
@@ -2768,7 +2817,29 @@ export function CharacterSheetPanel({
 
             {/* Appearance */}
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Appearance</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Appearance</h3>
+                {!readOnly && (sheet.appearance ?? "").trim().length > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowPortraitGenerator(!showPortraitGenerator);
+                      if (!showPortraitGenerator) {
+                        setPortraitPrompt(sheet.appearance ?? "");
+                        setPortraitError(null);
+                        setPortraitPreview(null);
+                      }
+                    }}
+                    className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                      <path d="M8 1a.75.75 0 0 1 .75.75v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5A.75.75 0 0 1 8 1Z" />
+                      <path d="M3.5 9a.75.75 0 0 1 .75.75v1h1a.75.75 0 0 1 0 1.5h-1v1a.75.75 0 0 1-1.5 0v-1h-1a.75.75 0 0 1 0-1.5h1v-1A.75.75 0 0 1 3.5 9Z" />
+                      <path d="M12.5 5a.75.75 0 0 1 .75.75v.5h.5a.75.75 0 0 1 0 1.5h-.5v.5a.75.75 0 0 1-1.5 0v-.5h-.5a.75.75 0 0 1 0-1.5h.5v-.5A.75.75 0 0 1 12.5 5Z" />
+                    </svg>
+                    {showPortraitGenerator ? "Close" : "AI Portrait"}
+                  </button>
+                )}
+              </div>
               {readOnly ? (
                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.appearance || "None"}</p>
               ) : (
@@ -2779,6 +2850,127 @@ export function CharacterSheetPanel({
                   collapsedRows={2}
                   baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
                 />
+              )}
+
+              {/* AI Portrait Generator */}
+              {showPortraitGenerator && !readOnly && (
+                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
+                  {/* Art style selector */}
+                  <div>
+                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">Style</label>
+                    <div className="flex gap-1.5">
+                      {([["jrpg", "JRPG"], ["classic", "Classic Fantasy"], ["pixel", "Pixel Art"]] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => setPortraitStyle(key)}
+                          className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                            portraitStyle === key
+                              ? "bg-purple-600 text-white border-purple-600"
+                              : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">
+                      Prompt {portraitRemaining !== null && (
+                        <span className="text-purple-500 dark:text-purple-400">({portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"})</span>
+                      )}
+                    </label>
+                    <textarea
+                      value={portraitPrompt}
+                      onChange={(e) => setPortraitPrompt(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="w-full px-2 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none"
+                      placeholder="Describe the character's appearance..."
+                    />
+                    <div className="text-xs text-purple-500 dark:text-purple-400 text-right">
+                      {portraitPrompt.length}/1000
+                    </div>
+                  </div>
+
+                  {portraitError && (
+                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-1.5">
+                      {portraitError}
+                    </div>
+                  )}
+
+                  {/* Preview */}
+                  {portraitPreview && (
+                    <div className="flex flex-col items-center gap-2">
+                      <img
+                        src={`data:image/png;base64,${portraitPreview}`}
+                        alt="Generated portrait"
+                        className="w-32 h-32 rounded-lg object-contain border-2 border-purple-300 dark:border-purple-600"
+                        style={{ backgroundImage: "repeating-conic-gradient(#d1d5db 0% 25%, #f3f4f6 0% 50%)", backgroundSize: "16px 16px" }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            setIsUploadingPortrait(true);
+                            try {
+                              const res = await fetch(`data:image/png;base64,${portraitPreview}`);
+                              const blob = await res.blob();
+                              const file = new File([blob], "ai-portrait.png", { type: "image/png" });
+                              setIsUploadingImage(true);
+                              await startImageUpload([file]);
+                            } catch {
+                              setPortraitError("Failed to upload portrait");
+                            } finally {
+                              setIsUploadingPortrait(false);
+                            }
+                          }}
+                          disabled={isUploadingPortrait || isUploadingImage}
+                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
+                        </button>
+                        <button
+                          onClick={() => handleGeneratePortrait()}
+                          disabled={isGeneratingPortrait}
+                          className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          Try Again
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPortraitPreview(null);
+                            setShowPortraitGenerator(false);
+                            setPortraitError(null);
+                          }}
+                          className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generate button (when no preview) */}
+                  {!portraitPreview && (
+                    <button
+                      onClick={() => handleGeneratePortrait()}
+                      disabled={isGeneratingPortrait || portraitPrompt.trim().length === 0}
+                      className="w-full text-sm px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isGeneratingPortrait ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Portrait"
+                      )}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>)}
@@ -2963,11 +3155,154 @@ export function CharacterSheetPanel({
               </div>
             </div>
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Appearance</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Appearance</h3>
+                {!readOnly && (sheet.appearance ?? "").trim().length > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowPortraitGenerator(!showPortraitGenerator);
+                      if (!showPortraitGenerator) {
+                        setPortraitPrompt(sheet.appearance ?? "");
+                        setPortraitError(null);
+                        setPortraitPreview(null);
+                      }
+                    }}
+                    className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                      <path d="M8 1a.75.75 0 0 1 .75.75v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5A.75.75 0 0 1 8 1Z" />
+                      <path d="M3.5 9a.75.75 0 0 1 .75.75v1h1a.75.75 0 0 1 0 1.5h-1v1a.75.75 0 0 1-1.5 0v-1h-1a.75.75 0 0 1 0-1.5h1v-1A.75.75 0 0 1 3.5 9Z" />
+                      <path d="M12.5 5a.75.75 0 0 1 .75.75v.5h.5a.75.75 0 0 1 0 1.5h-.5v.5a.75.75 0 0 1-1.5 0v-.5h-.5a.75.75 0 0 1 0-1.5h.5v-.5A.75.75 0 0 1 12.5 5Z" />
+                    </svg>
+                    {showPortraitGenerator ? "Close" : "AI Portrait"}
+                  </button>
+                )}
+              </div>
               {readOnly ? (
                 <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{sheet.appearance || "None"}</p>
               ) : (
                 <ExpandingTextarea value={sheet.appearance ?? ""} onChange={(v) => handleUpdate({ appearance: v })} placeholder="Tall, dark hair, piercing blue eyes..." collapsedRows={2} baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
+              )}
+
+              {/* AI Portrait Generator */}
+              {showPortraitGenerator && !readOnly && (
+                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
+                  {/* Art style selector */}
+                  <div>
+                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">Style</label>
+                    <div className="flex gap-1.5">
+                      {([["jrpg", "JRPG"], ["classic", "Classic Fantasy"], ["pixel", "Pixel Art"]] as const).map(([key, label]) => (
+                        <button
+                          key={key}
+                          onClick={() => setPortraitStyle(key)}
+                          className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                            portraitStyle === key
+                              ? "bg-purple-600 text-white border-purple-600"
+                              : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">
+                      Prompt {portraitRemaining !== null && (
+                        <span className="text-purple-500 dark:text-purple-400">({portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"})</span>
+                      )}
+                    </label>
+                    <textarea
+                      value={portraitPrompt}
+                      onChange={(e) => setPortraitPrompt(e.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="w-full px-2 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none"
+                      placeholder="Describe the character's appearance..."
+                    />
+                    <div className="text-xs text-purple-500 dark:text-purple-400 text-right">
+                      {portraitPrompt.length}/1000
+                    </div>
+                  </div>
+
+                  {portraitError && (
+                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-1.5">
+                      {portraitError}
+                    </div>
+                  )}
+
+                  {/* Preview */}
+                  {portraitPreview && (
+                    <div className="flex flex-col items-center gap-2">
+                      <img
+                        src={`data:image/png;base64,${portraitPreview}`}
+                        alt="Generated portrait"
+                        className="w-32 h-32 rounded-lg object-contain border-2 border-purple-300 dark:border-purple-600"
+                        style={{ backgroundImage: "repeating-conic-gradient(#d1d5db 0% 25%, #f3f4f6 0% 50%)", backgroundSize: "16px 16px" }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={async () => {
+                            setIsUploadingPortrait(true);
+                            try {
+                              const res = await fetch(`data:image/png;base64,${portraitPreview}`);
+                              const blob = await res.blob();
+                              const file = new File([blob], "ai-portrait.png", { type: "image/png" });
+                              setIsUploadingImage(true);
+                              await startImageUpload([file]);
+                            } catch {
+                              setPortraitError("Failed to upload portrait");
+                            } finally {
+                              setIsUploadingPortrait(false);
+                            }
+                          }}
+                          disabled={isUploadingPortrait || isUploadingImage}
+                          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
+                        </button>
+                        <button
+                          onClick={() => handleGeneratePortrait()}
+                          disabled={isGeneratingPortrait}
+                          className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          Try Again
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPortraitPreview(null);
+                            setShowPortraitGenerator(false);
+                            setPortraitError(null);
+                          }}
+                          className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Generate button (when no preview) */}
+                  {!portraitPreview && (
+                    <button
+                      onClick={() => handleGeneratePortrait()}
+                      disabled={isGeneratingPortrait || portraitPrompt.trim().length === 0}
+                      className="w-full text-sm px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isGeneratingPortrait ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Portrait"
+                      )}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>

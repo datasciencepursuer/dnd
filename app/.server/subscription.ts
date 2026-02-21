@@ -13,7 +13,7 @@ export async function getUserTier(userId: string): Promise<AccountTier> {
     .where(eq(user.id, userId))
     .limit(1);
 
-  return result[0]?.accountTier ?? "free";
+  return result[0]?.accountTier ?? "adventurer";
 }
 
 export async function getUserTierLimits(userId: string): Promise<TierLimits> {

@@ -198,7 +198,7 @@ export function CombatPanel({
                 </span>
               </div>
               <button
-                onClick={() => onAiPrompt?.(`Continue ${currentTurnTokenName}'s turn. Resolve any pending actions or saving throw results.`)}
+                onClick={() => onAiPrompt?.(`Continue ${currentTurnTokenName}'s turn. Resolve any pending actions or saving throw results.`, true)}
                 disabled={aiLoading}
                 className="w-full px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500 hover:bg-red-600 text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors flex items-center justify-center gap-1.5"
               >

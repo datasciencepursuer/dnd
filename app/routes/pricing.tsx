@@ -11,7 +11,7 @@ export function meta() {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getSession(request);
-  let currentTier: AccountTier = "free";
+  let currentTier: AccountTier = "adventurer";
 
   if (session) {
     currentTier = await getUserTier(session.user.id);
@@ -20,23 +20,31 @@ export async function loader({ request }: Route.LoaderArgs) {
   return {
     isLoggedIn: !!session,
     currentTier,
-    adventurerPriceId: process.env.STRIPE_ADVENTURER_PRICE_ID ?? "",
+    heroPriceId: process.env.STRIPE_ADVENTURER_PRICE_ID ?? "",
     dmPriceId: process.env.STRIPE_HERO_PRICE_ID ?? "",
   };
 }
 
 const tiers: { tier: AccountTier; price: number | null; description: string }[] = [
-  { tier: "free", price: null, description: "Get started with the basics" },
-  { tier: "adventurer", price: 5, description: "For regular players" },
+  { tier: "adventurer", price: null, description: "Get started with the basics" },
+  { tier: "hero", price: 5, description: "For regular players" },
   { tier: "dungeon_master", price: 10, description: "For serious DMs and group leaders" },
 ];
 
+function formatAiImageLimit(limits: import("~/lib/tier-limits").TierLimits): string {
+  if (!limits.aiImageGeneration) return "No";
+  if (limits.aiImageLimit === Infinity) return "Unlimited";
+  const windowLabel = limits.aiImageLimitWindow === "monthly" ? "/mo" : limits.aiImageLimitWindow === "weekly" ? "/wk" : "/day";
+  return `${limits.aiImageLimit}${windowLabel}`;
+}
+
 const features = [
   { label: "Maps", key: "maxMaps" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
-  { label: "Scenes per map", key: "maxScenesPerMap" as const, format: (v: number) => String(v) },
+  { label: "Scenes per map", key: "maxScenesPerMap" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
   { label: "Groups", key: "maxGroups" as const, format: (v: number) => String(v) },
   { label: "Map background uploads", key: "maxMapUploads" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
   { label: "Token image uploads", key: "maxTokenUploads" as const, format: (v: number) => (v === Infinity ? "Unlimited" : String(v)) },
+  { label: "AI portrait generation", key: "aiImageGeneration" as const, format: (_v: boolean, limits: import("~/lib/tier-limits").TierLimits) => formatAiImageLimit(limits) },
   { label: "Combat system", key: "combatSystem" as const, format: (v: boolean) => v ? "Yes" : "No" },
   { label: "Real-time sync", key: "realtimeSync" as const, format: (v: boolean) => v ? "Yes" : "No" },
   { label: "Chat whispers", key: "chatWhispers" as const, format: (v: boolean) => v ? "Yes" : "No" },
@@ -49,7 +57,7 @@ const features = [
 ];
 
 export default function Pricing({ loaderData }: Route.ComponentProps) {
-  const { isLoggedIn, currentTier, adventurerPriceId, dmPriceId } = loaderData;
+  const { isLoggedIn, currentTier, heroPriceId, dmPriceId } = loaderData;
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +74,7 @@ export default function Pricing({ loaderData }: Route.ComponentProps) {
   }, [subscriptionStatus, setSearchParams]);
 
   function getPriceId(tier: AccountTier): string | null {
-    if (tier === "adventurer") return adventurerPriceId;
+    if (tier === "hero") return heroPriceId;
     if (tier === "dungeon_master") return dmPriceId;
     return null;
   }
@@ -181,21 +189,24 @@ export default function Pricing({ loaderData }: Route.ComponentProps) {
                 <ul className="space-y-2 flex-1 mb-6">
                   {features.map(({ label, key, format }) => {
                     const value = limits[key];
+                    const formatted = (format as (v: never, l: typeof limits) => string)(value as never, limits);
                     const isEnabled = typeof value === "boolean" ? value : true;
+                    // For AI portrait generation, check if the formatted result indicates it's enabled
+                    const effectiveEnabled = key === "aiImageGeneration" ? formatted !== "No" : isEnabled;
                     const displayValue = typeof value === "boolean"
-                      ? label
-                      : `${(format as (v: number) => string)(value)} ${label.toLowerCase()}`;
+                      ? (key === "aiImageGeneration" ? `${formatted} ${label.toLowerCase()}` : label)
+                      : `${formatted} ${label.toLowerCase()}`;
 
                     return (
                       <li
                         key={key}
                         className={`flex items-center gap-2 text-sm ${
-                          isEnabled
+                          effectiveEnabled
                             ? "text-gray-700 dark:text-gray-300"
                             : "text-gray-400 dark:text-gray-500"
                         }`}
                       >
-                        <FeatureIcon enabled={isEnabled} />
+                        <FeatureIcon enabled={effectiveEnabled} />
                         {displayValue}
                       </li>
                     );
@@ -256,6 +267,6 @@ function FeatureIcon({ enabled }: { enabled: boolean }) {
 }
 
 function TierIcon({ tier }: { tier: AccountTier }) {
-  const emoji = tier === "free" ? "🌿" : tier === "adventurer" ? "👟" : "⚔️";
+  const emoji = tier === "adventurer" ? "🗡️" : tier === "hero" ? "⚔️" : "🐉";
   return <span className="text-4xl leading-none">{emoji}</span>;
 }

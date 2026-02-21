@@ -5,9 +5,8 @@ export function PatchNotesPanel() {
   const [expanded, setExpanded] = useState(false);
   const [versionIndex, setVersionIndex] = useState(0);
 
-  const notes = PATCH_NOTES.slice(0, 3);
-  const latest = notes[0];
-  const current = latest ? (notes[versionIndex] ?? latest) : undefined;
+  const latest = PATCH_NOTES[0];
+  const current = PATCH_NOTES[versionIndex] ?? latest;
 
   if (!latest || !current) return null;
 
@@ -36,30 +35,19 @@ export function PatchNotesPanel() {
         <span className="font-medium text-purple-900 dark:text-purple-100 flex-1">
           What's New
         </span>
-        {notes.length > 1 ? (
-          <span className="flex gap-1 overflow-x-auto scrollbar-thin" onClick={(e) => e.stopPropagation()}>
-            {[...notes].reverse().map((note) => {
-              const i = notes.indexOf(note);
-              return (
-                <button
-                  key={note.version}
-                  onClick={() => setVersionIndex(i)}
-                  className={`px-2 py-0.5 text-xs rounded cursor-pointer whitespace-nowrap transition-colors ${
-                    i === versionIndex
-                      ? "bg-purple-600 text-white"
-                      : "bg-purple-100 dark:bg-purple-800/50 text-purple-600 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-800"
-                  }`}
-                >
-                  v{note.version}
-                </button>
-              );
-            })}
-          </span>
-        ) : (
-          <span className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300">
-            v{latest.version}
-          </span>
-        )}
+        <span onClick={(e) => e.stopPropagation()}>
+          <select
+            value={versionIndex}
+            onChange={(e) => setVersionIndex(Number(e.target.value))}
+            className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 border-none cursor-pointer focus:ring-1 focus:ring-purple-500 outline-none"
+          >
+            {PATCH_NOTES.map((note, i) => (
+              <option key={note.version} value={i}>
+                v{note.version} — {note.title}
+              </option>
+            ))}
+          </select>
+        </span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className={`h-4 w-4 text-purple-500 dark:text-purple-400 transition-transform ${expanded ? "rotate-180" : ""}`}
