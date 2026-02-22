@@ -1,5 +1,5 @@
 import type { Route } from "./+types/playground.$mapId";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
@@ -93,8 +93,10 @@ export default function PlaygroundWithMap() {
   const data = useLoaderData<LoaderData>();
   const loadMapStore = useMapStore((s) => s.loadMap);
 
+  const loadedMapIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (data?.data) {
+    if (data?.data && data.id !== loadedMapIdRef.current) {
+      loadedMapIdRef.current = data.id;
       loadMapStore(data.data);
     }
   }, [data, loadMapStore]);

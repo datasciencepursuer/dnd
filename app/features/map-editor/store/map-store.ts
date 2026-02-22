@@ -109,7 +109,7 @@ export const useMapStore = create<MapState>()(
       dirtyTokens: new Set<string>(),
       dirtyTimestamps: new Map<string, number>(),
 
-      loadMap: (map) => set({
+      loadMap: (map) => set((state) => ({
         map: {
           ...map,
           // Ensure new fields have defaults for older maps
@@ -123,10 +123,12 @@ export const useMapStore = create<MapState>()(
           activeSceneId: map.activeSceneId || crypto.randomUUID(),
           activeSceneName: map.activeSceneName || "Scene 1",
           scenes: map.scenes || [],
+          // Preserve existing viewport when reloading the same map (prevents reset on re-renders)
+          ...(state.map?.id === map.id ? { viewport: state.map.viewport } : {}),
         },
         dirtyTokens: new Set(),
         dirtyTimestamps: new Map()
-      }),
+      })),
 
       // Sync map data from server while preserving local dirty tokens and viewport
       syncMap: (serverMap) =>
