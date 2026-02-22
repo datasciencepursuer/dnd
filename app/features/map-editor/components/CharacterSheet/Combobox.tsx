@@ -7,6 +7,8 @@ interface ComboboxProps {
   suggestions: string[];
   placeholder?: string;
   className?: string;
+  /** Extra classes applied to the outer wrapper div (useful for flex/grid sizing) */
+  wrapperClassName?: string;
   disabled?: boolean;
   maxSuggestions?: number;
   /** When set, the input supports multiple comma-separated values and autocompletes only the current segment */
@@ -19,6 +21,7 @@ export function Combobox({
   suggestions,
   placeholder = "",
   className = "",
+  wrapperClassName = "",
   disabled = false,
   maxSuggestions = 8,
   delimiter,
@@ -208,7 +211,7 @@ export function Combobox({
   };
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className={`relative min-w-0 ${wrapperClassName}`}>
       <textarea
         ref={inputRef}
         value={value}
