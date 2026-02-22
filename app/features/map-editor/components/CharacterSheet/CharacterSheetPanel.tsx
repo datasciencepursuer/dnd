@@ -2074,39 +2074,127 @@ export function CharacterSheetPanel({
           <div className="flex flex-col md:flex-row gap-4">
             {/* Species Traits */}
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 flex-1">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Species Traits</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Species Traits</h3>
+                {!readOnly && (
+                  <button
+                    onClick={() => {
+                      const items = (sheet.speciesTraits ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                      items.push("");
+                      handleUpdate({ speciesTraits: items.join(", ") });
+                    }}
+                    className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                )}
+              </div>
               {readOnly ? (
-                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {sheet.speciesTraits || "None"}
-                </p>
+                (() => {
+                  const items = (sheet.speciesTraits ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                  return items.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {items.map((item, i) => (
+                        <p key={i} className="text-sm text-gray-700 dark:text-gray-300">{item}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">None</p>
+                  );
+                })()
               ) : (
-                <Combobox
-                  value={sheet.speciesTraits ?? ""}
-                  onChange={(v) => handleUpdate({ speciesTraits: v })}
-                  suggestions={DND_SPECIES_TRAITS}
-                  placeholder="Darkvision, Fey Ancestry, Trance..."
-                  delimiter=", "
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
-                />
+                (() => {
+                  const items = (sheet.speciesTraits ?? "").split(",").map(s => s.trim());
+                  const rows = items.length > 0 && items.some(s => s !== "") ? items : [""];
+                  return (
+                    <div className="space-y-1">
+                      {rows.map((item, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <Combobox
+                            value={item}
+                            onChange={(v) => {
+                              const updated = [...rows];
+                              updated[i] = v;
+                              handleUpdate({ speciesTraits: updated.filter((s, idx) => s.trim() !== "" || idx === i).join(", ") });
+                            }}
+                            suggestions={DND_SPECIES_TRAITS}
+                            placeholder="Trait name"
+                            wrapperClassName="flex-1 min-w-0"
+                            className="w-full px-1.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                          {rows.length > 1 && (
+                            <button onClick={() => { const updated = rows.filter((_, idx) => idx !== i); handleUpdate({ speciesTraits: updated.join(", ") }); }} className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer flex-shrink-0" title="Remove">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()
               )}
             </div>
 
             {/* Feats */}
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 flex-1">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Feats</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Feats</h3>
+                {!readOnly && (
+                  <button
+                    onClick={() => {
+                      const items = (sheet.feats ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                      items.push("");
+                      handleUpdate({ feats: items.join(", ") });
+                    }}
+                    className="text-xs px-2 py-0.5 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                  >
+                    + Add
+                  </button>
+                )}
+              </div>
               {readOnly ? (
-                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {sheet.feats || "None"}
-                </p>
+                (() => {
+                  const items = (sheet.feats ?? "").split(",").map(s => s.trim()).filter(Boolean);
+                  return items.length > 0 ? (
+                    <div className="space-y-0.5">
+                      {items.map((item, i) => (
+                        <p key={i} className="text-sm text-gray-700 dark:text-gray-300">{item}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 italic">None</p>
+                  );
+                })()
               ) : (
-                <Combobox
-                  value={sheet.feats ?? ""}
-                  onChange={(v) => handleUpdate({ feats: v })}
-                  suggestions={DND_FEATS}
-                  placeholder="Great Weapon Master, Sentinel..."
-                  delimiter=", "
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
-                />
+                (() => {
+                  const items = (sheet.feats ?? "").split(",").map(s => s.trim());
+                  const rows = items.length > 0 && items.some(s => s !== "") ? items : [""];
+                  return (
+                    <div className="space-y-1">
+                      {rows.map((item, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                          <Combobox
+                            value={item}
+                            onChange={(v) => {
+                              const updated = [...rows];
+                              updated[i] = v;
+                              handleUpdate({ feats: updated.filter((s, idx) => s.trim() !== "" || idx === i).join(", ") });
+                            }}
+                            suggestions={DND_FEATS}
+                            placeholder="Feat name"
+                            wrapperClassName="flex-1 min-w-0"
+                            className="w-full px-1.5 py-0.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          />
+                          {rows.length > 1 && (
+                            <button onClick={() => { const updated = rows.filter((_, idx) => idx !== i); handleUpdate({ feats: updated.join(", ") }); }} className="p-0.5 text-gray-400 hover:text-red-500 cursor-pointer flex-shrink-0" title="Remove">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()
               )}
             </div>
           </div>
