@@ -1668,6 +1668,17 @@ export function CharacterSheetPanel({
                 </div>
               ) : (
                 /* Desktop: Single-row flex per weapon */
+                <>
+                {!readOnly && (sheet.weapons || []).length > 0 && (
+                  <div className="flex items-center gap-0.5 text-[10px] text-gray-400 dark:text-gray-500 px-0.5 mb-1">
+                    <span className="flex-1 min-w-0 text-left">Name</span>
+                    <span className="w-7 flex-shrink-0 text-left">Mod</span>
+                    <span className="w-11 flex-shrink-0 text-left">Dice</span>
+                    <span className="w-16 flex-shrink-0 text-left">Type</span>
+                    <span className="flex-1 min-w-0 text-left">Notes</span>
+                    <span className="w-4 flex-shrink-0"></span>
+                  </div>
+                )}
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {(sheet.weapons || []).map((weapon, index) => (
                     readOnly ? (
@@ -1697,6 +1708,7 @@ export function CharacterSheetPanel({
                     )
                   ))}
                 </div>
+                </>
               )}
             </div>
 

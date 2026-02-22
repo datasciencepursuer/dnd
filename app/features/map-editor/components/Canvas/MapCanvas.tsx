@@ -63,6 +63,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   const isRightClickPanningRef = useRef(false); // Ref to avoid effect re-runs
   const lastMousePos = useRef<{ x: number; y: number } | null>(null);
   const hasCenteredRef = useRef<string | null>(null); // Track which map we've centered
+  const dimensionsRef = useRef(dimensions); // Track dimensions without triggering centering
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
@@ -326,6 +327,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
         const width = containerRef.current.offsetWidth;
         const height = containerRef.current.offsetHeight;
         setDimensions({ width, height });
+        dimensionsRef.current = { width, height };
         setCanvasDimensions(width, height);
       }
     };
@@ -383,33 +385,44 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
     return unsub;
   }, []);
 
-  // Center the grid on initial load - always center for each client session
+  // Center the grid on initial load - truly one-shot per map.
+  // Uses dimensionsRef to avoid re-triggering on layout changes (e.g. character sheet open/close).
+  // Retries via requestAnimationFrame if container hasn't been measured yet.
   useEffect(() => {
-    if (!grid || !mapId || dimensions.width === 0 || dimensions.height === 0) return;
-
-    // Only center once per map (check if we've already centered this map)
+    if (!grid || !mapId) return;
     if (hasCenteredRef.current === mapId) return;
 
-    const gridWidthPx = grid.width * grid.cellSize;
-    const gridHeightPx = grid.height * grid.cellSize;
-    const scale = viewportRef.current.scale;
+    const doCenter = () => {
+      if (hasCenteredRef.current === mapId) return; // Guard against raf race
+      const d = dimensionsRef.current;
+      if (d.width <= 0 || d.height <= 0) {
+        // Container not measured yet — retry next frame
+        rafId = requestAnimationFrame(doCenter);
+        return;
+      }
 
-    // Calculate position to center the grid on screen
-    const centerX = (dimensions.width - gridWidthPx * scale) / 2;
-    const centerY = (dimensions.height - gridHeightPx * scale) / 2;
+      const gridWidthPx = grid.width * grid.cellSize;
+      const gridHeightPx = grid.height * grid.cellSize;
+      const scale = viewportRef.current.scale;
 
-    viewportRef.current = { x: centerX, y: centerY, scale };
-    // Update Stage directly
-    if (stageRef.current) {
-      stageRef.current.x(centerX);
-      stageRef.current.y(centerY);
-      stageRef.current.scaleX(scale);
-      stageRef.current.scaleY(scale);
-      stageRef.current.batchDraw();
-    }
-    setViewport(centerX, centerY, scale);
-    hasCenteredRef.current = mapId;
-  }, [mapId, grid?.width, grid?.height, grid?.cellSize, dimensions.width, dimensions.height, setViewport]);
+      const centerX = (d.width - gridWidthPx * scale) / 2;
+      const centerY = (d.height - gridHeightPx * scale) / 2;
+
+      viewportRef.current = { x: centerX, y: centerY, scale };
+      if (stageRef.current) {
+        stageRef.current.x(centerX);
+        stageRef.current.y(centerY);
+        stageRef.current.scaleX(scale);
+        stageRef.current.scaleY(scale);
+        stageRef.current.batchDraw();
+      }
+      setViewport(centerX, centerY, scale);
+      hasCenteredRef.current = mapId;
+    };
+
+    let rafId = requestAnimationFrame(doCenter);
+    return () => cancelAnimationFrame(rafId);
+  }, [mapId, grid?.width, grid?.height, grid?.cellSize, setViewport]);
 
   // Set cursor during right-click panning (on body, container, and stage)
   useEffect(() => {
