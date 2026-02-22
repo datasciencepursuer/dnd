@@ -11,7 +11,7 @@ export function PatchNotesPanel() {
   if (!latest || !current) return null;
 
   return (
-    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg mb-6">
+    <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg mb-6 overflow-hidden">
       {/* Collapsed bar */}
       <div
         role="button"
@@ -35,11 +35,11 @@ export function PatchNotesPanel() {
         <span className="font-medium text-purple-900 dark:text-purple-100 flex-1">
           What's New
         </span>
-        <span onClick={(e) => e.stopPropagation()}>
+        <span onClick={(e) => e.stopPropagation()} className="min-w-0 flex-shrink">
           <select
             value={versionIndex}
             onChange={(e) => setVersionIndex(Number(e.target.value))}
-            className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 border-none cursor-pointer focus:ring-1 focus:ring-purple-500 outline-none"
+            className="text-xs px-2 py-0.5 rounded bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 border-none cursor-pointer focus:ring-1 focus:ring-purple-500 outline-none max-w-[8rem] lg:max-w-none truncate"
           >
             {PATCH_NOTES.map((note, i) => (
               <option key={note.version} value={i}>
@@ -64,7 +64,7 @@ export function PatchNotesPanel() {
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-6 pb-6 pt-0">
+        <div className="px-6 pb-6 pt-0 max-h-64 overflow-y-auto lg:max-h-none lg:overflow-y-visible">
           <div className="border-t border-purple-200 dark:border-purple-800 pt-4">
             <div className="flex items-baseline gap-2 mb-3">
               <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100">
