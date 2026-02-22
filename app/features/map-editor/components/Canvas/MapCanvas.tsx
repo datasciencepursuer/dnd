@@ -15,7 +15,8 @@ import { useMapStore, useEditorStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP } from "../../constants";
 import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
 import { WALL_STYLES, TERRAIN_COLORS, TERRAIN_DEFAULT_OPACITY } from "../../utils/terrain-utils";
-import type { FreehandPath, GridPosition, Ping, Token, WallSegment, AreaShape, Position } from "../../types";
+import type { FreehandPath, FogCell, GridPosition, Ping, Token, WallSegment, AreaShape, Position } from "../../types";
+import { pushUndo } from "../../utils/undo-stack";
 
 /** Test if line segment (ax,ay)→(bx,by) intersects axis-aligned rect [minX,minY,maxX,maxY]. */
 function segIntersectsRect(ax: number, ay: number, bx: number, by: number, minX: number, minY: number, maxX: number, maxY: number): boolean {
@@ -229,9 +230,19 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
 
   // Wrapper that removes a freehand path locally and broadcasts the removal
   const handleErasePath = useCallback((pathId: string) => {
+    const path = freehandRef.current?.find((p) => p.id === pathId);
+    if (!path) return;
+    // Players can only erase own drawings; DM can erase all
+    if (!isDungeonMaster() && path.creatorId !== userId) return;
+    pushUndo({ type: "drawing-remove", path });
     removeFreehandPath(pathId);
     onDrawingRemove?.(pathId);
-  }, [removeFreehandPath, onDrawingRemove]);
+  }, [removeFreehandPath, onDrawingRemove, isDungeonMaster, userId]);
+
+  // Check if the current user can erase a given path
+  const canErasePath = useCallback((path: FreehandPath) => {
+    return isDungeonMaster() || path.creatorId === userId;
+  }, [isDungeonMaster, userId]);
 
   // Wall selection/erase handlers
   const handleSelectWall = useCallback((wallId: string) => {
@@ -733,15 +744,31 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       const { col: endCol, row: endRow } = getCellFromPosition(dragEnd);
 
       if (dragMode === "fog" && userId) {
-        // Paint fog in range
+        // Snapshot existing keys to compute which cells are new
+        const existingKeys = new Set(
+          (useMapStore.getState().map?.fogOfWar?.paintedCells || []).map((c) => c.key)
+        );
         paintFogInRange(startCol, startRow, endCol, endRow, userId);
+        // Compute newly added cells for undo
+        const afterCells = useMapStore.getState().map?.fogOfWar?.paintedCells || [];
+        const newCells = afterCells.filter((c) => !existingKeys.has(c.key));
+        if (newCells.length > 0) {
+          pushUndo({ type: "fog-paint", cells: newCells });
+        }
         onFogPaintRange?.(startCol, startRow, endCol, endRow, userId);
       } else if (dragMode === "erase" && userId) {
-        // Erase fog in range (players can only erase their own fog, DM can erase all)
+        // Snapshot cells before erase to capture what gets removed
+        const beforeCells = useMapStore.getState().map?.fogOfWar?.paintedCells || [];
         eraseFogInRange(startCol, startRow, endCol, endRow, userId, isDungeonMaster());
+        const afterCells = useMapStore.getState().map?.fogOfWar?.paintedCells || [];
+        const afterKeys = new Set(afterCells.map((c) => c.key));
+        const removedCells = beforeCells.filter((c) => !afterKeys.has(c.key));
+        if (removedCells.length > 0) {
+          pushUndo({ type: "fog-erase", cells: removedCells });
+        }
         onFogEraseRange?.(startCol, startRow, endCol, endRow);
 
-        // Also erase drawings that fall within the rectangle
+        // Also erase drawings that fall within the rectangle (ownership-filtered)
         const minX = Math.min(dragStart.x, dragEnd.x);
         const maxX = Math.max(dragStart.x, dragEnd.x);
         const minY = Math.min(dragStart.y, dragEnd.y);
@@ -749,10 +776,13 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
 
         // Find and remove paths that have any point within the rectangle
         freehandRef.current?.forEach((path) => {
+          // Players can only erase own drawings; DM can erase all
+          if (!isDungeonMaster() && path.creatorId !== userId) return;
           for (let i = 0; i < path.points.length; i += 2) {
             const px = path.points[i];
             const py = path.points[i + 1];
             if (px >= minX && px <= maxX && py >= minY && py <= maxY) {
+              pushUndo({ type: "drawing-remove", path });
               removeFreehandPath(path.id);
               onDrawingRemove?.(path.id);
               break;
@@ -842,8 +872,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
         points: currentPath,
         color: drawingColor,
         width: drawingWidth,
+        creatorId: userId || undefined,
       };
       addFreehandPath(path);
+      pushUndo({ type: "drawing-add", path });
       // Broadcast to other clients via WebSocket
       onDrawingAdd?.(path);
     }
@@ -1301,6 +1333,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               isEraseMode={selectedTool === "erase"}
               isDragging={isDraggingRect}
               onErasePath={handleErasePath}
+              canErasePath={canErasePath}
             />
           </Group>
           <Group>

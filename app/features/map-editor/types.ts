@@ -460,6 +460,7 @@ export interface FreehandPath {
   points: number[];
   color: string;
   width: number;
+  creatorId?: string;
 }
 
 // Fog of War

@@ -16,6 +16,7 @@ import { buildFogSet, isTokenUnderFog } from "../utils/fog-utils";
 import { filterMessagesForAI } from "../utils/ai-context-utils";
 import { VALID_CONDITIONS } from "../types";
 import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape, MonsterGroup } from "../types";
+import { popUndo, clearUndoStack } from "../utils/undo-stack";
 import type { AccountTier, TierLimits } from "~/lib/tier-limits";
 import { getTierLimits } from "~/lib/tier-limits";
 
@@ -101,6 +102,10 @@ export function MapEditor({
   const isInCombat = combat?.isInCombat ?? false;
   const initiativeOrder = combat?.initiativeOrder ?? null;
   const currentTurnIndex = combat?.currentTurnIndex ?? 0;
+
+  // Drawing/fog store actions for undo
+  const addFreehandPath = useMapStore((s) => s.addFreehandPath);
+  const removeFreehandPath = useMapStore((s) => s.removeFreehandPath);
 
   // Wall/area store actions for property editing
   const updateWall = useMapStore((s) => s.updateWall);
@@ -901,9 +906,9 @@ export function MapEditor({
     (imageUrl: string | null) => {
       if (!openCharacterSheetTokenId) return;
       updateToken(openCharacterSheetTokenId, { imageUrl });
-      syncDebounced(500);
+      handleTokenUpdate(openCharacterSheetTokenId, { imageUrl });
     },
-    [openCharacterSheetTokenId, updateToken, syncDebounced]
+    [openCharacterSheetTokenId, updateToken, handleTokenUpdate]
   );
 
   // Set editor context on mount/update (render-time sync)
@@ -984,32 +989,76 @@ export function MapEditor({
     return () => controller.abort();
   }, [map?.tokens, updateToken]);
 
-  // Undo/Redo - for fog, drawing, and token operations
+  // Undo — per-user action stack for drawings and fog
   const temporalStore = useMapStore.temporal;
   const undo = useCallback(() => {
-    temporalStore.getState().undo();
-    // Sync changes after undo (fog/drawing/tokens)
-    const currentMap = useMapStore.getState().map;
-    if (currentMap) {
-      broadcastMapSync(currentMap);
-      syncDebounced(500);
-    }
-  }, [temporalStore, broadcastMapSync, syncDebounced]);
+    const action = popUndo();
+    if (!action) return;
 
-  const redo = useCallback(() => {
-    temporalStore.getState().redo();
-    // Sync changes after redo (fog/drawing/tokens)
+    switch (action.type) {
+      case "drawing-add":
+        // Undo a drawing we added → remove it
+        removeFreehandPath(action.path.id);
+        broadcastDrawingRemove(action.path.id);
+        break;
+      case "drawing-remove":
+        // Undo a drawing we erased → re-add it
+        addFreehandPath(action.path);
+        broadcastDrawingAdd(action.path);
+        break;
+      case "fog-paint": {
+        // Undo painted fog → remove those cells
+        const keysToRemove = new Set(action.cells.map((c) => c.key));
+        const currentCells = useMapStore.getState().map?.fogOfWar?.paintedCells || [];
+        const filtered = currentCells.filter((c) => !keysToRemove.has(c.key));
+        useMapStore.setState((state) => {
+          if (!state.map) return state;
+          return {
+            map: {
+              ...state.map,
+              fogOfWar: { ...state.map.fogOfWar, paintedCells: filtered },
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        });
+        break;
+      }
+      case "fog-erase": {
+        // Undo erased fog → re-add those cells
+        const currentCells = useMapStore.getState().map?.fogOfWar?.paintedCells || [];
+        const existingKeys = new Set(currentCells.map((c) => c.key));
+        const cellsToRestore = action.cells.filter((c) => !existingKeys.has(c.key));
+        if (cellsToRestore.length > 0) {
+          useMapStore.setState((state) => {
+            if (!state.map) return state;
+            return {
+              map: {
+                ...state.map,
+                fogOfWar: {
+                  ...state.map.fogOfWar,
+                  paintedCells: [...(state.map.fogOfWar.paintedCells || []), ...cellsToRestore],
+                },
+                updatedAt: new Date().toISOString(),
+              },
+            };
+          });
+        }
+        break;
+      }
+    }
+
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
       syncDebounced(500);
     }
-  }, [temporalStore, broadcastMapSync, syncDebounced]);
+  }, [removeFreehandPath, addFreehandPath, broadcastDrawingRemove, broadcastDrawingAdd, broadcastMapSync, syncDebounced]);
 
   // Scene handlers
   const performSceneSwitch = useCallback((sceneId: string) => {
     switchScene(sceneId);
     temporalStore.getState().clear();
+    clearUndoStack();
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
@@ -1049,6 +1098,7 @@ export function MapEditor({
   const handleCreateScene = useCallback((name: string) => {
     createScene(name);
     temporalStore.getState().clear();
+    clearUndoStack();
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
@@ -1059,6 +1109,7 @@ export function MapEditor({
   const handleDeleteScene = useCallback((sceneId: string) => {
     deleteScene(sceneId);
     temporalStore.getState().clear();
+    clearUndoStack();
     const currentMap = useMapStore.getState().map;
     if (currentMap) {
       broadcastMapSync(currentMap);
@@ -1080,27 +1131,21 @@ export function MapEditor({
     }
   }, [duplicateScene, broadcastMapSync, syncNow]);
 
-  // Keyboard shortcuts - undo/redo for fog, drawing, and token operations
+  // Keyboard shortcuts - undo for drawings and fog
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Allow native undo/redo for inputs and text areas
+      // Allow native undo for inputs and text areas
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
-      // Ctrl+Z / Cmd+Z for undo (fog, drawing, and token operations)
+      // Ctrl+Z / Cmd+Z for undo (drawings and fog only, per-user)
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
       }
-
-      // Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y for redo (fog, drawing, and token operations)
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        redo();
-      }
     },
-    [undo, redo]
+    [undo]
   );
 
   useEffect(() => {

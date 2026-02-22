@@ -401,7 +401,7 @@ export function usePartySync({
 
           case "drawing-add":
             if (message.userId !== userId) {
-              addFreehandPath(message.path);
+              addFreehandPath({ ...message.path, creatorId: message.userId });
             }
             break;
 
@@ -710,7 +710,7 @@ export function usePartySync({
 
   // Broadcast drawing add to other clients
   const broadcastDrawingAdd = useCallback(
-    (path: { id: string; points: number[]; color: string; width: number }) => {
+    (path: { id: string; points: number[]; color: string; width: number; creatorId?: string }) => {
       if (!isSocketReady() || !userId) return;
       socket!.send(JSON.stringify({
         type: "drawing-add",
