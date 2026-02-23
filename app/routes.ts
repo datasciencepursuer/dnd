@@ -40,6 +40,7 @@ route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availabili
   route("api/maps/:mapId/ai", "routes/api.maps.$mapId.ai.tsx"),
   route("api/maps/:mapId/ai-draw", "routes/api.maps.$mapId.ai-draw.tsx"),
   route("api/generate-portrait", "routes/api.generate-portrait.tsx"),
+  route("api/generate-map", "routes/api.generate-map.tsx"),
   route("api/stripe/checkout", "routes/api.stripe.checkout.ts"),
   route("api/stripe/webhook", "routes/api.stripe.webhook.ts"),
   route("api/stripe/success", "routes/api.stripe.success.ts"),

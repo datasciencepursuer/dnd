@@ -86,7 +86,7 @@ const THE_SIX_LIMITS: TierLimits = {
   maxScenesPerMap: 6,
   maxMapUploads: 15,
   maxTokenUploads: 25,
-  aiImageLimit: 6,
+  aiImageLimit: 10,
   aiImageLimitWindow: "daily",
 };
 

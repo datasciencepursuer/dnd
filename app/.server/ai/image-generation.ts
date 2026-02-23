@@ -50,6 +50,143 @@ export interface GeneratedImage {
   mimeType: string;
 }
 
+// --- Battlemap generation ---
+
+export type MapArtStyle = "realistic" | "classic-fantasy" | "hd2d";
+
+// Supported aspect ratios for Gemini imageConfig
+const SUPPORTED_RATIOS = [
+  { label: "1:1",  w: 1,  h: 1  },
+  { label: "4:3",  w: 4,  h: 3  },
+  { label: "3:4",  w: 3,  h: 4  },
+  { label: "3:2",  w: 3,  h: 2  },
+  { label: "2:3",  w: 2,  h: 3  },
+  { label: "16:9", w: 16, h: 9  },
+  { label: "9:16", w: 9,  h: 16 },
+  { label: "21:9", w: 21, h: 9  },
+] as const;
+
+/**
+ * Maps grid cell dimensions to the closest Gemini-supported aspect ratio.
+ * Uses angular distance (atan2) to find the best match regardless of scale.
+ */
+function gridToAspectRatio(gridWidth: number, gridHeight: number): {
+  ratio: string;
+  ratioW: number;
+  ratioH: number;
+  orientation: "landscape" | "portrait" | "square";
+} {
+  const gridAngle = Math.atan2(gridHeight, gridWidth);
+
+  let best: (typeof SUPPORTED_RATIOS)[number] = SUPPORTED_RATIOS[0]!;
+  let bestDist = Infinity;
+
+  for (const r of SUPPORTED_RATIOS) {
+    const angle = Math.atan2(r.h, r.w);
+    const dist = Math.abs(angle - gridAngle);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = r;
+    }
+  }
+
+  const orientation =
+    best.w > best.h ? "landscape" : best.w < best.h ? "portrait" : "square";
+
+  return { ratio: best.label, ratioW: best.w, ratioH: best.h, orientation };
+}
+
+const MAP_SHARED_REQUIREMENTS = `CRITICAL REQUIREMENTS:
+- This is a 2D board game battlemap — bird's-eye view looking straight down, like a tabletop game board
+- Objects like furniture, walls, trees, and terrain features CAN have stylized perspective and visual height — this is encouraged for readability. But the overall image must read as a flat 2D game board, NOT a 3D-rendered scene. No true 3D depth rendering, no raytracing, no photorealistic 3D
+- Think of classic VTT (virtual tabletop) battlemaps — they show objects with slight artistic perspective for clarity while remaining fundamentally a flat 2D playing surface
+
+SCALE IS CRITICAL — each grid cell = 5 feet:
+- A human-sized creature occupies 1 cell (5ft). A door is about 1 cell wide. A standard table is 2-3 cells long. A large tree canopy is 2-4 cells across. A horse is about 2 cells long
+- Buildings, rooms, corridors, and objects MUST be sized realistically relative to 5ft grid cells. A 10ft-wide corridor is 2 cells. A 20ft×30ft room is 4×6 cells. A tavern bar is 1 cell deep and several cells long
+- Do NOT make buildings or objects unrealistically large or small — a tiny hut should NOT fill the entire map, and city blocks should have appropriately sized streets (2-4 cells wide) between them
+- The total map area is specified in feet — use this to judge how much terrain fits. A 150ft×100ft map is a small encounter area (a building interior or small courtyard), while a 500ft×500ft map could show a village square
+
+- Fill the ENTIRE image edge-to-edge — NO borders, margins, frames, UI elements, text labels, compass roses, or legends
+- ABSOLUTELY NO grid lines, grid squares, grid overlay, hexagonal grid, or any visible grid pattern — the application overlays its own grid digitally, so the image must be a clean uninterrupted scene with NO drawn grid whatsoever
+- Include natural environmental variation and interesting terrain features
+- Lighting and shadows are fine for atmosphere and readability, but should serve the 2D board game aesthetic, not simulate a 3D environment`;
+
+const MAP_STYLE_PARAGRAPHS: Record<MapArtStyle, string> = {
+  realistic: `- Style: Photorealistic bird's-eye view — natural textures (stone, wood, grass, water), atmospheric lighting
+- Think high-quality VTT battlemaps with photo-sourced textures — rich and detailed but still a 2D game board
+- Rich detail in materials (cracked stone, wood grain, moss, rippling water)
+- Objects and walls can show height and shadow for visual clarity`,
+  "classic-fantasy": `- Style: Painted fantasy battlemap — soft watercolor washes, warm tones, subtle ink outlines
+- Think official D&D adventure module maps or Roll20/Foundry premium map packs — painterly, atmospheric, colorful
+- Rich color palette with soft edges, visible brushstrokes, warm lighting with gentle shadows
+- Objects and terrain have a hand-painted quality but remain clear and readable for gameplay`,
+  hd2d: `- Style: HD-2D pixel art battlemap — crisp pixel tiles with modern lighting, bloom, and depth-of-field effects layered on top
+- Think Octopath Traveler or Triangle Strategy overworld maps — retro pixel foundations enhanced with contemporary rendering
+- Limited but vibrant color palette, clear tile structure, pixel-perfect details with soft atmospheric glow
+- Nostalgic 16-bit charm elevated by modern visual polish`,
+};
+
+const MAP_STYLE_PROMPT_HINTS: Record<MapArtStyle, string> = {
+  realistic: "in photorealistic bird's-eye view with natural textures and atmospheric lighting",
+  "classic-fantasy": "in painted fantasy watercolor style, bird's-eye view, soft washes and warm tones like a D&D adventure module map",
+  hd2d: "in HD-2D pixel art style (Octopath Traveler / Triangle Strategy), bird's-eye view, retro pixel tiles with modern lighting",
+};
+
+function buildMapSystemInstruction(artStyle: MapArtStyle, gridWidth: number, gridHeight: number, cellSizeFt: number, aspect: { ratio: string; orientation: string }): string {
+  const totalW = gridWidth * cellSizeFt;
+  const totalH = gridHeight * cellSizeFt;
+  return `You are a bird's-eye battlemap artist for tabletop RPGs (D&D 5e). You produce 2D game board surfaces suitable for placing tokens on.
+
+Scale context: ${gridWidth}×${gridHeight} grid, ${cellSizeFt}ft per cell, covering ${totalW}ft × ${totalH}ft total area.
+The image is ${aspect.ratio} ${aspect.orientation} format — fill the entire canvas edge-to-edge with the scene.
+
+${MAP_SHARED_REQUIREMENTS}
+
+${MAP_STYLE_PARAGRAPHS[artStyle]}`;
+}
+
+export async function generateBattlemap(
+  apiKey: string,
+  userPrompt: string,
+  gridWidth: number,
+  gridHeight: number,
+  cellSizeFt: number = 5,
+  artStyle: MapArtStyle = "realistic"
+): Promise<GeneratedImage> {
+  const ai = new GoogleGenAI({ apiKey });
+
+  const totalW = gridWidth * cellSizeFt;
+  const totalH = gridHeight * cellSizeFt;
+  const aspect = gridToAspectRatio(gridWidth, gridHeight);
+  const fullPrompt = `Generate a ${aspect.orientation} (${aspect.ratio}) bird's-eye 2D battlemap ${MAP_STYLE_PROMPT_HINTS[artStyle]}, representing ${totalW}ft × ${totalH}ft. This is a tabletop game board — not a 3D render. Do NOT draw any grid lines or grid overlay. Description: ${userPrompt}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash-image",
+    contents: fullPrompt,
+    config: {
+      systemInstruction: buildMapSystemInstruction(artStyle, gridWidth, gridHeight, cellSizeFt, aspect),
+      responseModalities: ["image", "text"],
+      imageConfig: {
+        aspectRatio: aspect.ratio,
+      },
+    },
+  });
+
+  const part = response.candidates?.[0]?.content?.parts?.find(
+    (p) => p.inlineData?.mimeType?.startsWith("image/")
+  );
+
+  if (!part?.inlineData?.data) {
+    throw new Error("SAFETY_FILTER");
+  }
+
+  return {
+    imageBase64: part.inlineData.data,
+    mimeType: part.inlineData.mimeType ?? "image/png",
+  };
+}
+
 export async function generateCharacterPortrait(
   apiKey: string,
   userPrompt: string,

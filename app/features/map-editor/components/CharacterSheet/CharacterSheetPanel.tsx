@@ -297,9 +297,12 @@ export function CharacterSheetPanel({
   const imagePickerRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Use linked/standalone character sheet if available, otherwise use token's inline sheet
+  const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
+
   // AI portrait generation state
   const [showPortraitGenerator, setShowPortraitGenerator] = useState(false);
-  const [portraitPrompt, setPortraitPrompt] = useState("");
+
   const [isGeneratingPortrait, setIsGeneratingPortrait] = useState(false);
   const [portraitPreview, setPortraitPreview] = useState<string | null>(null);
   const [portraitError, setPortraitError] = useState<string | null>(null);
@@ -309,7 +312,8 @@ export function CharacterSheetPanel({
   const [portraitStyle, setPortraitStyle] = useState<"jrpg" | "classic" | "pixel">("jrpg");
 
   const handleGeneratePortrait = useCallback(async () => {
-    if (!portraitPrompt.trim() || isGeneratingPortrait) return;
+    const appearanceText = (sheet?.appearance ?? "").trim();
+    if (!appearanceText || isGeneratingPortrait) return;
     setIsGeneratingPortrait(true);
     setPortraitError(null);
     setPortraitPreview(null);
@@ -317,7 +321,7 @@ export function CharacterSheetPanel({
       const res = await fetch("/api/generate-portrait", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: portraitPrompt.trim(), tokenSize: token?.size ?? 1, artStyle: portraitStyle }),
+        body: JSON.stringify({ prompt: appearanceText, tokenSize: token?.size ?? 1, artStyle: portraitStyle }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -344,7 +348,7 @@ export function CharacterSheetPanel({
     } finally {
       setIsGeneratingPortrait(false);
     }
-  }, [portraitPrompt, isGeneratingPortrait, portraitStyle]);
+  }, [sheet?.appearance, isGeneratingPortrait, portraitStyle]);
 
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
   if (charImageUrl !== prevCharImageUrlRef.current) {
@@ -457,9 +461,6 @@ export function CharacterSheetPanel({
 
   // If linked fetch failed, treat as unlinked for editing (edits go through onUpdate instead of syncToServer)
   const effectivelyLinked = isLinked && !linkedFetchFailed;
-
-  // Use linked/standalone character sheet if available, otherwise use token's inline sheet
-  const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
 
   // Avatar image upload hook and handlers
   const handleImageSelectedRef = useRef<(url: string | null) => void>(() => {});
@@ -2910,7 +2911,6 @@ export function CharacterSheetPanel({
                     onClick={() => {
                       setShowPortraitGenerator(!showPortraitGenerator);
                       if (!showPortraitGenerator) {
-                        setPortraitPrompt(sheet.appearance ?? "");
                         setPortraitError(null);
                         setPortraitPreview(null);
                       }
@@ -2938,49 +2938,53 @@ export function CharacterSheetPanel({
                 />
               )}
 
-              {/* AI Portrait Generator */}
+              {/* AI Portrait Generator - inline controls */}
               {showPortraitGenerator && !readOnly && (
-                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
-                  {/* Art style selector */}
-                  <div>
-                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">Style</label>
-                    <div className="flex gap-1.5">
-                      {([["jrpg", "JRPG"], ["classic", "Classic Fantasy"], ["pixel", "Pixel Art"]] as const).map(([key, label]) => (
-                        <button
-                          key={key}
-                          onClick={() => setPortraitStyle(key)}
-                          className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                            portraitStyle === key
-                              ? "bg-purple-600 text-white border-purple-600"
-                              : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">
-                      Prompt {portraitRemaining !== null && (
-                        <span className="text-purple-500 dark:text-purple-400">({portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"})</span>
+                <div className="mt-2 space-y-2">
+                  {/* Style pills + Generate button row */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
+                      <button
+                        key={key}
+                        onClick={() => setPortraitStyle(key)}
+                        title={tooltip}
+                        className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                          portraitStyle === key
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <button
+                        onClick={() => handleGeneratePortrait()}
+                        disabled={isGeneratingPortrait || (sheet.appearance ?? "").trim().length === 0}
+                        className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                      >
+                        {isGeneratingPortrait ? (
+                          <>
+                            <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Generating...
+                          </>
+                        ) : (
+                          "Generate Portrait"
+                        )}
+                      </button>
+                      {portraitRemaining !== null && (
+                        <span className="text-xs text-purple-500 dark:text-purple-400 whitespace-nowrap">
+                          {portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"}
+                        </span>
                       )}
-                    </label>
-                    <textarea
-                      value={portraitPrompt}
-                      onChange={(e) => setPortraitPrompt(e.target.value)}
-                      maxLength={1000}
-                      rows={3}
-                      className="w-full px-2 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none"
-                      placeholder="Describe the character's appearance..."
-                    />
-                    <div className="text-xs text-purple-500 dark:text-purple-400 text-right">
-                      {portraitPrompt.length}/1000
                     </div>
                   </div>
 
                   {portraitError && (
-                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-1.5">
+                    <div className="text-xs text-red-600 dark:text-red-400">
                       {portraitError}
                     </div>
                   )}
@@ -3034,27 +3038,6 @@ export function CharacterSheetPanel({
                         </button>
                       </div>
                     </div>
-                  )}
-
-                  {/* Generate button (when no preview) */}
-                  {!portraitPreview && (
-                    <button
-                      onClick={() => handleGeneratePortrait()}
-                      disabled={isGeneratingPortrait || portraitPrompt.trim().length === 0}
-                      className="w-full text-sm px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {isGeneratingPortrait ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Generating...
-                        </>
-                      ) : (
-                        "Generate Portrait"
-                      )}
-                    </button>
                   )}
                 </div>
               )}
@@ -3248,7 +3231,6 @@ export function CharacterSheetPanel({
                     onClick={() => {
                       setShowPortraitGenerator(!showPortraitGenerator);
                       if (!showPortraitGenerator) {
-                        setPortraitPrompt(sheet.appearance ?? "");
                         setPortraitError(null);
                         setPortraitPreview(null);
                       }
@@ -3270,49 +3252,53 @@ export function CharacterSheetPanel({
                 <ExpandingTextarea value={sheet.appearance ?? ""} onChange={(v) => handleUpdate({ appearance: v })} placeholder="Tall, dark hair, piercing blue eyes..." collapsedRows={2} baseClassName="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400" />
               )}
 
-              {/* AI Portrait Generator */}
+              {/* AI Portrait Generator - inline controls */}
               {showPortraitGenerator && !readOnly && (
-                <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
-                  {/* Art style selector */}
-                  <div>
-                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">Style</label>
-                    <div className="flex gap-1.5">
-                      {([["jrpg", "JRPG"], ["classic", "Classic Fantasy"], ["pixel", "Pixel Art"]] as const).map(([key, label]) => (
-                        <button
-                          key={key}
-                          onClick={() => setPortraitStyle(key)}
-                          className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                            portraitStyle === key
-                              ? "bg-purple-600 text-white border-purple-600"
-                              : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-purple-700 dark:text-purple-300 mb-1 block">
-                      Prompt {portraitRemaining !== null && (
-                        <span className="text-purple-500 dark:text-purple-400">({portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"})</span>
+                <div className="mt-2 space-y-2">
+                  {/* Style pills + Generate button row */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
+                      <button
+                        key={key}
+                        onClick={() => setPortraitStyle(key)}
+                        title={tooltip}
+                        className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
+                          portraitStyle === key
+                            ? "bg-purple-600 text-white border-purple-600"
+                            : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <button
+                        onClick={() => handleGeneratePortrait()}
+                        disabled={isGeneratingPortrait || (sheet.appearance ?? "").trim().length === 0}
+                        className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                      >
+                        {isGeneratingPortrait ? (
+                          <>
+                            <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Generating...
+                          </>
+                        ) : (
+                          "Generate Portrait"
+                        )}
+                      </button>
+                      {portraitRemaining !== null && (
+                        <span className="text-xs text-purple-500 dark:text-purple-400 whitespace-nowrap">
+                          {portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"}
+                        </span>
                       )}
-                    </label>
-                    <textarea
-                      value={portraitPrompt}
-                      onChange={(e) => setPortraitPrompt(e.target.value)}
-                      maxLength={1000}
-                      rows={3}
-                      className="w-full px-2 py-1.5 text-sm border border-purple-300 dark:border-purple-700 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 resize-none"
-                      placeholder="Describe the character's appearance..."
-                    />
-                    <div className="text-xs text-purple-500 dark:text-purple-400 text-right">
-                      {portraitPrompt.length}/1000
                     </div>
                   </div>
 
                   {portraitError && (
-                    <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-1.5">
+                    <div className="text-xs text-red-600 dark:text-red-400">
                       {portraitError}
                     </div>
                   )}
@@ -3366,27 +3352,6 @@ export function CharacterSheetPanel({
                         </button>
                       </div>
                     </div>
-                  )}
-
-                  {/* Generate button (when no preview) */}
-                  {!portraitPreview && (
-                    <button
-                      onClick={() => handleGeneratePortrait()}
-                      disabled={isGeneratingPortrait || portraitPrompt.trim().length === 0}
-                      className="w-full text-sm px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {isGeneratingPortrait ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Generating...
-                        </>
-                      ) : (
-                        "Generate Portrait"
-                      )}
-                    </button>
                   )}
                 </div>
               )}

@@ -593,13 +593,13 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       return;
     }
 
-    // Erase tool: drag to create erase rectangle
+    // Erase tool: record start position; drag rect starts on first mouse move
+    // so that click-to-erase on drawing lines still works (isDragging stays false)
     if (selectedTool === "erase" && e.evt.button === 0) {
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
       setDragStart(pos);
       dragEndRef.current = pos;
-      setIsDraggingRect(true);
       setDragMode("erase");
       return;
     }
@@ -641,6 +641,11 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   };
 
   const handleMouseMove = (e: any) => {
+    // Erase tool: promote pending drag to active on first mouse move
+    if (!isDraggingRect && dragStart && dragMode === "erase") {
+      setIsDraggingRect(true);
+    }
+
     // Update drag rectangle imperatively (no React state update)
     if (isDraggingRect && dragStart) {
       const stage = stageRef.current;
@@ -863,6 +868,13 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       setIsDraggingRect(false);
       setDragMode(null);
       return;
+    }
+
+    // Clean up erase tool click (no drag happened — click-to-erase handled by DrawingLayer)
+    if (dragMode === "erase" && !isDraggingRect) {
+      setDragStart(null);
+      dragEndRef.current = null;
+      setDragMode(null);
     }
 
     if (isDrawing && currentPath && currentPath.length >= 4) {
