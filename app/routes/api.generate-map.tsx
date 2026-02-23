@@ -119,6 +119,13 @@ export async function action({ request }: { request: Request }) {
     );
   }
 
+  if (gridWidth > 50 || gridHeight > 50) {
+    return Response.json(
+      { error: "Grid dimensions must be 50×50 or smaller for AI generation" },
+      { status: 400 }
+    );
+  }
+
   const cellSizeFt =
     typeof rawCellSize === "number" && rawCellSize > 0 ? rawCellSize : 5;
 

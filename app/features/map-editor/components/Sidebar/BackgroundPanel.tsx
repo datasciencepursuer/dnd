@@ -204,7 +204,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
 
   const parseGridDim = (val: string, fallback: number) => {
     const n = parseInt(val, 10);
-    return Number.isNaN(n) ? fallback : Math.max(1, Math.min(200, n));
+    return Number.isNaN(n) ? fallback : Math.max(1, Math.min(50, n));
   };
 
   const currentBackground = map?.background?.imageUrl;
@@ -319,7 +319,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                   <input
                     type="number"
                     min={1}
-                    max={200}
+                    max={50}
                     value={aiGridW}
                     onChange={(e) => setAiGridW(parseGridDim(e.target.value, aiGridW))}
                     disabled={isGenerating}
@@ -329,7 +329,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                   <input
                     type="number"
                     min={1}
-                    max={200}
+                    max={50}
                     value={aiGridH}
                     onChange={(e) => setAiGridH(parseGridDim(e.target.value, aiGridH))}
                     disabled={isGenerating}
