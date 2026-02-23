@@ -7,6 +7,20 @@ export interface PatchNote {
 
 export const PATCH_NOTES: PatchNote[] = [
   {
+    version: "0.3.1",
+    date: "2026-02-22",
+    title: "AI Battlemap Generation",
+    changes: [
+      "New AI Map Generator in the Background panel — describe a scene and generate a battlemap with Gemini",
+      "Three art styles: Realistic, Classic Fantasy, and HD-2D",
+      "Grid-aware generation — set custom grid dimensions and the AI produces an image scaled to 5ft-per-cell with the correct aspect ratio",
+      "Full-size preview modal — click the generated image to review it at large scale before applying",
+      "One-click apply sets the image as your map background and auto-resizes the grid to match",
+      "Shares the same generation pool as AI portraits — no extra limits",
+      "Portrait style pills renamed: Pixel Art is now HD-2D, with tooltips describing each style's character proportions",
+    ],
+  },
+  {
     version: "0.3.0",
     date: "2026-02-20",
     title: "AI Portrait Generation",
