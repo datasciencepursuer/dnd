@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useFetcher } from "react-router";
 import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
 import { DAMAGE_TYPES } from "../../types";
@@ -297,6 +298,7 @@ export function CharacterSheetPanel({
   const [showImageLibrary, setShowImageLibrary] = useState(false);
   const imagePickerRef = useRef<HTMLDivElement>(null);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
 
   // Use linked/standalone character sheet if available, otherwise use token's inline sheet
   const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
@@ -779,17 +781,20 @@ export function CharacterSheetPanel({
                   {!readOnly ? (
                     <button
                       type="button"
-                      onClick={() => setShowImagePicker(!showImagePicker)}
+                      onClick={() => currentImageUrl ? setAvatarPreviewUrl(currentImageUrl) : setShowImagePicker(!showImagePicker)}
                       className="relative w-10 h-10 rounded-full flex items-center justify-center text-white font-bold cursor-pointer group"
                       style={{ backgroundColor: charColor }}
-                      title="Change avatar image"
+                      title={currentImageUrl ? "Click to preview" : "Change avatar image"}
                     >
                       {currentImageUrl ? (
                         <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
                       ) : (
                         charName.charAt(0).toUpperCase()
                       )}
-                      <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div
+                        className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                        onClick={(e) => { e.stopPropagation(); setShowImagePicker(!showImagePicker); }}
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                         </svg>
@@ -797,8 +802,9 @@ export function CharacterSheetPanel({
                     </button>
                   ) : (
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold ${currentImageUrl ? "cursor-pointer" : ""}`}
                       style={{ backgroundColor: charColor }}
+                      onClick={() => currentImageUrl && setAvatarPreviewUrl(currentImageUrl)}
                     >
                       {currentImageUrl ? (
                         <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
@@ -1043,10 +1049,10 @@ export function CharacterSheetPanel({
               {!readOnly ? (
                 <button
                   type="button"
-                  onClick={() => setShowImagePicker(!showImagePicker)}
+                  onClick={() => currentImageUrl ? setAvatarPreviewUrl(currentImageUrl) : setShowImagePicker(!showImagePicker)}
                   className="relative w-11 h-11 rounded-full flex items-center justify-center text-white font-bold cursor-pointer group"
                   style={{ backgroundColor: charColor }}
-                  title="Change avatar image"
+                  title={currentImageUrl ? "Click to preview" : "Change avatar image"}
                 >
                   {currentImageUrl ? (
                     <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
@@ -1054,7 +1060,10 @@ export function CharacterSheetPanel({
                     charName.charAt(0).toUpperCase()
                   )}
                   {/* Hover overlay with camera icon */}
-                  <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div
+                    className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    onClick={(e) => { e.stopPropagation(); setShowImagePicker(!showImagePicker); }}
+                  >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                     </svg>
@@ -1062,8 +1071,9 @@ export function CharacterSheetPanel({
                 </button>
               ) : (
                 <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
+                  className={`w-11 h-11 rounded-full flex items-center justify-center text-white font-bold ${currentImageUrl ? "cursor-pointer" : ""}`}
                   style={{ backgroundColor: charColor }}
+                  onClick={() => currentImageUrl && setAvatarPreviewUrl(currentImageUrl)}
                 >
                   {currentImageUrl ? (
                     <img src={currentImageUrl} alt={charName} className="w-full h-full rounded-full object-cover" />
@@ -3362,6 +3372,32 @@ export function CharacterSheetPanel({
         )}
 
       </div>
+
+      {/* Full-size avatar preview modal */}
+      {avatarPreviewUrl && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setAvatarPreviewUrl(null)}
+        >
+          <div
+            className="relative max-w-[90vw] max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={avatarPreviewUrl}
+              alt="Avatar preview"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              onClick={() => setAvatarPreviewUrl(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center hover:bg-gray-700 cursor-pointer shadow-lg text-lg"
+            >
+              &times;
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
