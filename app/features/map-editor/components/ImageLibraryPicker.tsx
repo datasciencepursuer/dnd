@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ConfirmModal } from "./ConfirmModal";
 
 interface Upload {
@@ -28,6 +29,18 @@ export function ImageLibraryPicker({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Upload | null>(null);
   const [search, setSearch] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handlePreviewKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") setPreviewUrl(null);
+  }, []);
+
+  useEffect(() => {
+    if (previewUrl) {
+      document.addEventListener("keydown", handlePreviewKeyDown);
+      return () => document.removeEventListener("keydown", handlePreviewKeyDown);
+    }
+  }, [previewUrl, handlePreviewKeyDown]);
 
   const fetchUploads = async () => {
     try {
@@ -131,18 +144,18 @@ export function ImageLibraryPicker({
 
   return (
     <>
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex items-center gap-2 min-w-0">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search images..."
-          className="flex-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+          className="flex-1 min-w-0 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
-        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+        <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
           {filtered.length === uploads.length
-            ? `${uploads.length} images`
-            : `${filtered.length} of ${uploads.length}`}
+            ? `${uploads.length}`
+            : `${filtered.length}/${uploads.length}`}
         </span>
       </div>
 
@@ -168,6 +181,17 @@ export function ImageLibraryPicker({
                 alt={upload.fileName}
                 className="w-full h-full object-cover"
               />
+              {/* Preview expand button */}
+              <span
+                role="button"
+                onClick={(e) => { e.stopPropagation(); setPreviewUrl(upload.url); }}
+                className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                title="Preview full size"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              </span>
             </button>
 
             {/* Action bar below image */}
@@ -219,6 +243,32 @@ export function ImageLibraryPicker({
         onCancel={handleDeleteCancel}
         isLoading={deletingId !== null}
       />
+
+      {/* Full-size preview modal */}
+      {previewUrl && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div
+            className="relative max-w-[90vw] max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={previewUrl}
+              alt="Full size preview"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              onClick={() => setPreviewUrl(null)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center hover:bg-gray-700 cursor-pointer shadow-lg text-lg"
+            >
+              &times;
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
