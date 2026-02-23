@@ -3001,12 +3001,24 @@ export function CharacterSheetPanel({
                   {/* Preview */}
                   {portraitPreview && (
                     <div className="flex flex-col items-center gap-2">
-                      <img
-                        src={`data:image/png;base64,${portraitPreview}`}
-                        alt="Generated portrait"
-                        className="w-32 h-32 rounded-lg object-contain border-2 border-purple-300 dark:border-purple-600"
+                      <button
+                        type="button"
+                        onClick={() => setAvatarPreviewUrl(`data:image/png;base64,${portraitPreview}`)}
+                        className="relative w-32 h-32 rounded-lg overflow-hidden border-2 border-purple-300 dark:border-purple-600 cursor-pointer group"
                         style={{ backgroundImage: "repeating-conic-gradient(#d1d5db 0% 25%, #f3f4f6 0% 50%)", backgroundSize: "16px 16px" }}
-                      />
+                        title="Click to preview full size"
+                      >
+                        <img
+                          src={`data:image/png;base64,${portraitPreview}`}
+                          alt="Generated portrait"
+                          className="w-full h-full object-contain"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                          <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                          </svg>
+                        </span>
+                      </button>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
@@ -3317,12 +3329,24 @@ export function CharacterSheetPanel({
                   {/* Preview */}
                   {portraitPreview && (
                     <div className="flex flex-col items-center gap-2">
-                      <img
-                        src={`data:image/png;base64,${portraitPreview}`}
-                        alt="Generated portrait"
-                        className="w-32 h-32 rounded-lg object-contain border-2 border-purple-300 dark:border-purple-600"
+                      <button
+                        type="button"
+                        onClick={() => setAvatarPreviewUrl(`data:image/png;base64,${portraitPreview}`)}
+                        className="relative w-32 h-32 rounded-lg overflow-hidden border-2 border-purple-300 dark:border-purple-600 cursor-pointer group"
                         style={{ backgroundImage: "repeating-conic-gradient(#d1d5db 0% 25%, #f3f4f6 0% 50%)", backgroundSize: "16px 16px" }}
-                      />
+                        title="Click to preview full size"
+                      >
+                        <img
+                          src={`data:image/png;base64,${portraitPreview}`}
+                          alt="Generated portrait"
+                          className="w-full h-full object-contain"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                          <svg className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                          </svg>
+                        </span>
+                      </button>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
