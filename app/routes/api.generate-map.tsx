@@ -6,6 +6,51 @@ import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
 import { generateBattlemap, type MapArtStyle } from "~/.server/ai/image-generation";
 
+// GET — return usage stats (remaining generations, window)
+export async function loader({ request }: { request: Request }) {
+  const session = await requireAuth(request);
+  const userId = session.user.id;
+
+  const limits = await getUserTierLimits(userId);
+  if (!limits.aiImageGeneration) {
+    return Response.json({ remaining: 0, limit: 0, window: "daily", enabled: false });
+  }
+
+  const limit = limits.aiImageLimit;
+  const window = limits.aiImageLimitWindow;
+
+  if (limit === Infinity) {
+    return Response.json({ remaining: null, limit: null, window, enabled: true });
+  }
+
+  const windowStart = new Date();
+  if (window === "monthly") {
+    windowStart.setDate(windowStart.getDate() - 30);
+    windowStart.setHours(0, 0, 0, 0);
+  } else if (window === "weekly") {
+    windowStart.setDate(windowStart.getDate() - 7);
+    windowStart.setHours(0, 0, 0, 0);
+  } else {
+    windowStart.setHours(0, 0, 0, 0);
+  }
+
+  const [countResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(aiImageGenerations)
+    .where(
+      and(
+        eq(aiImageGenerations.userId, userId),
+        gte(aiImageGenerations.createdAt, windowStart)
+      )
+    );
+
+  const used = countResult?.count ?? 0;
+  const remaining = Math.max(0, limit - used);
+
+  return Response.json({ remaining, limit, window, enabled: true });
+}
+
+// POST — generate a battlemap
 export async function action({ request }: { request: Request }) {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });

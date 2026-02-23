@@ -61,6 +61,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
   const [aiPreview, setAiPreview] = useState<{ base64: string; mimeType: string } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiRemaining, setAiRemaining] = useState<number | null>(null);
+  const [aiLimit, setAiLimit] = useState<number | null>(null);
   const [aiWindow, setAiWindow] = useState<string | null>(null);
   const [isUploadingAi, setIsUploadingAi] = useState(false);
 
@@ -77,6 +78,22 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       return () => document.removeEventListener("keydown", handleModalKeyDown);
     }
   }, [showPreviewModal, handleModalKeyDown]);
+
+  // Fetch usage stats when AI generator is opened
+  useEffect(() => {
+    if (!showAiGenerator) return;
+    let cancelled = false;
+    fetch("/api/generate-map")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.remaining != null) setAiRemaining(data.remaining);
+        if (data.limit != null) setAiLimit(data.limit);
+        if (data.window) setAiWindow(data.window);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showAiGenerator]);
 
   // Local editable grid dimensions for AI generation
   const [aiGridW, setAiGridW] = useState(gridWidth);
@@ -387,35 +404,42 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                 </div>
               </div>
 
-              {/* Generate button */}
-              <button
-                onClick={handleGenerate}
-                disabled={isGenerating || !aiPrompt.trim()}
-                className="w-full py-2 px-3 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isGenerating ? (
-                  <>
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Generating...
-                  </>
-                ) : (
-                  "Generate Map"
+              {/* Generate button with usage stats */}
+              <div className="space-y-1">
+                <button
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !aiPrompt.trim() || aiRemaining === 0}
+                  className="w-full py-2 px-3 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isGenerating ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      Generate Map
+                      {aiRemaining != null && (
+                        <span className={`text-xs font-normal ml-1 ${aiRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
+                          ({aiRemaining}{aiLimit != null ? `/${aiLimit}` : ""}{aiWindow ? ` ${windowLabel}` : ""})
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+                {aiRemaining === 0 && (
+                  <p className="text-xs text-red-500 dark:text-red-400 text-center">
+                    No generations remaining{aiWindow ? ` ${windowLabel}` : ""}
+                  </p>
                 )}
-              </button>
+              </div>
 
               {/* Error */}
               {aiError && (
                 <p className="text-xs text-red-600 dark:text-red-400">{aiError}</p>
-              )}
-
-              {/* Remaining count */}
-              {aiRemaining != null && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {aiRemaining} generation{aiRemaining !== 1 ? "s" : ""} remaining{aiWindow ? ` ${windowLabel}` : ""}
-                </p>
               )}
 
               {/* Preview */}
