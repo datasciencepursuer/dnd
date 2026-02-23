@@ -274,10 +274,10 @@ export function TokenPanel({
 
   const fogSet = useMemo(() => buildFogSet(map?.fogOfWar?.paintedCells || []), [map?.fogOfWar?.paintedCells]);
 
-  // Filter tokens - hidden tokens and tokens under fog only visible to DM or owner
+  // Filter tokens - hidden tokens and tokens under fog only visible to DM (when not in local play) or owner
   const visibleTokens = map?.tokens.filter((token) => {
-    // DM sees all tokens
-    if (isDungeonMaster()) return true;
+    // DM sees all tokens unless in local play mode (player perspective)
+    if (isDungeonMaster() && !isPlayingLocally) return true;
 
     // Token owner can always see their own token
     if (isTokenOwner(token.ownerId)) return true;
