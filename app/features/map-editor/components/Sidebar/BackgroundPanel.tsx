@@ -49,6 +49,10 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
   const setBackground = useMapStore((s) => s.setBackground);
   const updateGrid = useMapStore((s) => s.updateGrid);
   const canEditMap = useEditorStore((s) => s.canEditMap);
+  const aiRemaining = useEditorStore((s) => s.aiImageRemaining);
+  const aiLimit = useEditorStore((s) => s.aiImageLimit);
+  const aiWindow = useEditorStore((s) => s.aiImageWindow);
+  const updateAiImageUsage = useEditorStore((s) => s.updateAiImageUsage);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -60,9 +64,6 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiPreview, setAiPreview] = useState<{ base64: string; mimeType: string } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [aiRemaining, setAiRemaining] = useState<number | null>(null);
-  const [aiLimit, setAiLimit] = useState<number | null>(null);
-  const [aiWindow, setAiWindow] = useState<string | null>(null);
   const [isUploadingAi, setIsUploadingAi] = useState(false);
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -78,22 +79,6 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       return () => document.removeEventListener("keydown", handleModalKeyDown);
     }
   }, [showPreviewModal, handleModalKeyDown]);
-
-  // Fetch usage stats when AI generator is opened
-  useEffect(() => {
-    if (!showAiGenerator) return;
-    let cancelled = false;
-    fetch("/api/generate-map")
-      .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (data.remaining != null) setAiRemaining(data.remaining);
-        if (data.limit != null) setAiLimit(data.limit);
-        if (data.window) setAiWindow(data.window);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [showAiGenerator]);
 
   // Local editable grid dimensions for AI generation
   const [aiGridW, setAiGridW] = useState(gridWidth);
@@ -180,8 +165,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       }
 
       setAiPreview({ base64: data.imageBase64, mimeType: data.mimeType });
-      if (data.remaining != null) setAiRemaining(data.remaining);
-      if (data.window) setAiWindow(data.window);
+      updateAiImageUsage(data.remaining ?? null, data.window ?? null);
     } catch {
       setAiError("Network error. Please try again.");
     } finally {

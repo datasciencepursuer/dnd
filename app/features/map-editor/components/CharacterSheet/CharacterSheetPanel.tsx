@@ -10,6 +10,7 @@ import { useIsMobile } from "../../hooks/useIsMobile";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
+import { useEditorStore } from "../../store";
 
 const FEATURE_CATEGORIES: { value: FeatureCategory; label: string; color: string }[] = [
   { value: "action", label: "Action", color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" },
@@ -306,8 +307,9 @@ export function CharacterSheetPanel({
   const [isGeneratingPortrait, setIsGeneratingPortrait] = useState(false);
   const [portraitPreview, setPortraitPreview] = useState<string | null>(null);
   const [portraitError, setPortraitError] = useState<string | null>(null);
-  const [portraitRemaining, setPortraitRemaining] = useState<number | null>(null);
-  const [portraitWindow, setPortraitWindow] = useState<"daily" | "weekly" | "monthly">("daily");
+  const portraitRemaining = useEditorStore((s) => s.aiImageRemaining);
+  const portraitLimit = useEditorStore((s) => s.aiImageLimit);
+  const updateAiImageUsage = useEditorStore((s) => s.updateAiImageUsage);
   const [isUploadingPortrait, setIsUploadingPortrait] = useState(false);
   const [portraitStyle, setPortraitStyle] = useState<"jrpg" | "classic" | "pixel">("jrpg");
 
@@ -337,12 +339,7 @@ export function CharacterSheetPanel({
         console.error("Chroma key removal failed, using raw image:", chromaErr);
       }
       setPortraitPreview(finalBase64);
-      if (data.remaining !== undefined && data.remaining !== null) {
-        setPortraitRemaining(data.remaining);
-      }
-      if (data.window) {
-        setPortraitWindow(data.window);
-      }
+      updateAiImageUsage(data.remaining ?? null, data.window ?? null);
     } catch {
       setPortraitError("Network error. Please try again.");
     } finally {
@@ -2960,7 +2957,7 @@ export function CharacterSheetPanel({
                     <div className="flex items-center gap-1.5 ml-auto">
                       <button
                         onClick={() => handleGeneratePortrait()}
-                        disabled={isGeneratingPortrait || (sheet.appearance ?? "").trim().length === 0}
+                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0}
                         className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                       >
                         {isGeneratingPortrait ? (
@@ -2972,14 +2969,16 @@ export function CharacterSheetPanel({
                             Generating...
                           </>
                         ) : (
-                          "Generate Portrait"
+                          <>
+                            Generate Portrait
+                            {portraitRemaining != null && (
+                              <span className={`text-xs font-normal ${portraitRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
+                                ({portraitRemaining}{portraitLimit != null ? `/${portraitLimit}` : ""})
+                              </span>
+                            )}
+                          </>
                         )}
                       </button>
-                      {portraitRemaining !== null && (
-                        <span className="text-xs text-purple-500 dark:text-purple-400 whitespace-nowrap">
-                          {portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"}
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -3274,7 +3273,7 @@ export function CharacterSheetPanel({
                     <div className="flex items-center gap-1.5 ml-auto">
                       <button
                         onClick={() => handleGeneratePortrait()}
-                        disabled={isGeneratingPortrait || (sheet.appearance ?? "").trim().length === 0}
+                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0}
                         className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                       >
                         {isGeneratingPortrait ? (
@@ -3286,14 +3285,16 @@ export function CharacterSheetPanel({
                             Generating...
                           </>
                         ) : (
-                          "Generate Portrait"
+                          <>
+                            Generate Portrait
+                            {portraitRemaining != null && (
+                              <span className={`text-xs font-normal ${portraitRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
+                                ({portraitRemaining}{portraitLimit != null ? `/${portraitLimit}` : ""})
+                              </span>
+                            )}
+                          </>
                         )}
                       </button>
-                      {portraitRemaining !== null && (
-                        <span className="text-xs text-purple-500 dark:text-purple-400 whitespace-nowrap">
-                          {portraitRemaining} remaining {portraitWindow === "monthly" ? "this month" : portraitWindow === "weekly" ? "this week" : "today"}
-                        </span>
-                      )}
                     </div>
                   </div>
 

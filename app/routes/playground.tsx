@@ -1,8 +1,9 @@
 import type { Route } from "./+types/playground";
+import { useEffect } from "react";
 import { useLoaderData } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
-import { MapEditor, useViewportHeight } from "~/features/map-editor";
+import { MapEditor, useEditorStore, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
 import { getTierLimits, type AccountTier, type TierLimits } from "~/lib/tier-limits";
 
@@ -35,6 +36,12 @@ export default function Playground() {
   const data = useLoaderData<LoaderData>();
   const hydrated = useHydrated();
   const appHeight = useViewportHeight();
+
+  // Hydrate AI image usage stats once on mount
+  const fetchAiImageUsage = useEditorStore((s) => s.fetchAiImageUsage);
+  useEffect(() => {
+    fetchAiImageUsage();
+  }, [fetchAiImageUsage]);
 
   return (
     <div

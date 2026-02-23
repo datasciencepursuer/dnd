@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
-import { MapEditor, useMapStore, useViewportHeight } from "~/features/map-editor";
+import { MapEditor, useMapStore, useEditorStore, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
@@ -100,6 +100,12 @@ export default function PlaygroundWithMap() {
       loadMapStore(data.data);
     }
   }, [data, loadMapStore]);
+
+  // Hydrate AI image usage stats once on mount (shared pool for portraits + maps)
+  const fetchAiImageUsage = useEditorStore((s) => s.fetchAiImageUsage);
+  useEffect(() => {
+    fetchAiImageUsage();
+  }, [fetchAiImageUsage]);
 
   const hydrated = useHydrated();
   const appHeight = useViewportHeight();

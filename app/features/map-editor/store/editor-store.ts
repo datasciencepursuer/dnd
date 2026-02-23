@@ -42,6 +42,12 @@ interface EditorState {
   tokenPlacementQueue: Token[];
   tokenPlacementIndex: number;
 
+  // AI image generation usage (shared pool for portraits + maps)
+  aiImageRemaining: number | null;
+  aiImageLimit: number | null;
+  aiImageWindow: string | null;
+  aiImageEnabled: boolean | null;
+
   // Actions
   setTool: (tool: EditorTool) => void;
   setColor: (color: string) => void;
@@ -93,6 +99,10 @@ interface EditorState {
   cancelPlacementQueue: () => void;
   currentPlacementToken: () => Token | null;
 
+  // AI image usage
+  fetchAiImageUsage: () => Promise<void>;
+  updateAiImageUsage: (remaining: number | null, window?: string | null) => void;
+
   // Permission helpers
   isDungeonMaster: () => boolean;
   isTokenOwner: (tokenOwnerId: string | null) => boolean;
@@ -130,6 +140,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   pendingAnimations: {},
   tokenPlacementQueue: [],
   tokenPlacementIndex: 0,
+  aiImageRemaining: null,
+  aiImageLimit: null,
+  aiImageWindow: null,
+  aiImageEnabled: null,
 
   setTool: (tool) =>
     set((state) => ({
@@ -246,6 +260,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentPlacementToken: () => {
     const { tokenPlacementQueue, tokenPlacementIndex } = get();
     return tokenPlacementQueue[tokenPlacementIndex] ?? null;
+  },
+
+  // AI image usage
+  fetchAiImageUsage: async () => {
+    try {
+      const res = await fetch("/api/generate-portrait");
+      const data = await res.json();
+      set({
+        aiImageRemaining: data.remaining ?? null,
+        aiImageLimit: data.limit ?? null,
+        aiImageWindow: data.window ?? null,
+        aiImageEnabled: data.enabled ?? null,
+      });
+    } catch {
+      // Silently fail — usage stats are non-critical
+    }
+  },
+  updateAiImageUsage: (remaining, window) => {
+    const update: Partial<EditorState> = {};
+    if (remaining !== undefined) update.aiImageRemaining = remaining;
+    if (window !== undefined) update.aiImageWindow = window;
+    set(update);
   },
 
   // Permission helpers
