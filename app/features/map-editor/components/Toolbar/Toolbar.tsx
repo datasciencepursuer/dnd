@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useEditorStore, useMapStore } from "../../store";
 import { MIN_ZOOM, MAX_ZOOM, ZOOM_STEP, ZOOM_REFERENCE } from "../../constants";
 import { UpgradePrompt } from "~/components/UpgradePrompt";
+import { apiUrl } from "~/lib/api-config";
 import type { EditorTool } from "../../types";
 import type { TierLimits } from "~/lib/tier-limits";
 
@@ -95,7 +96,7 @@ export function Toolbar({ userName, userId, mapId, groupId, groupMembers = [], o
 
     setIsTransferring(true);
     try {
-      const response = await fetch(`/api/maps/${mapId}`, {
+      const response = await fetch(apiUrl(`/api/maps/${mapId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newDmId }),

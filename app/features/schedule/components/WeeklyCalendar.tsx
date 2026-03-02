@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState, useMemo } from "react";
+import { apiUrl } from "~/lib/api-config";
 import { DAY_LABELS_SHORT, DAY_LABELS_SINGLE } from "../utils/date-utils";
 import {
   getWeekDaysInTz,
@@ -253,7 +254,7 @@ export function WeeklyCalendar({
 
     // Server handles merge of overlapping blocks — single POST is enough
     try {
-      const res = await fetch(`/api/groups/${groupId}/availability`, {
+      const res = await fetch(apiUrl(`/api/groups/${groupId}/availability`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -439,7 +440,7 @@ export function WeeklyCalendar({
     async (blockId: string) => {
       try {
         const res = await fetch(
-          `/api/groups/${groupId}/availability/${blockId}`,
+          apiUrl(`/api/groups/${groupId}/availability/${blockId}`),
           { method: "DELETE" }
         );
         if (res.ok) {

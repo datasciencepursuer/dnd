@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useMapStore } from "../store/map-store";
+import { apiUrl } from "~/lib/api-config";
 import type { GridPosition, Token } from "../types";
 
 /**
@@ -39,7 +40,7 @@ export function useMapSync(mapId: string | undefined) {
     const tokensToClear = new Set(state.dirtyTokens);
 
     try {
-      const response = await fetch(`/api/maps/${mapId}`, {
+      const response = await fetch(apiUrl(`/api/maps/${mapId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: map.name, data: map }),
@@ -67,7 +68,7 @@ export function useMapSync(mapId: string | undefined) {
       if (!mapId) return;
 
       try {
-        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}/move`, {
+        const response = await fetch(apiUrl(`/api/maps/${mapId}/tokens/${tokenId}/move`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ col: position.col, row: position.row }),
@@ -97,7 +98,7 @@ export function useMapSync(mapId: string | undefined) {
       if (!mapId) return;
 
       try {
-        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+        const response = await fetch(apiUrl(`/api/maps/${mapId}/tokens/${tokenId}`), {
           method: "DELETE",
         });
 
@@ -123,7 +124,7 @@ export function useMapSync(mapId: string | undefined) {
       if (!tokenId) return;
 
       try {
-        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+        const response = await fetch(apiUrl(`/api/maps/${mapId}/tokens/${tokenId}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(token),
@@ -152,7 +153,7 @@ export function useMapSync(mapId: string | undefined) {
       if (!mapId) return;
 
       try {
-        const response = await fetch(`/api/maps/${mapId}/tokens/${tokenId}`, {
+        const response = await fetch(apiUrl(`/api/maps/${mapId}/tokens/${tokenId}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),

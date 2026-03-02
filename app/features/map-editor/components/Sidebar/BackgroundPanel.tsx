@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useMapStore, useEditorStore } from "../../store";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
+import { apiUrl } from "~/lib/api-config";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 
 type MapArtStyle = "realistic" | "classic-fantasy" | "hd2d";
@@ -145,7 +146,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
     setAiPreview(null);
 
     try {
-      const res = await fetch("/api/generate-map", {
+      const res = await fetch(apiUrl("/api/generate-map"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

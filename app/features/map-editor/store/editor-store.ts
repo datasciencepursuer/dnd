@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { EditorTool, MapPermission, PlayerPermissions, WallType, TerrainType, Token } from "../types";
 import { DEFAULT_PERMISSIONS } from "../types";
+import { apiUrl } from "~/lib/api-config";
 
 interface EditorState {
   selectedTool: EditorTool;
@@ -265,7 +266,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // AI image usage
   fetchAiImageUsage: async () => {
     try {
-      const res = await fetch("/api/generate-portrait");
+      const res = await fetch(apiUrl("/api/generate-portrait"));
       const data = await res.json();
       set({
         aiImageRemaining: data.remaining ?? null,

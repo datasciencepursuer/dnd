@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useMapStore, useEditorStore } from "../../store";
 import { TOKEN_COLORS } from "../../constants";
 import { useUploadThing } from "~/utils/uploadthing";
@@ -67,7 +68,16 @@ export function TokenPanel({
   const dragRef = useRef<{ index: number; startY: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const map = useMapStore((s) => s.map);
+  const { tokens, monsterGroups: mapMonsterGroups, fogPaintedCells, viewport, grid, mapExists } = useMapStore(
+    useShallow((s) => ({
+      tokens: s.map?.tokens,
+      monsterGroups: s.map?.monsterGroups,
+      fogPaintedCells: s.map?.fogOfWar?.paintedCells,
+      viewport: s.map?.viewport,
+      grid: s.map?.grid,
+      mapExists: !!s.map,
+    }))
+  );
   const addToken = useMapStore((s) => s.addToken);
   const removeToken = useMapStore((s) => s.removeToken);
   const reorderTokens = useMapStore((s) => s.reorderTokens);
@@ -120,7 +130,7 @@ export function TokenPanel({
   };
 
   // Monster groups from the map
-  const monsterGroups: MonsterGroup[] = map?.monsterGroups || [];
+  const monsterGroups: MonsterGroup[] = mapMonsterGroups || [];
 
   const handleCreateGroup = () => {
     if (!newGroupName.trim()) return;
@@ -141,9 +151,9 @@ export function TokenPanel({
   };
 
   const handleAddToken = () => {
-    if (!tokenName.trim() || !map || !canCreateToken()) return;
+    if (!tokenName.trim() || !mapExists || !viewport || !grid || !canCreateToken()) return;
 
-    const center = getViewportCenterCell(map.viewport, map.grid.cellSize);
+    const center = getViewportCenterCell(viewport, grid.cellSize);
     const token: Token = {
       id: crypto.randomUUID(),
       name: tokenName.trim(),
@@ -205,7 +215,7 @@ export function TokenPanel({
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (dragRef.current === null || !listRef.current || !map) return;
+      if (dragRef.current === null || !listRef.current || !mapExists) return;
 
       const items = listRef.current.children;
       const fromIndex = dragRef.current.index;
@@ -270,12 +280,12 @@ export function TokenPanel({
         window.removeEventListener("mouseup", handleMouseUp);
       };
     }
-  }, [draggedIndex, dragOverIndex, map, reorderTokens]);
+  }, [draggedIndex, dragOverIndex, mapExists, reorderTokens]);
 
-  const fogSet = useMemo(() => buildFogSet(map?.fogOfWar?.paintedCells || []), [map?.fogOfWar?.paintedCells]);
+  const fogSet = useMemo(() => buildFogSet(fogPaintedCells || []), [fogPaintedCells]);
 
   // Filter tokens - hidden tokens and tokens under fog only visible to DM (when not in local play) or owner
-  const visibleTokens = map?.tokens.filter((token) => {
+  const visibleTokens = tokens?.filter((token) => {
     // DM sees all tokens unless in local play mode (player perspective)
     if (isDungeonMaster() && !isPlayingLocally) return true;
 
@@ -344,7 +354,7 @@ export function TokenPanel({
   // to avoid recreating a component instance every render)
   const tokenListContent = (
     <>
-      {map && displayTokens.length > 0 && (
+      {mapExists && displayTokens.length > 0 && (
         <div className={mode === "create" ? "pt-4 border-t border-gray-200 dark:border-gray-700" : ""}>
           {/* Combat header with turn controls */}
           {isInCombat && initiativeOrder ? (
@@ -547,7 +557,7 @@ export function TokenPanel({
         </div>
       )}
 
-      {map && displayTokens.length === 0 && mode === "list" && (
+      {mapExists && displayTokens.length === 0 && mode === "list" && (
         <div className="text-center text-gray-500 dark:text-gray-400 py-8">
           <p className="text-sm">{isInCombat ? "No combatants" : "No units on the map"}</p>
         </div>

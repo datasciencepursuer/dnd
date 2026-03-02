@@ -10,9 +10,22 @@
     "email:dev": "email dev --dir app/.server/emails",
     "party:deploy": "partykit deploy --with-vars",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "build:mobile": "cross-env MOBILE=true VITE_API_BASE_URL=https://bubufulplanet.com react-router build",
+    "cap:sync": "cap sync",
+    "cap:ios": "cap open ios",
+    "cap:android": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/haptics": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/keyboard": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
     "@google/genai": "^1.41.0",
     "@neondatabase/serverless": "^1.0.2",
     "@react-email/components": "^1.0.6",
@@ -40,6 +53,9 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "cross-env": "^7.0.3",
     "@react-email/preview-server": "5.2.5",
     "@react-router/dev": "7.12.0",
     "@tailwindcss/vite": "^4.1.13",

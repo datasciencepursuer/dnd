@@ -8,6 +8,8 @@ import {
   getMapIndex,
   type MapIndexEntry,
 } from "~/features/map-editor";
+import { apiUrl } from "~/lib/api-config";
+import { authClient } from "~/lib/auth-client";
 import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import { PatchNotesPanel } from "~/components/PatchNotesPanel";
@@ -161,6 +163,32 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const [mapsRes, meRes] = await Promise.all([
+    fetch(apiUrl("/api/maps")),
+    fetch(apiUrl("/api/me")),
+  ]);
+
+  const mapsData = mapsRes.ok ? await mapsRes.json() : { owned: [], groups: [] };
+  const me = meRes.ok ? await meRes.json() : null;
+  const tierLimits = me?.tierLimits ?? getTierLimits("adventurer");
+
+  // Filter to personal maps only (no groupId) to match server loader
+  const personalMaps = (mapsData.owned || []).filter((m: { groupId: string | null }) => !m.groupId);
+
+  return {
+    owned: personalMaps,
+    groups: mapsData.groups || [],
+    userName: session.user.name,
+    maxMaps: tierLimits.maxMaps,
+    canCreateMap: tierLimits.maxMaps === Infinity || personalMaps.length < tierLimits.maxMaps,
+    currentTier: me?.accountTier ?? "adventurer",
+  };
+}
+
 export default function Maps() {
   const navigate = useNavigate();
   const { owned, groups, userName, maxMaps, canCreateMap, currentTier } = useLoaderData<LoaderData>();
@@ -220,7 +248,7 @@ export default function Maps() {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/maps/${deleteModal.id}`, {
+      const response = await fetch(apiUrl(`/api/maps/${deleteModal.id}`), {
         method: "DELETE",
       });
 
@@ -283,7 +311,7 @@ export default function Maps() {
     }
 
     try {
-      const response = await fetch("/api/maps", {
+      const response = await fetch(apiUrl("/api/maps"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

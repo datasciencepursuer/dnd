@@ -1,8 +1,10 @@
 import type { Route } from "./+types/groups.$groupId";
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, redirect, useLoaderData, useNavigate } from "react-router";
+import { authClient } from "~/lib/auth-client";
 import type { GroupRole } from "~/types/group";
 import { TimezoneSelect } from "~/components/TimezoneSelect";
+import { apiUrl } from "~/lib/api-config";
 
 interface GroupMember {
   id: string;
@@ -126,6 +128,16 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
 }
 
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const { groupId } = params;
+  const res = await fetch(apiUrl(`/api/groups/${groupId}`));
+  if (!res.ok) throw new Response("Failed to load group", { status: res.status });
+  return await res.json();
+}
+
 export default function GroupDetail() {
   const { group, members, userRole, canEdit, canDelete } = useLoaderData<LoaderData>();
   const navigate = useNavigate();
@@ -152,7 +164,7 @@ export default function GroupDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/groups/${group.id}`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -183,7 +195,7 @@ export default function GroupDetail() {
     setInviteSuccess(null);
 
     try {
-      const response = await fetch(`/api/groups/${group.id}/invite`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}/invite`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: inviteEmail.trim() }),
@@ -212,7 +224,7 @@ export default function GroupDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/groups/${group.id}/leave`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}/leave`), {
         method: "POST",
       });
 
@@ -236,7 +248,7 @@ export default function GroupDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/groups/${group.id}`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}`), {
         method: "DELETE",
       });
 
@@ -257,7 +269,7 @@ export default function GroupDetail() {
     if (!confirm("Remove this member from the group?")) return;
 
     try {
-      const response = await fetch(`/api/groups/${group.id}/members/${memberUserId}`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}/members/${memberUserId}`), {
         method: "DELETE",
       });
 
@@ -274,7 +286,7 @@ export default function GroupDetail() {
 
   const handleUpdateRole = async (memberUserId: string, newRole: string) => {
     try {
-      const response = await fetch(`/api/groups/${group.id}/members/${memberUserId}`, {
+      const response = await fetch(apiUrl(`/api/groups/${group.id}/members/${memberUserId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: newRole }),

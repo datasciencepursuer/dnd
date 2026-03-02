@@ -7,6 +7,7 @@ import { TokenEditDialog } from "./TokenEditDialog";
 import { CharacterSheetPanel } from "./CharacterSheet";
 import { InitiativeSetupModal } from "./InitiativeSetupModal";
 import { MobileSidebarRail } from "./Mobile";
+import { useShallow } from "zustand/react/shallow";
 import { useMapStore, useEditorStore, useChatStore } from "../store";
 import { useMapSync, useIsMobile } from "../hooks";
 import { usePartySync } from "../hooks/usePartySync";
@@ -17,6 +18,7 @@ import { filterMessagesForAI } from "../utils/ai-context-utils";
 import { VALID_CONDITIONS } from "../types";
 import type { Token, PlayerPermissions, GridPosition, Ping, CharacterSheet, Condition, WallSegment, AreaShape, MonsterGroup } from "../types";
 import { popUndo, clearUndoStack } from "../utils/undo-stack";
+import { apiUrl } from "~/lib/api-config";
 import type { AccountTier, TierLimits } from "~/lib/tier-limits";
 import { getTierLimits } from "~/lib/tier-limits";
 
@@ -50,7 +52,7 @@ function fetchCharacterSheet(
   characterId: string,
   signal: AbortSignal
 ): Promise<{ characterSheet: CharacterSheet | null } | null> {
-  return fetch(`/api/characters/${characterId}`, { signal })
+  return fetch(apiUrl(`/api/characters/${characterId}`), { signal })
     .then((res) => {
       if (!res.ok) throw new Error("Failed to fetch character");
       return res.json();
@@ -78,7 +80,18 @@ export function MapEditor({
   const tierLimits = tierLimitsProp ?? getTierLimits(accountTier);
   const realtimeSyncEnabled = realtimeSyncProp ?? tierLimits.realtimeSync;
   const isMobile = useIsMobile();
-  const map = useMapStore((s) => s.map);
+  const { tokens, grid, viewport, fogPaintedCells, monsterGroups, mapName, mapUpdatedAt, mapExists } = useMapStore(
+    useShallow((s) => ({
+      tokens: s.map?.tokens,
+      grid: s.map?.grid,
+      viewport: s.map?.viewport,
+      fogPaintedCells: s.map?.fogOfWar?.paintedCells,
+      monsterGroups: s.map?.monsterGroups,
+      mapName: s.map?.name,
+      mapUpdatedAt: s.map?.updatedAt,
+      mapExists: !!s.map,
+    }))
+  );
   const newMap = useMapStore((s) => s.newMap);
   const updateToken = useMapStore((s) => s.updateToken);
   const removeToken = useMapStore((s) => s.removeToken);
@@ -301,7 +314,7 @@ export function MapEditor({
       areas: mapState.areas,
     };
 
-    fetch(`/api/maps/${mapId}/ai`, {
+    fetch(apiUrl(`/api/maps/${mapId}/ai`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt: aiPrompt, combatContext }),
@@ -375,7 +388,7 @@ export function MapEditor({
                     // Sync to character library for linked characters
                     if (token.characterId) {
                       const updatedSheet = { ...cs, ...sheetUpdates };
-                      fetch(`/api/characters/${token.characterId}`, {
+                      fetch(apiUrl(`/api/characters/${token.characterId}`), {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ characterSheet: updatedSheet }),
@@ -466,13 +479,13 @@ export function MapEditor({
   // Sync after token flip with 500ms debounce + broadcast
   const handleTokenFlip = useCallback(
     (tokenId: string) => {
-      const token = map?.tokens.find((t) => t.id === tokenId);
+      const token = useMapStore.getState().map?.tokens.find((t) => t.id === tokenId);
       if (token) {
         broadcastTokenUpdate(tokenId, { flipped: !token.flipped });
       }
       syncDebounced(500);
     },
-    [map?.tokens, broadcastTokenUpdate, syncDebounced]
+    [broadcastTokenUpdate, syncDebounced]
   );
 
   // Combined handler for fog painting: broadcast + debounced sync
@@ -585,19 +598,20 @@ export function MapEditor({
   // Handler for selecting and centering on a token
   const handleSelectAndCenter = useCallback(
     (token: Token) => {
-      if (!map) return;
+      const currentMap = useMapStore.getState().map;
+      if (!currentMap) return;
 
       // Select the token
       setSelectedElements([token.id]);
 
       // Calculate token center in pixels
-      const cellSize = map.grid.cellSize;
+      const cellSize = currentMap.grid.cellSize;
       const tokenCenterX = (token.position.col + token.size / 2) * cellSize;
       const tokenCenterY = (token.position.row + token.size / 2) * cellSize;
 
       // Get canvas dimensions
       const { width, height } = getCanvasDimensions();
-      const scale = map.viewport.scale;
+      const scale = currentMap.viewport.scale;
 
       // Calculate viewport position to center the token
       const viewportX = width / 2 - tokenCenterX * scale;
@@ -605,10 +619,10 @@ export function MapEditor({
 
       setViewport(viewportX, viewportY, scale);
     },
-    [map, setSelectedElements, getCanvasDimensions, setViewport]
+    [setSelectedElements, getCanvasDimensions, setViewport]
   );
 
-  const fogSet = useMemo(() => buildFogSet(map?.fogOfWar?.paintedCells || []), [map?.fogOfWar?.paintedCells]);
+  const fogSet = useMemo(() => buildFogSet(fogPaintedCells || []), [fogPaintedCells]);
 
   // State for initiative setup modal
   type DraftInitiativeEntry = {
@@ -628,10 +642,10 @@ export function MapEditor({
 
   // Helper to prepare initiative entries for the setup modal
   const prepareInitiativeEntries = useCallback((): DraftInitiativeEntry[] => {
-    if (!map) return [];
+    if (!tokens) return [];
 
     // Get visible tokens that are not under fog and not objects
-    const eligibleTokens = map.tokens.filter((token) => {
+    const eligibleTokens = tokens.filter((token) => {
       if (!token.visible) return false;
       if (isTokenUnderFog(token, fogSet)) return false;
       if (token.layer === "object") return false;
@@ -682,7 +696,7 @@ export function MapEditor({
       const roll = Math.floor(Math.random() * 20) + 1;
       const initiative = roll + initMod;
 
-      const group = groupId ? map.monsterGroups?.find((g) => g.id === groupId) : null;
+      const group = groupId ? monsterGroups?.find((g) => g.id === groupId) : null;
       const displayName = group
         ? `${group.name} (${groupMonsters.length})`
         : groupMonsters.length > 1
@@ -704,7 +718,7 @@ export function MapEditor({
     });
 
     return initiativeRolls;
-  }, [map, fogSet]);
+  }, [tokens, monsterGroups, fogSet]);
 
   // Handler for starting combat - opens initiative setup modal
   const handleStartCombat = useCallback(() => {
@@ -800,10 +814,10 @@ export function MapEditor({
 
   // Compute the navigable token list (matches what TokenPanel shows)
   const editableTokens = useMemo(() => {
-    if (!map) return [];
+    if (!tokens) return [];
 
     // Filter to visible tokens (same logic as TokenPanel)
-    const visible = map.tokens.filter((token) => {
+    const visible = tokens.filter((token) => {
       if (isDungeonMaster()) return true;
       if (isTokenOwner(token.ownerId)) return true;
       if (!token.visible) return false;
@@ -829,7 +843,7 @@ export function MapEditor({
 
     // Only include tokens the user can edit
     return visible.filter((t) => canEditToken(t.ownerId));
-  }, [map, isDungeonMaster, isTokenOwner, fogSet, canEditToken, isInCombat, initiativeOrder]);
+  }, [tokens, isDungeonMaster, isTokenOwner, fogSet, canEditToken, isInCombat, initiativeOrder]);
 
   // Current index of editing token in the navigable list
   const editingTokenIndex = editingToken
@@ -848,7 +862,7 @@ export function MapEditor({
 
   // Find the token for the open character sheet
   const characterSheetToken = openCharacterSheetTokenId
-    ? map?.tokens.find((t) => t.id === openCharacterSheetTokenId) ?? null
+    ? tokens?.find((t) => t.id === openCharacterSheetTokenId) ?? null
     : null;
 
   // Handler for character sheet updates - sync via HTTP + broadcast stats
@@ -926,7 +940,7 @@ export function MapEditor({
   // Auto-select and center on a token when first opening a map
   const hasAutoSelectedRef = useRef(false);
   useEffect(() => {
-    if (!map?.tokens || map.tokens.length === 0 || hasAutoSelectedRef.current) return;
+    if (!tokens || tokens.length === 0 || hasAutoSelectedRef.current) return;
     // Wait for canvas to be ready (dimensions > 0)
     const { width, height } = getCanvasDimensions();
     if (width === 0 || height === 0) return;
@@ -937,17 +951,17 @@ export function MapEditor({
     // For DM: pick the first token in the list
     let target: Token | undefined;
     if (!isDungeonMaster()) {
-      target = map.tokens.find((t) => t.visible && canMoveToken(t.ownerId));
+      target = tokens.find((t) => t.visible && canMoveToken(t.ownerId));
     }
     // Fallback: first visible token
     if (!target) {
-      target = map.tokens.find((t) => t.visible);
+      target = tokens.find((t) => t.visible);
     }
 
     if (target) {
       handleSelectAndCenter(target);
     }
-  }, [map?.tokens, isDungeonMaster, canMoveToken, getCanvasDimensions, handleSelectAndCenter]);
+  }, [tokens, isDungeonMaster, canMoveToken, getCanvasDimensions, handleSelectAndCenter]);
 
   // Track which tokens we've already fetched sheets for (to avoid duplicate fetches)
   const fetchedTokenSheetsRef = useRef<Set<string>>(new Set());
@@ -955,10 +969,10 @@ export function MapEditor({
   // Populate linked token character sheets on map load
   // This ensures HP bar and AC icon show on hover for linked tokens
   useEffect(() => {
-    if (!map?.tokens) return;
+    if (!tokens) return;
 
     // Find linked tokens that don't have a cached character sheet
-    const tokensNeedingSheets = map.tokens.filter(
+    const tokensNeedingSheets = tokens.filter(
       (t) => t.characterId && !t.characterSheet && !fetchedTokenSheetsRef.current.has(t.id)
     );
 
@@ -987,7 +1001,7 @@ export function MapEditor({
     });
 
     return () => controller.abort();
-  }, [map?.tokens, updateToken]);
+  }, [tokens, updateToken]);
 
   // Undo — per-user action stack for drawings and fog
   const temporalStore = useMapStore.temporal;
@@ -1157,14 +1171,12 @@ export function MapEditor({
   const saveFetcher = useFetcher();
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<string | null>(null);
-  const mapRef = useRef(map);
-  mapRef.current = map; // Always keep current map in ref
 
   useEffect(() => {
-    if (!map || !mapId) return;
+    if (!mapExists || !mapId) return;
 
     // Create a hash of the map to detect actual changes
-    const mapHash = JSON.stringify({ name: map.name, updatedAt: map.updatedAt });
+    const mapHash = JSON.stringify({ name: mapName, updatedAt: mapUpdatedAt });
 
     // Skip if nothing has changed since last save
     if (lastSavedRef.current === mapHash) return;
@@ -1176,7 +1188,7 @@ export function MapEditor({
 
     // Schedule a save after debounce delay
     saveTimeoutRef.current = setTimeout(() => {
-      const currentMap = mapRef.current;
+      const currentMap = useMapStore.getState().map;
       if (!currentMap) return;
 
       // Save to server via fetcher
@@ -1201,14 +1213,14 @@ export function MapEditor({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [map?.updatedAt, mapId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapUpdatedAt, mapId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Create new map if none loaded
   useEffect(() => {
-    if (!map && !mapId) {
+    if (!mapExists && !mapId) {
       newMap("Untitled Map");
     }
-  }, [map, mapId, newMap]);
+  }, [mapExists, mapId, newMap]);
 
   const handleEditTokenDelete = useCallback(
     (tokenId: string) => {
@@ -1234,7 +1246,7 @@ export function MapEditor({
     setEditingToken(null);
   };
 
-  if (!map) {
+  if (!mapExists) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-gray-500">Loading...</p>

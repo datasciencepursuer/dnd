@@ -3,6 +3,7 @@ import { useFetcher } from "react-router";
 import { useChatStore } from "../store/chat-store";
 import { parseDiceNotation, rollDice } from "../store/chat-store";
 import { useMapStore, useEditorStore } from "../store";
+import { apiUrl } from "~/lib/api-config";
 import { usePresenceStore } from "../store/presence-store";
 import type { ChatMessageData, DiceRollData } from "../store/chat-store";
 import type { TierLimits } from "~/lib/tier-limits";
@@ -557,7 +558,7 @@ export function ChatPanel({ mapId, userId, userName, isDM, onSendMessage, onClea
               onClick={() => {
                 if (clearing) return;
                 setClearing(true);
-                fetch(`/api/maps/${mapId}/chat`, { method: "DELETE" })
+                fetch(apiUrl(`/api/maps/${mapId}/chat`), { method: "DELETE" })
                   .then((res) => {
                     if (res.ok) {
                       setMessages([]);

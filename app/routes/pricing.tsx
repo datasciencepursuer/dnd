@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { getSession } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
 import { getTierLimits, tierDisplayName, type AccountTier } from "~/lib/tier-limits";
+import { apiUrl } from "~/lib/api-config";
+import { authClient } from "~/lib/auth-client";
 
 export function meta() {
   return [{ title: "Pricing - DnD Virtual Table Top" }];
@@ -56,6 +58,27 @@ const features = [
   { label: "Group invitations", key: "groupInvitations" as const, format: (v: boolean) => v ? "Yes" : "No" },
 ];
 
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+
+  let currentTier: AccountTier = "adventurer";
+  if (session) {
+    const res = await fetch(apiUrl("/api/me"));
+    if (res.ok) {
+      const me = await res.json();
+      currentTier = me.accountTier;
+    }
+  }
+
+  return {
+    isLoggedIn: !!session,
+    currentTier,
+    // Stripe price IDs are hardcoded on client since env vars aren't available in SPA
+    heroPriceId: "",
+    dmPriceId: "",
+  };
+}
+
 export default function Pricing({ loaderData }: Route.ComponentProps) {
   const { isLoggedIn, currentTier, heroPriceId, dmPriceId } = loaderData;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -92,7 +115,7 @@ export default function Pricing({ loaderData }: Route.ComponentProps) {
     setError(null);
 
     try {
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch(apiUrl("/api/stripe/checkout"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId }),

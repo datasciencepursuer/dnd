@@ -1,12 +1,14 @@
 import type { Route } from "./+types/characters";
 import { useState } from "react";
-import { Link, useLoaderData } from "react-router";
+import { Link, redirect, useLoaderData } from "react-router";
+import { authClient } from "~/lib/auth-client";
 import type { CharacterSheet } from "~/features/map-editor/types";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "~/features/map-editor/components/ImageLibraryPicker";
 import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterSheet/CharacterSheetPanel";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { TOKEN_COLORS } from "~/features/map-editor/constants";
+import { apiUrl } from "~/lib/api-config";
 
 interface CharacterData {
   id: string;
@@ -56,6 +58,25 @@ export async function loader({ request }: Route.LoaderArgs) {
     characters: characterList,
     userName: session.user.name,
     characterLibraryEnabled: limits.characterLibrary,
+  };
+}
+
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const [charsRes, meRes] = await Promise.all([
+    fetch(apiUrl("/api/characters")),
+    fetch(apiUrl("/api/me")),
+  ]);
+
+  const charsData = charsRes.ok ? await charsRes.json() : { characters: [] };
+  const me = meRes.ok ? await meRes.json() : null;
+
+  return {
+    characters: charsData.characters,
+    userName: session.user.name,
+    characterLibraryEnabled: me?.tierLimits?.characterLibrary ?? false,
   };
 }
 
@@ -142,8 +163,8 @@ export default function Characters() {
 
     try {
       const url = editingCharacter
-        ? `/api/characters/${editingCharacter.id}`
-        : "/api/characters";
+        ? apiUrl(`/api/characters/${editingCharacter.id}`)
+        : apiUrl("/api/characters");
 
       const response = await fetch(url, {
         method: editingCharacter ? "PUT" : "POST",
@@ -175,7 +196,7 @@ export default function Characters() {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/characters/${deletingCharacter.id}`, {
+      const response = await fetch(apiUrl(`/api/characters/${deletingCharacter.id}`), {
         method: "DELETE",
       });
 

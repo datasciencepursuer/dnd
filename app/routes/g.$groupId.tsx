@@ -8,6 +8,9 @@ import {
   getMapIndex,
   type MapIndexEntry,
 } from "~/features/map-editor";
+import { apiUrl } from "~/lib/api-config";
+import { authClient } from "~/lib/auth-client";
+import { getTierLimits } from "~/lib/tier-limits";
 import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import { PatchNotesPanel } from "~/components/PatchNotesPanel";
@@ -202,6 +205,44 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
 }
 
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const { groupId } = params;
+
+  const [mapsRes, groupsRes, meRes] = await Promise.all([
+    fetch(apiUrl("/api/maps")),
+    fetch(apiUrl("/api/groups")),
+    fetch(apiUrl("/api/me")),
+  ]);
+
+  const mapsData = mapsRes.ok ? await mapsRes.json() : { owned: [], group: [], groups: [] };
+  const groupsData = groupsRes.ok ? await groupsRes.json() : { groups: [] };
+  const me = meRes.ok ? await meRes.json() : null;
+
+  // Find the current group name
+  const allGroups = groupsData.groups || [];
+  const currentGroup = allGroups.find((g: { id: string }) => g.id === groupId);
+  if (!currentGroup) throw redirect("/maps");
+
+  // Group maps = maps from either owned or group list that belong to this group
+  const allMaps = [...(mapsData.owned || []), ...(mapsData.group || [])];
+  const groupMaps = allMaps.filter((m: { groupId: string | null }) => m.groupId === groupId);
+  const personalMaps = (mapsData.owned || []).filter((m: { groupId: string | null }) => !m.groupId);
+
+  return {
+    groupId,
+    groupName: currentGroup.name,
+    groupMaps,
+    personalMaps,
+    userGroups: allGroups,
+    userName: session.user.name,
+    userRole: "member",
+    currentTier: me?.accountTier ?? "adventurer",
+  };
+}
+
 export default function GroupMaps() {
   const navigate = useNavigate();
   const { groupId, groupName, groupMaps, personalMaps, userGroups, userName, userRole, currentTier } =
@@ -257,7 +298,7 @@ export default function GroupMaps() {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/maps/${deleteModal.id}`, {
+      const response = await fetch(apiUrl(`/api/maps/${deleteModal.id}`), {
         method: "DELETE",
       });
 
@@ -320,7 +361,7 @@ export default function GroupMaps() {
     }
 
     try {
-      const response = await fetch("/api/maps", {
+      const response = await fetch(apiUrl("/api/maps"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

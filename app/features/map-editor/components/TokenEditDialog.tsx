@@ -3,6 +3,7 @@ import { useFetcher } from "react-router";
 import { useMapStore, useEditorStore } from "../store";
 import { TOKEN_COLORS } from "../constants";
 import { ImageLibraryPicker } from "./ImageLibraryPicker";
+import { apiUrl } from "~/lib/api-config";
 import { useUploadThing } from "~/utils/uploadthing";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import type { Token, TokenLayer, CharacterSheet, MonsterGroup } from "../types";
@@ -209,7 +210,7 @@ export function TokenEditDialog({
     // If only token has sheet, sync it to library then import
     if (tokenHasSheet && !libraryHasSheet) {
       // Sync token's sheet to library character
-      fetch(`/api/characters/${character.id}`, {
+      fetch(apiUrl(`/api/characters/${character.id}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -242,7 +243,7 @@ export function TokenEditDialog({
     if (!importConflict) return;
     const sheetToUse = token.characterSheet ? { ...token.characterSheet, lastModified: Date.now() } : null;
     // Sync token's sheet to library
-    await fetch(`/api/characters/${importConflict.character.id}`, {
+    await fetch(apiUrl(`/api/characters/${importConflict.character.id}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ characterSheet: sheetToUse }),
@@ -268,7 +269,7 @@ export function TokenEditDialog({
     setSaveToLibraryError(null);
 
     try {
-      const response = await fetch("/api/characters", {
+      const response = await fetch(apiUrl("/api/characters"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

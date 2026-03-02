@@ -5,3 +5,7 @@
 # React Router
 /.react-router/
 /build/
+
+# Capacitor native projects (regenerated via `cap sync`)
+/ios/
+/android/

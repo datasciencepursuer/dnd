@@ -1,5 +1,7 @@
 import type { Route } from "./+types/home";
 import { redirect } from "react-router";
+import { authClient } from "~/lib/auth-client";
+import { apiUrl } from "~/lib/api-config";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { eq, and } = await import("drizzle-orm");
@@ -52,6 +54,21 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   // No groups — fallback to /maps
+  throw redirect("/maps");
+}
+
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  // Fetch user's groups and redirect to first one, or /maps
+  const res = await fetch(apiUrl("/api/groups"));
+  if (res.ok) {
+    const data = await res.json();
+    if (data.groups?.length > 0) {
+      throw redirect(`/g/${data.groups[0].id}`);
+    }
+  }
   throw redirect("/maps");
 }
 

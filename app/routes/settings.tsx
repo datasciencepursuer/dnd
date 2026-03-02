@@ -1,10 +1,11 @@
 import type { Route } from "./+types/settings";
-import { Link } from "react-router";
+import { Link, redirect } from "react-router";
 import { useState, useEffect, useCallback } from "react";
 import { requireAuth } from "~/.server/auth/session";
 import { auth } from "~/.server/auth/auth.server";
 import { getUserSubscriptionInfo } from "~/.server/subscription";
 import { authClient, linkSocial } from "~/lib/auth-client";
+import { apiUrl } from "~/lib/api-config";
 import { tierDisplayName, getTierLimits, type AccountTier } from "~/lib/tier-limits";
 
 export function meta({}: Route.MetaArgs) {
@@ -35,6 +36,27 @@ export async function loader({ request }: Route.LoaderArgs) {
     stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
     stripeCurrentPeriodEnd: subscription?.stripeCurrentPeriodEnd?.toISOString() ?? null,
     stripeCancelAtPeriodEnd: subscription?.stripeCancelAtPeriodEnd ?? false,
+  };
+}
+
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const res = await fetch(apiUrl("/api/me"));
+  if (!res.ok) throw redirect("/login");
+  const me = await res.json();
+
+  return {
+    userName: me.userName,
+    email: me.email,
+    hasGoogle: me.hasGoogle,
+    accountTier: me.accountTier as AccountTier,
+    maxMapUploads: me.tierLimits.maxMapUploads,
+    maxTokenUploads: me.tierLimits.maxTokenUploads,
+    stripeSubscriptionId: me.stripeSubscriptionId,
+    stripeCurrentPeriodEnd: me.stripeCurrentPeriodEnd,
+    stripeCancelAtPeriodEnd: me.stripeCancelAtPeriodEnd,
   };
 }
 
@@ -74,7 +96,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
   const fetchUploads = useCallback(async () => {
     setUploadsLoading(true);
     try {
-      const res = await fetch("/api/uploads");
+      const res = await fetch(apiUrl("/api/uploads"));
       const data = await res.json();
       if (data.uploads) setUploads(data.uploads);
     } catch { /* ignore */ } finally {
@@ -87,7 +109,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
   async function handleDeleteUpload(id: string) {
     setDeletingId(id);
     try {
-      const res = await fetch("/api/uploads", {
+      const res = await fetch(apiUrl("/api/uploads"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
@@ -154,7 +176,7 @@ export default function Settings({ loaderData }: Route.ComponentProps) {
     setError(null);
     setPortalLoading(true);
     try {
-      const res = await fetch("/api/stripe/portal", {
+      const res = await fetch(apiUrl("/api/stripe/portal"), {
         method: "POST",
       });
       const data = await res.json();

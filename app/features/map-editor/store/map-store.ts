@@ -3,6 +3,7 @@ import { temporal } from "zundo";
 import type { DnDMap, Token, GridPosition, GridSettings, FreehandPath, RollResult, FogCell, CharacterSheet, MonsterGroup, InitiativeEntry, WallSegment, AreaShape, MapScene } from "../types";
 import { createNewMap, createBlankScene, MAX_SCENES } from "../constants";
 import { createDefaultCharacterSheet } from "../utils/character-utils";
+import { hapticImpact } from "~/lib/haptics";
 import { normalizeGridRange } from "../utils/grid-utils";
 import { computeDistanceMatrix } from "../utils/distance-utils";
 import { packActiveScene, unpackSceneIntoMap } from "../utils/scene-utils";
@@ -756,7 +757,8 @@ export const useMapStore = create<MapState>()(
           };
         }),
 
-      addRollResult: (result) =>
+      addRollResult: (result) => {
+        hapticImpact("Medium");
         set((state) => {
           if (!state.map) return state;
           // Keep only the 8 most recent rolls
@@ -768,7 +770,8 @@ export const useMapStore = create<MapState>()(
               updatedAt: new Date().toISOString(),
             },
           };
-        }),
+        });
+      },
 
       clearRollHistory: () =>
         set((state) => {

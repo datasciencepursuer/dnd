@@ -13,9 +13,17 @@ export async function loader({ request }: Route.LoaderArgs) {
     headers: request.headers,
   });
   if (session) {
-    // If already logged in, redirect to the intended destination or home
     const url = new URL(request.url);
     const redirectTo = url.searchParams.get("redirect") || "/";
+    throw redirect(redirectTo);
+  }
+  return null;
+}
+
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (session) {
+    const redirectTo = new URLSearchParams(window.location.search).get("redirect") || "/";
     throw redirect(redirectTo);
   }
   return null;

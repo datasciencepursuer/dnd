@@ -1,7 +1,9 @@
 import type { Route } from "./+types/g.$groupId.schedule";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import { Link, redirect, useLoaderData, useSearchParams } from "react-router";
 import { useIsMobile } from "~/features/map-editor/hooks/useIsMobile";
+import { apiUrl } from "~/lib/api-config";
+import { authClient } from "~/lib/auth-client";
 import { MiniMonthCalendar } from "~/features/schedule/components/MiniMonthCalendar";
 import { MembersList } from "~/features/schedule/components/MembersList";
 import {
@@ -188,6 +190,41 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
 }
 
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const { groupId } = params;
+  const { getWeekStart } = await import("~/features/schedule/utils/date-utils");
+
+  const [availRes, votesRes, groupRes] = await Promise.all([
+    fetch(apiUrl(`/api/groups/${groupId}/availability`)),
+    fetch(apiUrl(`/api/groups/${groupId}/schedule-votes`)),
+    fetch(apiUrl(`/api/groups/${groupId}`)),
+  ]);
+
+  const availData = availRes.ok ? await availRes.json() : { availabilities: [] };
+  const votesData = votesRes.ok ? await votesRes.json() : { votes: [] };
+  const groupData = groupRes.ok ? await groupRes.json() : null;
+
+  const weekParam = new URLSearchParams(window.location.search).get("week");
+  const weekStart = weekParam ? new Date(weekParam + "T00:00:00Z") : getWeekStart(new Date());
+
+  return {
+    groupId,
+    groupName: groupData?.group?.name ?? "",
+    members: groupData?.members?.map((m: { userId: string; userName?: string; name?: string }) => ({
+      userId: m.userId,
+      userName: m.userName ?? m.name ?? "Unknown",
+    })) ?? [],
+    availabilities: availData.availabilities ?? [],
+    votes: votesData.votes ?? [],
+    currentUserId: session.user.id,
+    initialWeek: weekParam || weekStart.toISOString().slice(0, 10),
+    groupTimezone: groupData?.group?.timezone ?? null,
+  };
+}
+
 export default function GroupSchedule() {
   const {
     groupId,
@@ -261,7 +298,7 @@ export default function GroupSchedule() {
   // Fetch all future availability blocks
   const fetchBlocks = useCallback(async () => {
     try {
-      const res = await fetch(`/api/groups/${groupId}/availability`);
+      const res = await fetch(apiUrl(`/api/groups/${groupId}/availability`));
       if (res.ok) {
         const data = await res.json();
         setBlocks(data.availabilities);
@@ -274,7 +311,7 @@ export default function GroupSchedule() {
   // Fetch all future votes
   const fetchVotes = useCallback(async () => {
     try {
-      const res = await fetch(`/api/groups/${groupId}/schedule-votes`);
+      const res = await fetch(apiUrl(`/api/groups/${groupId}/schedule-votes`));
       if (res.ok) {
         const data = await res.json();
         setVotes(data.votes);
@@ -328,7 +365,7 @@ export default function GroupSchedule() {
   const handleVote = useCallback(
     async (startTime: string, endTime: string, vote: "local" | "virtual") => {
       try {
-        const res = await fetch(`/api/groups/${groupId}/schedule-votes`, {
+        const res = await fetch(apiUrl(`/api/groups/${groupId}/schedule-votes`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ startTime, endTime, vote }),

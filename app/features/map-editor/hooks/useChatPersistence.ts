@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { useChatStore } from "../store/chat-store";
 import { usePresenceStore } from "../store/presence-store";
+import { apiUrl } from "~/lib/api-config";
 
 const FLUSH_INTERVAL_MS = 30_000;
 
@@ -19,7 +20,7 @@ export function useChatPersistence(mapId: string | undefined) {
     if (batch.length === 0) return;
 
     try {
-      const res = await fetch(`/api/maps/${mapId}/chat/batch`, {
+      const res = await fetch(apiUrl(`/api/maps/${mapId}/chat/batch`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: batch }),
@@ -39,10 +40,12 @@ export function useChatPersistence(mapId: string | undefined) {
     const flushBeforeUnload = () => {
       const batch = useChatStore.getState().takePendingPersist();
       if (batch.length === 0) return;
-      navigator.sendBeacon(
-        `/api/maps/${mapId}/chat/batch`,
-        new Blob([JSON.stringify({ messages: batch })], { type: "application/json" }),
-      );
+      fetch(apiUrl(`/api/maps/${mapId}/chat/batch`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: batch }),
+        keepalive: true,
+      }).catch(() => {});
     };
 
     const intervalId = setInterval(flushAsync, FLUSH_INTERVAL_MS);
@@ -54,7 +57,7 @@ export function useChatPersistence(mapId: string | undefined) {
       // Flush remaining on unmount (in-app navigation)
       const remaining = useChatStore.getState().takePendingPersist();
       if (remaining.length > 0) {
-        fetch(`/api/maps/${mapId}/chat/batch`, {
+        fetch(apiUrl(`/api/maps/${mapId}/chat/batch`), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: remaining }),

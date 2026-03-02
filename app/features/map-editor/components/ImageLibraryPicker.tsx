@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { ConfirmModal } from "./ConfirmModal";
+import { apiUrl } from "~/lib/api-config";
 
 interface Upload {
   id: string;
@@ -46,7 +47,7 @@ export function ImageLibraryPicker({
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch(`/api/uploads?type=${type}`);
+      const response = await fetch(apiUrl(`/api/uploads?type=${type}`));
       if (!response.ok) {
         throw new Error("Failed to fetch uploads");
       }
@@ -75,7 +76,7 @@ export function ImageLibraryPicker({
     setDeletingId(upload.id);
 
     try {
-      const response = await fetch("/api/uploads", {
+      const response = await fetch(apiUrl("/api/uploads"), {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: upload.id }),

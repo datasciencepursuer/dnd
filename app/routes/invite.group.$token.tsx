@@ -1,6 +1,7 @@
 import type { Route } from "./+types/invite.group.$token";
 import { useState } from "react";
 import { useLoaderData, useNavigate, Link, useLocation } from "react-router";
+import { apiUrl } from "~/lib/api-config";
 
 interface LoaderData {
   status: "valid" | "expired" | "not_found" | "already_member" | "limit_reached" | "requires_login" | "email_mismatch";
@@ -282,7 +283,7 @@ export default function InviteGroupToken() {
     setError(null);
 
     try {
-      const response = await fetch(window.location.pathname, {
+      const response = await fetch(apiUrl(window.location.pathname), {
         method: "DELETE",
         headers: {
           "Accept": "application/json",
@@ -315,7 +316,7 @@ export default function InviteGroupToken() {
     setError(null);
 
     try {
-      const response = await fetch(window.location.pathname, {
+      const response = await fetch(apiUrl(window.location.pathname), {
         method: "POST",
         headers: {
           "Accept": "application/json",

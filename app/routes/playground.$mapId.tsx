@@ -1,6 +1,6 @@
 import type { Route } from "./+types/playground.$mapId";
 import { useEffect, useRef } from "react";
-import { useLoaderData, useParams } from "react-router";
+import { redirect, useLoaderData, useParams } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
 import { MapEditor, useMapStore, useEditorStore, useViewportHeight } from "~/features/map-editor";
@@ -8,6 +8,8 @@ import { useHydrated } from "~/lib/use-hydrated";
 import type { PermissionLevel } from "~/.server/db/schema";
 import type { DnDMap, PlayerPermissions } from "~/features/map-editor";
 import { getTierLimits, type AccountTier, type TierLimits } from "~/lib/tier-limits";
+import { authClient } from "~/lib/auth-client";
+import { apiUrl } from "~/lib/api-config";
 
 interface GroupMemberInfo {
   id: string;
@@ -85,6 +87,38 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     accountTier,
     tierLimits,
     realtimeSyncEnabled,
+  };
+}
+
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const { mapId } = params;
+  if (!mapId) throw new Response("Map ID required", { status: 400 });
+
+  const [mapRes, meRes] = await Promise.all([
+    fetch(apiUrl(`/api/maps/${mapId}`)),
+    fetch(apiUrl("/api/me")),
+  ]);
+
+  if (mapRes.status === 403) throw new Response("You don't have access to this map", { status: 403 });
+  if (mapRes.status === 404) throw new Response("Map not found", { status: 404 });
+  if (!mapRes.ok) throw new Response("Failed to load map", { status: mapRes.status });
+
+  const mapData = await mapRes.json();
+  const me = meRes.ok ? await meRes.json() : null;
+  const accountTier = (me?.accountTier ?? "adventurer") as AccountTier;
+  const tierLimits = me?.tierLimits ?? getTierLimits(accountTier);
+
+  return {
+    ...mapData,
+    mapOwnerId: mapData.userId,
+    userId: session.user.id,
+    userName: session.user.name,
+    accountTier,
+    tierLimits,
+    realtimeSyncEnabled: tierLimits.realtimeSync,
   };
 }
 

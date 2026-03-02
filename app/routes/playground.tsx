@@ -1,11 +1,13 @@
 import type { Route } from "./+types/playground";
 import { useEffect } from "react";
-import { useLoaderData } from "react-router";
+import { redirect, useLoaderData } from "react-router";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTier } from "~/.server/subscription";
 import { MapEditor, useEditorStore, useViewportHeight } from "~/features/map-editor";
 import { useHydrated } from "~/lib/use-hydrated";
 import { getTierLimits, type AccountTier, type TierLimits } from "~/lib/tier-limits";
+import { authClient } from "~/lib/auth-client";
+import { apiUrl } from "~/lib/api-config";
 
 interface LoaderData {
   userId: string;
@@ -29,6 +31,22 @@ export async function loader({ request }: Route.LoaderArgs) {
     userName: session.user.name,
     accountTier,
     tierLimits: getTierLimits(accountTier),
+  };
+}
+
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const res = await fetch(apiUrl("/api/me"));
+  if (!res.ok) throw redirect("/login");
+  const me = await res.json();
+
+  return {
+    userId: me.userId,
+    userName: me.userName,
+    accountTier: me.accountTier as AccountTier,
+    tierLimits: me.tierLimits as TierLimits,
   };
 }
 

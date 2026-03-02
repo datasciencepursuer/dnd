@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MapIndexEntry } from "../utils/storage-utils";
 import { loadMap, deleteMap as deleteLocalMap } from "../utils/storage-utils";
+import { apiUrl } from "~/lib/api-config";
 
 interface MigrationPromptProps {
   localMaps: MapIndexEntry[];
@@ -35,7 +36,7 @@ export function MigrationPrompt({
       }
 
       try {
-        const response = await fetch("/api/maps", {
+        const response = await fetch(apiUrl("/api/maps"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: map.name, data: map }),

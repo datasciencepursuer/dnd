@@ -8,6 +8,7 @@ import { Combobox } from "./Combobox";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, getEffectivePassivePerception, ensureSkills, ensureSpeed, calculateProficiencyBonus } from "../../utils/character-utils";
 import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/character-options";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { apiUrl } from "~/lib/api-config";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
@@ -322,7 +323,7 @@ export function CharacterSheetPanel({
     setPortraitError(null);
     setPortraitPreview(null);
     try {
-      const res = await fetch("/api/generate-portrait", {
+      const res = await fetch(apiUrl("/api/generate-portrait"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: appearanceText, tokenSize: token?.size ?? 1, artStyle: portraitStyle }),
@@ -396,7 +397,7 @@ export function CharacterSheetPanel({
     setIsSyncing(true);
     setSyncError(null);
     try {
-      const response = await fetch(`/api/characters/${characterId}`, {
+      const response = await fetch(apiUrl(`/api/characters/${characterId}`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ characterSheet: sheetToSync }),
@@ -441,7 +442,11 @@ export function CharacterSheetPanel({
       if (hasPendingChanges && currentSheetRef.current) {
         const data = JSON.stringify({ characterSheet: currentSheetRef.current });
         const blob = new Blob([data], { type: "application/json" });
-        navigator.sendBeacon?.(`/api/characters/${characterId}`, blob);
+        fetch(apiUrl(`/api/characters/${characterId}`), {
+          method: "PUT",
+          body: blob,
+          keepalive: true,
+        }).catch(() => {});
       }
     };
 
@@ -486,7 +491,7 @@ export function CharacterSheetPanel({
     // For standalone or linked characters: update library via API
     if ((isStandalone || effectivelyLinked) && characterId) {
       try {
-        await fetch(`/api/characters/${characterId}`, {
+        await fetch(apiUrl(`/api/characters/${characterId}`), {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageUrl: url }),
@@ -588,7 +593,7 @@ export function CharacterSheetPanel({
     if (!token || !sheet || !onLinkCharacter) return;
     setIsSavingToLibrary(true);
     try {
-      const response = await fetch("/api/characters", {
+      const response = await fetch(apiUrl("/api/characters"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -682,7 +687,7 @@ export function CharacterSheetPanel({
                     // Initialize character sheet via API for linked/standalone characters
                     const newSheet = createDefaultCharacterSheet();
                     setLinkedCharacterSheet(newSheet);
-                    fetch(`/api/characters/${characterId}`, {
+                    fetch(apiUrl(`/api/characters/${characterId}`), {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ characterSheet: newSheet }),

@@ -1,6 +1,9 @@
 import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
-export default [
+const isMobile = !!process.env.MOBILE;
+
+// Page routes (included in both web and mobile builds)
+const pageRoutes = [
   index("routes/home.tsx"),
   route("login", "routes/login.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
@@ -13,6 +16,13 @@ export default [
   route("groups/:groupId", "routes/groups.$groupId.tsx"),
   route("playground", "routes/playground.tsx"),
   route("playground/:mapId", "routes/playground.$mapId.tsx"),
+  route("invite/group/:token", "routes/invite.group.$token.tsx"),
+  route("characters", "routes/characters.tsx"),
+  route("pricing", "routes/pricing.tsx"),
+] satisfies RouteConfig;
+
+// API routes (server-only, excluded from mobile SPA builds)
+const apiRoutes = [
   route("api/auth/*", "routes/api.auth.$.tsx"),
   route("api/maps", "routes/api.maps.tsx"),
   route("api/maps/:mapId", "routes/api.maps.$mapId.tsx"),
@@ -24,15 +34,13 @@ export default [
   route("api/groups/:groupId/members/:userId", "routes/api.groups.$groupId.members.$userId.tsx"),
   route("api/groups/:groupId/leave", "routes/api.groups.$groupId.leave.tsx"),
   route("api/groups/:groupId/invite", "routes/api.groups.$groupId.invite.tsx"),
-  route("invite/group/:token", "routes/invite.group.$token.tsx"),
   route("api/uploadthing", "routes/api.uploadthing.ts"),
   route("api/uploadthing/files", "routes/api.uploadthing.files.ts"),
   route("api/uploads", "routes/api.uploads.tsx"),
-  route("characters", "routes/characters.tsx"),
   route("api/characters", "routes/api.characters.tsx"),
   route("api/characters/:characterId", "routes/api.characters.$characterId.tsx"),
   route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
-route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availability.tsx"),
+  route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availability.tsx"),
   route("api/groups/:groupId/availability/:id", "routes/api.groups.$groupId.availability.$id.tsx"),
   route("api/groups/:groupId/schedule-votes", "routes/api.groups.$groupId.schedule-votes.tsx"),
   route("api/maps/:mapId/chat", "routes/api.maps.$mapId.chat.tsx"),
@@ -41,9 +49,14 @@ route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availabili
   route("api/maps/:mapId/ai-draw", "routes/api.maps.$mapId.ai-draw.tsx"),
   route("api/generate-portrait", "routes/api.generate-portrait.tsx"),
   route("api/generate-map", "routes/api.generate-map.tsx"),
+  route("api/me", "routes/api.me.tsx"),
   route("api/stripe/checkout", "routes/api.stripe.checkout.ts"),
   route("api/stripe/webhook", "routes/api.stripe.webhook.ts"),
   route("api/stripe/success", "routes/api.stripe.success.ts"),
   route("api/stripe/portal", "routes/api.stripe.portal.ts"),
-  route("pricing", "routes/pricing.tsx"),
+] satisfies RouteConfig;
+
+export default [
+  ...pageRoutes,
+  ...(isMobile ? [] : apiRoutes),
 ] satisfies RouteConfig;

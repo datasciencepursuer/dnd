@@ -1,8 +1,10 @@
 import type { Route } from "./+types/groups";
 import { useState } from "react";
-import { Link, useLoaderData, useNavigate } from "react-router";
+import { Link, redirect, useLoaderData, useNavigate } from "react-router";
 import type { GroupRole } from "~/types/group";
 import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
+import { apiUrl } from "~/lib/api-config";
+import { authClient } from "~/lib/auth-client";
 
 interface GroupListItem {
   id: string;
@@ -85,6 +87,23 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+export async function clientLoader() {
+  const { data: session } = await authClient.getSession();
+  if (!session) throw redirect("/login");
+
+  const res = await fetch(apiUrl("/api/groups"));
+  if (!res.ok) throw redirect("/login");
+  const data = await res.json();
+
+  return {
+    groups: data.groups,
+    groupCount: data.groupCount,
+    maxGroups: data.maxGroups,
+    canCreateGroup: data.canCreateGroup,
+    currentTier: data.currentTier ?? "adventurer",
+  };
+}
+
 export default function Groups() {
   const { groups, groupCount, maxGroups, canCreateGroup, currentTier } = useLoaderData<LoaderData>();
   const navigate = useNavigate();
@@ -101,7 +120,7 @@ export default function Groups() {
     setError(null);
 
     try {
-      const response = await fetch("/api/groups", {
+      const response = await fetch(apiUrl("/api/groups"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
