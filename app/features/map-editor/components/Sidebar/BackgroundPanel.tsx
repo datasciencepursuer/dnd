@@ -69,6 +69,11 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
 
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  // Reference image for AI editing (URL of current background or base64 of preview)
+  const [aiReferenceUrl, setAiReferenceUrl] = useState<string | null>(null);
+  const [aiReferenceBase64, setAiReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [showAiRefLibrary, setShowAiRefLibrary] = useState(false);
+
   // Close modal on ESC
   const handleModalKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") setShowPreviewModal(false);
@@ -138,6 +143,11 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
     setShowLibrary(false);
   };
 
+  const handleClearReference = () => {
+    setAiReferenceUrl(null);
+    setAiReferenceBase64(null);
+  };
+
   const handleGenerate = async () => {
     if (!aiPrompt.trim() || aiGridW < 1 || aiGridH < 1) return;
 
@@ -146,16 +156,26 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
     setAiPreview(null);
 
     try {
+      const bodyPayload: Record<string, unknown> = {
+        prompt: aiPrompt.trim(),
+        gridWidth: aiGridW,
+        gridHeight: aiGridH,
+        cellSizeFt: 5,
+        artStyle: aiStyle,
+      };
+
+      // Attach reference image if editing
+      if (aiReferenceBase64) {
+        bodyPayload.referenceImageBase64 = aiReferenceBase64.base64;
+        bodyPayload.referenceImageMimeType = aiReferenceBase64.mimeType;
+      } else if (aiReferenceUrl) {
+        bodyPayload.referenceImageUrl = aiReferenceUrl;
+      }
+
       const res = await fetch(apiUrl("/api/generate-map"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: aiPrompt.trim(),
-          gridWidth: aiGridW,
-          gridHeight: aiGridH,
-          cellSizeFt: 5,
-          artStyle: aiStyle,
-        }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const data = await res.json();
@@ -201,6 +221,8 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
   const handleDiscardAi = () => {
     setAiPreview(null);
     setAiError(null);
+    setAiReferenceUrl(null);
+    setAiReferenceBase64(null);
   };
 
   const parseGridDim = (val: string, fallback: number) => {
@@ -228,19 +250,21 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
       {currentBackground && (
         <div className="space-y-2">
           <span className="text-sm text-gray-600 dark:text-gray-400">Current background</span>
-          <div className="relative inline-block">
-            <img
-              src={currentBackground}
-              alt="Current background"
-              className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-gray-600"
-            />
-            <button
-              onClick={handleRemoveBackground}
-              className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 cursor-pointer"
-              title="Remove background"
-            >
-              &times;
-            </button>
+          <div className="flex items-start gap-2">
+            <div className="relative inline-block">
+              <img
+                src={currentBackground}
+                alt="Current background"
+                className="w-20 h-20 object-cover rounded border border-gray-300 dark:border-gray-600"
+              />
+              <button
+                onClick={handleRemoveBackground}
+                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600 cursor-pointer"
+                title="Remove background"
+              >
+                &times;
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -374,12 +398,60 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                 ))}
               </div>
 
+              {/* Reference image */}
+              {(aiReferenceUrl || aiReferenceBase64) ? (
+                <div className="flex items-center gap-2 p-2 bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700 rounded text-xs">
+                  <img
+                    src={aiReferenceBase64
+                      ? `data:${aiReferenceBase64.mimeType};base64,${aiReferenceBase64.base64}`
+                      : aiReferenceUrl!}
+                    alt="Reference"
+                    className="w-8 h-8 object-cover rounded border border-purple-300 dark:border-purple-600"
+                  />
+                  <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
+                  <button
+                    onClick={handleClearReference}
+                    className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
+                    title="Remove reference"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {currentBackground && (
+                    <button
+                      onClick={() => { setAiReferenceUrl(currentBackground); setAiReferenceBase64(null); }}
+                      className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                    >
+                      Use current background as reference
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowAiRefLibrary(!showAiRefLibrary)}
+                    className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                  >
+                    {showAiRefLibrary ? "Hide library" : "Pick from library"}
+                  </button>
+                </div>
+              )}
+              {showAiRefLibrary && !aiReferenceUrl && !aiReferenceBase64 && (
+                <div className="p-2 border border-purple-200 dark:border-purple-700 rounded">
+                  <ImageLibraryPicker
+                    type="map"
+                    onSelect={(url) => { setAiReferenceUrl(url); setShowAiRefLibrary(false); }}
+                  />
+                </div>
+              )}
+
               {/* Prompt textarea */}
               <div className="space-y-1">
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value.slice(0, 500))}
-                  placeholder="Describe your battlemap... e.g. Stone dungeon with a central chamber, torchlit corridors, and a pit trap"
+                  placeholder={aiReferenceUrl || aiReferenceBase64
+                    ? "Describe what to change... e.g. Add a river through the center, make the lighting warmer"
+                    : "Describe your battlemap... e.g. Stone dungeon with a central chamber, torchlit corridors, and a pit trap"}
                   rows={3}
                   disabled={isGenerating}
                   className="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-2 resize-none placeholder:text-gray-400 disabled:opacity-50"
@@ -406,7 +478,7 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                     </>
                   ) : (
                     <>
-                      Generate Map
+                      {aiReferenceUrl || aiReferenceBase64 ? "Edit Map" : "Generate Map"}
                       {aiRemaining != null && (
                         <span className={`text-xs font-normal ml-1 ${aiRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
                           ({aiRemaining}{aiLimit != null ? `/${aiLimit}` : ""}{aiWindow ? ` ${windowLabel}` : ""})
@@ -457,11 +529,24 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
                       {isUploadingAi ? "Uploading..." : gridChanged ? "Apply & Resize Grid" : "Use as Background"}
                     </button>
                     <button
+                      onClick={() => {
+                        // Use the current preview as reference for further edits
+                        setAiReferenceBase64({ base64: aiPreview.base64, mimeType: aiPreview.mimeType });
+                        setAiReferenceUrl(null);
+                        setAiPreview(null);
+                        setAiPrompt("");
+                      }}
+                      className="py-1.5 px-2 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                      title="Use this result as reference for further edits"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={handleGenerate}
                       disabled={isGenerating}
                       className="py-1.5 px-2 text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
                     >
-                      Try Again
+                      Retry
                     </button>
                     <button
                       onClick={handleDiscardAi}

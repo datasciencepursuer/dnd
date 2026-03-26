@@ -57,7 +57,8 @@
       "Bash(rtk git diff HEAD -- app/features/map-editor/components/Canvas/MapCanvas.tsx | head -120)",
       "Bash(rtk git diff --stat)",
       "Bash(rtk tsc)",
-      "Bash(rtk pnpm run typecheck 2>&1)"
+      "Bash(rtk pnpm run typecheck 2>&1)",
+      "Bash(rtk git:*)"
     ]
   }
 }

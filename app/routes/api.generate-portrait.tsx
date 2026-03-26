@@ -4,7 +4,7 @@ import { requireAuth } from "~/.server/auth/session";
 import { getUserTierLimits } from "~/.server/subscription";
 import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
-import { generateCharacterPortrait, type ArtStyle } from "~/.server/ai/image-generation";
+import { generateCharacterPortrait, type ArtStyle, type ReferenceImage } from "~/.server/ai/image-generation";
 
 // GET — return usage stats (remaining generations, window)
 export async function loader({ request }: { request: Request }) {
@@ -78,9 +78,34 @@ export async function action({ request }: { request: Request }) {
 
   // Parse and validate prompt
   const body = await request.json();
-  const { prompt, tokenSize, artStyle: rawArtStyle } = body as { prompt: string; tokenSize?: number; artStyle?: string };
+  const { prompt, tokenSize, artStyle: rawArtStyle, referenceImageBase64, referenceImageMimeType, referenceImageUrl } = body as {
+    prompt: string;
+    tokenSize?: number;
+    artStyle?: string;
+    referenceImageBase64?: string;
+    referenceImageMimeType?: string;
+    referenceImageUrl?: string;
+  };
   const validArtStyles: ArtStyle[] = ["jrpg", "classic", "pixel"];
   const artStyle: ArtStyle = validArtStyles.includes(rawArtStyle as ArtStyle) ? (rawArtStyle as ArtStyle) : "jrpg";
+
+  // Build reference image if provided
+  let referenceImage: ReferenceImage | undefined;
+  if (referenceImageBase64 && referenceImageMimeType) {
+    referenceImage = { base64: referenceImageBase64, mimeType: referenceImageMimeType };
+  } else if (referenceImageUrl) {
+    try {
+      const imgRes = await fetch(referenceImageUrl);
+      if (imgRes.ok) {
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString("base64");
+        const mimeType = imgRes.headers.get("content-type") || "image/png";
+        referenceImage = { base64, mimeType };
+      }
+    } catch {
+      // Ignore fetch errors — proceed without reference image
+    }
+  }
 
   if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
     return Response.json({ error: "Prompt is required" }, { status: 400 });
@@ -101,7 +126,7 @@ export async function action({ request }: { request: Request }) {
   if (limit === Infinity) {
     try {
       const size = typeof tokenSize === "number" && tokenSize >= 1 && tokenSize <= 4 ? tokenSize : 1;
-      const result = await generateCharacterPortrait(apiKey, prompt.trim(), size, artStyle);
+      const result = await generateCharacterPortrait(apiKey, prompt.trim(), size, artStyle, referenceImage);
 
       await db.insert(aiImageGenerations).values({
         id: crypto.randomUUID(),

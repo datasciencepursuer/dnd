@@ -13,6 +13,7 @@ const SHARED_REQUIREMENTS = `CRITICAL REQUIREMENTS:
 - ABSOLUTELY NO frames, borders, circles, rings, medallions, pedestals, platforms, or any UI elements around the character. The output must be ONLY the character on solid white. If you are tempted to add a circular token frame — DO NOT. This is not a token with a frame, it is a raw character sprite
 - Render a full-body character in a 2D illustrated style — NOT 3D rendered, NOT photorealistic
 - Front-facing or slight 3/4 angle, full body visible head to feet, dynamic but readable pose
+- ANATOMY RULE: Unless the prompt explicitly states otherwise, assume the character is a standard humanoid with exactly 2 arms and 2 legs. Do NOT add extra limbs, tails, wings, tentacles, or other additional body parts unless the prompt specifically requests them
 
 TOKEN SIZE GUIDELINES (D&D 5e grid, each cell = 5 feet):
 - Size 1x1 (Medium, ~5ft): Single humanoid or medium creature. Standard adventurer, human, elf, dwarf, etc.
@@ -47,6 +48,11 @@ function buildSystemInstruction(artStyle: ArtStyle): string {
 
 export interface GeneratedImage {
   imageBase64: string;
+  mimeType: string;
+}
+
+export interface ReferenceImage {
+  base64: string;
   mimeType: string;
 }
 
@@ -152,18 +158,31 @@ export async function generateBattlemap(
   gridWidth: number,
   gridHeight: number,
   cellSizeFt: number = 5,
-  artStyle: MapArtStyle = "realistic"
+  artStyle: MapArtStyle = "realistic",
+  referenceImage?: ReferenceImage
 ): Promise<GeneratedImage> {
   const ai = new GoogleGenAI({ apiKey });
 
   const totalW = gridWidth * cellSizeFt;
   const totalH = gridHeight * cellSizeFt;
   const aspect = gridToAspectRatio(gridWidth, gridHeight);
-  const fullPrompt = `Generate a ${aspect.orientation} (${aspect.ratio}) bird's-eye 2D battlemap ${MAP_STYLE_PROMPT_HINTS[artStyle]}, representing ${totalW}ft × ${totalH}ft. This is a tabletop game board — not a 3D render. Do NOT draw any grid lines or grid overlay. Description: ${userPrompt}`;
+
+  const isEdit = !!referenceImage;
+  const fullPrompt = isEdit
+    ? `Edit this existing battlemap image based on the following instructions. Keep the overall composition, layout, and style consistent with the original. Apply these changes: ${userPrompt}. Output a ${aspect.orientation} (${aspect.ratio}) bird's-eye 2D battlemap ${MAP_STYLE_PROMPT_HINTS[artStyle]}, representing ${totalW}ft × ${totalH}ft. Do NOT draw any grid lines or grid overlay.`
+    : `Generate a ${aspect.orientation} (${aspect.ratio}) bird's-eye 2D battlemap ${MAP_STYLE_PROMPT_HINTS[artStyle]}, representing ${totalW}ft × ${totalH}ft. This is a tabletop game board — not a 3D render. Do NOT draw any grid lines or grid overlay. Description: ${userPrompt}`;
+
+  // Build multimodal content when reference image is provided
+  const contents = referenceImage
+    ? [
+        { inlineData: { mimeType: referenceImage.mimeType, data: referenceImage.base64 } },
+        { text: fullPrompt },
+      ]
+    : fullPrompt;
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
-    contents: fullPrompt,
+    contents,
     config: {
       systemInstruction: buildMapSystemInstruction(artStyle, gridWidth, gridHeight, cellSizeFt, aspect),
       responseModalities: ["image", "text"],
@@ -191,7 +210,8 @@ export async function generateCharacterPortrait(
   apiKey: string,
   userPrompt: string,
   tokenSize: number = 1,
-  artStyle: ArtStyle = "jrpg"
+  artStyle: ArtStyle = "jrpg",
+  referenceImage?: ReferenceImage
 ): Promise<GeneratedImage> {
   const ai = new GoogleGenAI({ apiKey });
 
@@ -201,13 +221,28 @@ export async function generateCharacterPortrait(
     tokenSize >= 2 ? "2x2 Large" :
     "1x1 Medium";
 
-  const fullPrompt = `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders: ${userPrompt}`;
+  const isEdit = !!referenceImage;
+  const fullPrompt = isEdit
+    ? `Edit this existing character image based on the following instructions. CRITICAL: You MUST preserve the character's facial features — face shape, eye color, eye shape, nose, mouth, hair color, hairstyle, skin tone, and any distinctive facial marks (scars, tattoos, freckles). The edited character must be clearly recognizable as the same person. Apply these changes: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders.`
+    : `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders: ${userPrompt}`;
+
+  // Build multimodal content when reference image is provided
+  const contents = referenceImage
+    ? [
+        { inlineData: { mimeType: referenceImage.mimeType, data: referenceImage.base64 } },
+        { text: fullPrompt },
+      ]
+    : fullPrompt;
+
+  const systemInstruction = isEdit
+    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image of an existing character is provided. You MUST preserve the character's identity — their facial features (face shape, eyes, nose, mouth, hair, skin tone, distinguishing marks) must remain recognizable in the output. Only modify what the user explicitly requests. Everything else — especially the face — should stay as close to the original as possible.`
+    : buildSystemInstruction(artStyle);
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-image",
-    contents: fullPrompt,
+    contents,
     config: {
-      systemInstruction: buildSystemInstruction(artStyle),
+      systemInstruction,
       responseModalities: ["image", "text"],
     },
   });

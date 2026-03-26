@@ -315,6 +315,9 @@ export function CharacterSheetPanel({
   const updateAiImageUsage = useEditorStore((s) => s.updateAiImageUsage);
   const [isUploadingPortrait, setIsUploadingPortrait] = useState(false);
   const [portraitStyle, setPortraitStyle] = useState<"jrpg" | "classic" | "pixel">("jrpg");
+  const [portraitReferenceUrl, setPortraitReferenceUrl] = useState<string | null>(null);
+  const [portraitReferenceBase64, setPortraitReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [showPortraitRefLibrary, setShowPortraitRefLibrary] = useState(false);
 
   const handleGeneratePortrait = useCallback(async () => {
     const appearanceText = (sheet?.appearance ?? "").trim();
@@ -323,10 +326,21 @@ export function CharacterSheetPanel({
     setPortraitError(null);
     setPortraitPreview(null);
     try {
+      const bodyPayload: Record<string, unknown> = {
+        prompt: appearanceText,
+        tokenSize: token?.size ?? 1,
+        artStyle: portraitStyle,
+      };
+      if (portraitReferenceBase64) {
+        bodyPayload.referenceImageBase64 = portraitReferenceBase64.base64;
+        bodyPayload.referenceImageMimeType = portraitReferenceBase64.mimeType;
+      } else if (portraitReferenceUrl) {
+        bodyPayload.referenceImageUrl = portraitReferenceUrl;
+      }
       const res = await fetch(apiUrl("/api/generate-portrait"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: appearanceText, tokenSize: token?.size ?? 1, artStyle: portraitStyle }),
+        body: JSON.stringify(bodyPayload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -348,7 +362,7 @@ export function CharacterSheetPanel({
     } finally {
       setIsGeneratingPortrait(false);
     }
-  }, [sheet?.appearance, isGeneratingPortrait, portraitStyle]);
+  }, [sheet?.appearance, isGeneratingPortrait, portraitStyle, portraitReferenceUrl, portraitReferenceBase64]);
 
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
   if (charImageUrl !== prevCharImageUrlRef.current) {
@@ -2921,10 +2935,14 @@ export function CharacterSheetPanel({
                 {!readOnly && (sheet.appearance ?? "").trim().length > 0 && (
                   <button
                     onClick={() => {
-                      setShowPortraitGenerator(!showPortraitGenerator);
-                      if (!showPortraitGenerator) {
+                      const next = !showPortraitGenerator;
+                      setShowPortraitGenerator(next);
+                      if (!next) {
                         setPortraitError(null);
                         setPortraitPreview(null);
+                        setPortraitReferenceUrl(null);
+                        setPortraitReferenceBase64(null);
+                        setShowPortraitRefLibrary(false);
                       }
                     }}
                     className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
@@ -2953,6 +2971,52 @@ export function CharacterSheetPanel({
               {/* AI Portrait Generator - inline controls */}
               {showPortraitGenerator && !readOnly && (
                 <div className="mt-2 space-y-2">
+                  {/* Reference image */}
+                  {(portraitReferenceUrl || portraitReferenceBase64) ? (
+                    <div className="flex items-center gap-2 p-2 bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700 rounded text-xs">
+                      <img
+                        src={portraitReferenceBase64
+                          ? `data:${portraitReferenceBase64.mimeType};base64,${portraitReferenceBase64.base64}`
+                          : portraitReferenceUrl!}
+                        alt="Reference"
+                        className="w-8 h-8 object-cover rounded border border-purple-300 dark:border-purple-600"
+                      />
+                      <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
+                      <button
+                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); }}
+                        className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
+                        title="Remove reference"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {currentImageUrl && (
+                        <button
+                          onClick={() => setPortraitReferenceUrl(currentImageUrl)}
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                        >
+                          Use current image as reference
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowPortraitRefLibrary(!showPortraitRefLibrary)}
+                        className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                      >
+                        {showPortraitRefLibrary ? "Hide library" : "Pick from library"}
+                      </button>
+                    </div>
+                  )}
+                  {showPortraitRefLibrary && !portraitReferenceUrl && !portraitReferenceBase64 && (
+                    <div className="p-2 border border-purple-200 dark:border-purple-700 rounded">
+                      <ImageLibraryPicker
+                        type="token"
+                        onSelect={(url) => { setPortraitReferenceUrl(url); setShowPortraitRefLibrary(false); }}
+                      />
+                    </div>
+                  )}
+
                   {/* Style pills + Generate button row */}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
@@ -2985,7 +3049,7 @@ export function CharacterSheetPanel({
                           </>
                         ) : (
                           <>
-                            Generate Portrait
+                            {portraitReferenceUrl || portraitReferenceBase64 ? "Edit Portrait" : "Generate Portrait"}
                             {portraitRemaining != null && (
                               <span className={`text-xs font-normal ${portraitRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
                                 ({portraitRemaining}{portraitLimit != null ? `/${portraitLimit}` : ""})
@@ -3046,6 +3110,17 @@ export function CharacterSheetPanel({
                           {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
                         </button>
                         <button
+                          onClick={() => {
+                            setPortraitReferenceBase64({ base64: portraitPreview!, mimeType: "image/png" });
+                            setPortraitReferenceUrl(null);
+                            setPortraitPreview(null);
+                          }}
+                          className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer"
+                          title="Use this result as reference for further edits"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleGeneratePortrait()}
                           disabled={isGeneratingPortrait}
                           className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
@@ -3057,6 +3132,9 @@ export function CharacterSheetPanel({
                             setPortraitPreview(null);
                             setShowPortraitGenerator(false);
                             setPortraitError(null);
+                            setPortraitReferenceUrl(null);
+                            setPortraitReferenceBase64(null);
+                            setShowPortraitRefLibrary(false);
                           }}
                           className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
                         >
@@ -3255,10 +3333,14 @@ export function CharacterSheetPanel({
                 {!readOnly && (sheet.appearance ?? "").trim().length > 0 && (
                   <button
                     onClick={() => {
-                      setShowPortraitGenerator(!showPortraitGenerator);
-                      if (!showPortraitGenerator) {
+                      const next = !showPortraitGenerator;
+                      setShowPortraitGenerator(next);
+                      if (!next) {
                         setPortraitError(null);
                         setPortraitPreview(null);
+                        setPortraitReferenceUrl(null);
+                        setPortraitReferenceBase64(null);
+                        setShowPortraitRefLibrary(false);
                       }
                     }}
                     className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
@@ -3281,6 +3363,52 @@ export function CharacterSheetPanel({
               {/* AI Portrait Generator - inline controls */}
               {showPortraitGenerator && !readOnly && (
                 <div className="mt-2 space-y-2">
+                  {/* Reference image */}
+                  {(portraitReferenceUrl || portraitReferenceBase64) ? (
+                    <div className="flex items-center gap-2 p-2 bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700 rounded text-xs">
+                      <img
+                        src={portraitReferenceBase64
+                          ? `data:${portraitReferenceBase64.mimeType};base64,${portraitReferenceBase64.base64}`
+                          : portraitReferenceUrl!}
+                        alt="Reference"
+                        className="w-8 h-8 object-cover rounded border border-purple-300 dark:border-purple-600"
+                      />
+                      <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
+                      <button
+                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); }}
+                        className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
+                        title="Remove reference"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {currentImageUrl && (
+                        <button
+                          onClick={() => setPortraitReferenceUrl(currentImageUrl)}
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                        >
+                          Use current image as reference
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowPortraitRefLibrary(!showPortraitRefLibrary)}
+                        className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                      >
+                        {showPortraitRefLibrary ? "Hide library" : "Pick from library"}
+                      </button>
+                    </div>
+                  )}
+                  {showPortraitRefLibrary && !portraitReferenceUrl && !portraitReferenceBase64 && (
+                    <div className="p-2 border border-purple-200 dark:border-purple-700 rounded">
+                      <ImageLibraryPicker
+                        type="token"
+                        onSelect={(url) => { setPortraitReferenceUrl(url); setShowPortraitRefLibrary(false); }}
+                      />
+                    </div>
+                  )}
+
                   {/* Style pills + Generate button row */}
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
@@ -3313,7 +3441,7 @@ export function CharacterSheetPanel({
                           </>
                         ) : (
                           <>
-                            Generate Portrait
+                            {portraitReferenceUrl || portraitReferenceBase64 ? "Edit Portrait" : "Generate Portrait"}
                             {portraitRemaining != null && (
                               <span className={`text-xs font-normal ${portraitRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
                                 ({portraitRemaining}{portraitLimit != null ? `/${portraitLimit}` : ""})
@@ -3374,6 +3502,17 @@ export function CharacterSheetPanel({
                           {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
                         </button>
                         <button
+                          onClick={() => {
+                            setPortraitReferenceBase64({ base64: portraitPreview!, mimeType: "image/png" });
+                            setPortraitReferenceUrl(null);
+                            setPortraitPreview(null);
+                          }}
+                          className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer"
+                          title="Use this result as reference for further edits"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleGeneratePortrait()}
                           disabled={isGeneratingPortrait}
                           className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
@@ -3385,6 +3524,9 @@ export function CharacterSheetPanel({
                             setPortraitPreview(null);
                             setShowPortraitGenerator(false);
                             setPortraitError(null);
+                            setPortraitReferenceUrl(null);
+                            setPortraitReferenceBase64(null);
+                            setShowPortraitRefLibrary(false);
                           }}
                           className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
                         >

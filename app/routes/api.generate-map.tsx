@@ -4,7 +4,7 @@ import { requireAuth } from "~/.server/auth/session";
 import { getUserTierLimits } from "~/.server/subscription";
 import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
-import { generateBattlemap, type MapArtStyle } from "~/.server/ai/image-generation";
+import { generateBattlemap, type MapArtStyle, type ReferenceImage } from "~/.server/ai/image-generation";
 
 // GET — return usage stats (remaining generations, window)
 export async function loader({ request }: { request: Request }) {
@@ -84,13 +84,37 @@ export async function action({ request }: { request: Request }) {
     gridHeight,
     cellSizeFt: rawCellSize,
     artStyle: rawArtStyle,
+    referenceImageBase64,
+    referenceImageMimeType,
+    referenceImageUrl,
   } = body as {
     prompt: string;
     gridWidth: number;
     gridHeight: number;
     cellSizeFt?: number;
     artStyle?: string;
+    referenceImageBase64?: string;
+    referenceImageMimeType?: string;
+    referenceImageUrl?: string;
   };
+
+  // Build reference image if provided
+  let referenceImage: ReferenceImage | undefined;
+  if (referenceImageBase64 && referenceImageMimeType) {
+    referenceImage = { base64: referenceImageBase64, mimeType: referenceImageMimeType };
+  } else if (referenceImageUrl) {
+    try {
+      const imgRes = await fetch(referenceImageUrl);
+      if (imgRes.ok) {
+        const buf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(buf).toString("base64");
+        const mimeType = imgRes.headers.get("content-type") || "image/png";
+        referenceImage = { base64, mimeType };
+      }
+    } catch {
+      // Ignore fetch errors — proceed without reference image
+    }
+  }
 
   const validArtStyles: MapArtStyle[] = ["realistic", "classic-fantasy", "hd2d"];
   const artStyle: MapArtStyle = validArtStyles.includes(rawArtStyle as MapArtStyle)
@@ -137,7 +161,7 @@ export async function action({ request }: { request: Request }) {
   if (limit === Infinity) {
     try {
       const result = await generateBattlemap(
-        apiKey, prompt.trim(), gridWidth, gridHeight, cellSizeFt, artStyle
+        apiKey, prompt.trim(), gridWidth, gridHeight, cellSizeFt, artStyle, referenceImage
       );
 
       await db.insert(aiImageGenerations).values({

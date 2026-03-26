@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm exec drizzle-kit generate && pnpm exec drizzle-kit migrate && pnpm exec react-router build",
-    "dev": "react-router dev",
+    "dev": "npx concurrently \"react-router dev\" \"partykit dev\"",
     "dev:party": "partykit dev",
     "dev:all": "concurrently \"pnpm dev\" \"pnpm dev:party\"",
     "email:dev": "email dev --dir app/.server/emails",

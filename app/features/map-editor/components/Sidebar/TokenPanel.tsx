@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useShallow } from "zustand/react/shallow";
 import { useMapStore, useEditorStore } from "../../store";
 import { TOKEN_COLORS } from "../../constants";
@@ -9,8 +10,16 @@ import { buildFogSet, isTokenUnderFog } from "../../utils/fog-utils";
 import { MonsterCompendium } from "./MonsterCompendium";
 import { ConfirmModal } from "../ConfirmModal";
 import { UpgradePrompt } from "~/components/UpgradePrompt";
+import { apiUrl } from "~/lib/api-config";
 import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
 import type { TierLimits } from "~/lib/tier-limits";
+
+type PortraitArtStyle = "jrpg" | "classic" | "pixel";
+const PORTRAIT_STYLE_OPTIONS: { value: PortraitArtStyle; label: string }[] = [
+  { value: "jrpg", label: "JRPG" },
+  { value: "classic", label: "Classic" },
+  { value: "pixel", label: "Pixel" },
+];
 
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
@@ -65,6 +74,17 @@ export function TokenPanel({
   const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
   const [createMode, setCreateMode] = useState<"custom" | "compendium">("custom");
   const [deleteConfirm, setDeleteConfirm] = useState<Token | null>(null);
+  const [showAiPortrait, setShowAiPortrait] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiStyle, setAiStyle] = useState<PortraitArtStyle>("jrpg");
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiPreview, setAiPreview] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiReferenceUrl, setAiReferenceUrl] = useState<string | null>(null);
+  const [aiReferenceBase64, setAiReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
+  const [isAiUploading, setIsAiUploading] = useState(false);
+  const [showAiRefLibrary, setShowAiRefLibrary] = useState(false);
+  const [showAiPreviewModal, setShowAiPreviewModal] = useState(false);
   const dragRef = useRef<{ index: number; startY: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +112,10 @@ export function TokenPanel({
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const isTokenOwner = useEditorStore((s) => s.isTokenOwner);
   const getViewportCenterCell = useEditorStore((s) => s.getViewportCenterCell);
+  const aiRemaining = useEditorStore((s) => s.aiImageRemaining);
+  const aiLimit = useEditorStore((s) => s.aiImageLimit);
+  const aiEnabled = useEditorStore((s) => s.aiImageEnabled);
+  const updateAiImageUsage = useEditorStore((s) => s.updateAiImageUsage);
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
@@ -127,6 +151,79 @@ export function TokenPanel({
   const handleLibrarySelect = (url: string) => {
     setTokenImageUrl(url);
     setShowLibrary(false);
+  };
+
+  // AI portrait generation
+  const handleAiGenerate = useCallback(async () => {
+    if (!aiPrompt.trim()) return;
+    setIsAiGenerating(true);
+    setAiError(null);
+    setAiPreview(null);
+
+    try {
+      const bodyPayload: Record<string, unknown> = {
+        prompt: aiPrompt.trim(),
+        tokenSize: tokenSize,
+        artStyle: aiStyle,
+      };
+
+      if (aiReferenceBase64) {
+        bodyPayload.referenceImageBase64 = aiReferenceBase64.base64;
+        bodyPayload.referenceImageMimeType = aiReferenceBase64.mimeType;
+      } else if (aiReferenceUrl) {
+        bodyPayload.referenceImageUrl = aiReferenceUrl;
+      }
+
+      const res = await fetch(apiUrl("/api/generate-portrait"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAiError(data.error || "Failed to generate portrait");
+        return;
+      }
+
+      // Apply chroma key removal for white background transparency
+      let finalBase64 = data.imageBase64;
+      try {
+        const { removeChromaKey } = await import("../../utils/chroma-key");
+        finalBase64 = await removeChromaKey(data.imageBase64, data.mimeType ?? "image/png");
+      } catch (chromaErr) {
+        console.error("Chroma key removal failed, using raw image:", chromaErr);
+      }
+      setAiPreview({ base64: finalBase64, mimeType: "image/png" });
+      updateAiImageUsage(data.remaining ?? null, data.window ?? null);
+    } catch {
+      setAiError("Network error. Please try again.");
+    } finally {
+      setIsAiGenerating(false);
+    }
+  }, [aiPrompt, tokenSize, aiStyle, aiReferenceBase64, aiReferenceUrl, updateAiImageUsage]);
+
+  const handleAiAccept = async () => {
+    if (!aiPreview) return;
+    setIsAiUploading(true);
+
+    const byteString = atob(aiPreview.base64);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    const ext = aiPreview.mimeType === "image/jpeg" ? "jpg" : "png";
+    const file = new File([ab], `ai-portrait.${ext}`, { type: aiPreview.mimeType });
+
+    await startUpload([file]);
+
+    setAiPreview(null);
+    setAiPrompt("");
+    setShowAiPortrait(false);
+    setAiReferenceUrl(null);
+    setAiReferenceBase64(null);
+    setIsAiUploading(false);
   };
 
   // Monster groups from the map
@@ -713,6 +810,196 @@ export function TokenPanel({
                   />
                 </div>
               )}
+
+              {/* AI Portrait toggle */}
+              {aiEnabled !== false && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => {
+                      const next = !showAiPortrait;
+                      setShowAiPortrait(next);
+                      if (!next) { setAiReferenceUrl(null); setAiReferenceBase64(null); }
+                    }}
+                    className="flex items-center gap-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z" />
+                    </svg>
+                    {showAiPortrait ? "Hide AI Portrait" : "AI Portrait"}
+                  </button>
+                </div>
+              )}
+
+              {/* AI Portrait Generator Panel */}
+              {showAiPortrait && (
+                <div className="mt-2 space-y-2.5 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  {/* Reference image */}
+                  {(aiReferenceUrl || aiReferenceBase64) ? (
+                    <div className="flex items-center gap-2 p-2 bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700 rounded text-xs">
+                      <img
+                        src={aiReferenceBase64
+                          ? `data:${aiReferenceBase64.mimeType};base64,${aiReferenceBase64.base64}`
+                          : aiReferenceUrl!}
+                        alt="Reference"
+                        className="w-8 h-8 object-cover rounded border border-purple-300 dark:border-purple-600"
+                      />
+                      <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
+                      <button
+                        onClick={() => { setAiReferenceUrl(null); setAiReferenceBase64(null); }}
+                        className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
+                        title="Remove reference"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {tokenImageUrl && (
+                        <button
+                          onClick={() => setAiReferenceUrl(tokenImageUrl)}
+                          className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                        >
+                          Use current image as reference
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setShowAiRefLibrary(!showAiRefLibrary)}
+                        className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
+                      >
+                        {showAiRefLibrary ? "Hide library" : "Pick from library"}
+                      </button>
+                    </div>
+                  )}
+                  {showAiRefLibrary && !aiReferenceUrl && !aiReferenceBase64 && (
+                    <div className="p-2 border border-purple-200 dark:border-purple-700 rounded">
+                      <ImageLibraryPicker
+                        type="token"
+                        onSelect={(url) => { setAiReferenceUrl(url); setShowAiRefLibrary(false); }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Style pills */}
+                  <div className="flex gap-1.5">
+                    {PORTRAIT_STYLE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setAiStyle(opt.value)}
+                        className={`px-2.5 py-1 text-xs rounded-full cursor-pointer transition-colors ${
+                          aiStyle === opt.value
+                            ? "bg-purple-600 text-white"
+                            : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Prompt */}
+                  <div className="space-y-1">
+                    <textarea
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value.slice(0, 1000))}
+                      placeholder={aiReferenceUrl || aiReferenceBase64
+                        ? "Describe what to change... e.g. Add a glowing sword, change armor to plate mail"
+                        : "Describe your character... e.g. Elven ranger with longbow, green cloak"}
+                      rows={2}
+                      disabled={isAiGenerating}
+                      className="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-2 resize-none placeholder:text-gray-400 disabled:opacity-50"
+                    />
+                    <div className="text-xs text-gray-400 text-right">{aiPrompt.length}/1000</div>
+                  </div>
+
+                  {/* Generate button */}
+                  <button
+                    onClick={handleAiGenerate}
+                    disabled={isAiGenerating || !aiPrompt.trim() || aiRemaining === 0}
+                    className="w-full py-2 px-3 text-sm font-medium rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {isAiGenerating ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        {aiReferenceUrl || aiReferenceBase64 ? "Edit Portrait" : "Generate Portrait"}
+                        {aiRemaining != null && aiLimit != null && (
+                          <span className={`text-xs font-normal ml-1 ${aiRemaining === 0 ? "text-red-300" : "text-purple-300"}`}>
+                            ({aiRemaining}/{aiLimit})
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+
+                  {/* Error */}
+                  {aiError && (
+                    <p className="text-xs text-red-600 dark:text-red-400">{aiError}</p>
+                  )}
+
+                  {/* Preview */}
+                  {aiPreview && (
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAiPreviewModal(true)}
+                        className="block mx-auto cursor-pointer rounded border border-gray-300 dark:border-gray-600 overflow-hidden hover:border-purple-400 dark:hover:border-purple-500 transition-colors group relative"
+                        title="Click to preview full size"
+                      >
+                        <img
+                          src={`data:${aiPreview.mimeType};base64,${aiPreview.base64}`}
+                          alt="AI generated portrait"
+                          className="w-full max-w-[120px] rounded"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors">
+                          <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                          </svg>
+                        </span>
+                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={handleAiAccept}
+                          disabled={isAiUploading}
+                          className="flex-1 py-1.5 px-2 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          {isAiUploading ? "Uploading..." : "Use This"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAiReferenceBase64({ base64: aiPreview.base64, mimeType: aiPreview.mimeType });
+                            setAiReferenceUrl(null);
+                            setAiPreview(null);
+                            setAiPrompt("");
+                          }}
+                          className="py-1.5 px-2 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-700 cursor-pointer"
+                          title="Use this result as reference for further edits"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={handleAiGenerate}
+                          disabled={isAiGenerating}
+                          className="py-1.5 px-2 text-xs font-medium rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 cursor-pointer"
+                        >
+                          Retry
+                        </button>
+                        <button
+                          onClick={() => { setAiPreview(null); setAiError(null); }}
+                          className="py-1.5 px-2 text-xs font-medium rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-500 cursor-pointer"
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -867,6 +1154,29 @@ export function TokenPanel({
       )}
 
       {tokenListContent}
+
+      {/* AI preview full-size modal */}
+      {showAiPreviewModal && aiPreview && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setShowAiPreviewModal(false)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={`data:${aiPreview.mimeType};base64,${aiPreview.base64}`}
+              alt="AI generated portrait full preview"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              onClick={() => setShowAiPreviewModal(false)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center hover:bg-gray-700 cursor-pointer shadow-lg text-lg"
+            >
+              &times;
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
