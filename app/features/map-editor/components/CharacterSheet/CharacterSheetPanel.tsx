@@ -318,16 +318,23 @@ export function CharacterSheetPanel({
   const [portraitReferenceUrl, setPortraitReferenceUrl] = useState<string | null>(null);
   const [portraitReferenceBase64, setPortraitReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
   const [showPortraitRefLibrary, setShowPortraitRefLibrary] = useState(false);
+  const [portraitEditPrompt, setPortraitEditPrompt] = useState("");
 
   const handleGeneratePortrait = useCallback(async () => {
     const appearanceText = (sheet?.appearance ?? "").trim();
+    const isEditing = !!(portraitReferenceUrl || portraitReferenceBase64);
     if (!appearanceText || isGeneratingPortrait) return;
+    if (isEditing && !portraitEditPrompt.trim()) return;
     setIsGeneratingPortrait(true);
     setPortraitError(null);
     setPortraitPreview(null);
     try {
+      // When editing, send edit instructions as prompt; appearance is base context
+      const prompt = isEditing
+        ? `Character appearance: ${appearanceText}\n\nEdit instructions: ${portraitEditPrompt.trim()}`
+        : appearanceText;
       const bodyPayload: Record<string, unknown> = {
-        prompt: appearanceText,
+        prompt,
         tokenSize: token?.size ?? 1,
         artStyle: portraitStyle,
       };
@@ -362,7 +369,7 @@ export function CharacterSheetPanel({
     } finally {
       setIsGeneratingPortrait(false);
     }
-  }, [sheet?.appearance, isGeneratingPortrait, portraitStyle, portraitReferenceUrl, portraitReferenceBase64]);
+  }, [sheet?.appearance, isGeneratingPortrait, portraitStyle, portraitReferenceUrl, portraitReferenceBase64, portraitEditPrompt]);
 
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
   if (charImageUrl !== prevCharImageUrlRef.current) {
@@ -2943,6 +2950,7 @@ export function CharacterSheetPanel({
                         setPortraitReferenceUrl(null);
                         setPortraitReferenceBase64(null);
                         setShowPortraitRefLibrary(false);
+                        setPortraitEditPrompt("");
                       }
                     }}
                     className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
@@ -2983,7 +2991,7 @@ export function CharacterSheetPanel({
                       />
                       <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
                       <button
-                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); }}
+                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); setPortraitEditPrompt(""); }}
                         className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
                         title="Remove reference"
                       >
@@ -3036,7 +3044,7 @@ export function CharacterSheetPanel({
                     <div className="flex items-center gap-1.5 ml-auto">
                       <button
                         onClick={() => handleGeneratePortrait()}
-                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0}
+                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0 || (!!(portraitReferenceUrl || portraitReferenceBase64) && !portraitEditPrompt.trim())}
                         className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                       >
                         {isGeneratingPortrait ? (
@@ -3060,6 +3068,21 @@ export function CharacterSheetPanel({
                       </button>
                     </div>
                   </div>
+
+                  {/* Edit instructions input (when reference image is set) */}
+                  {(portraitReferenceUrl || portraitReferenceBase64) && (
+                    <div className="space-y-1">
+                      <textarea
+                        value={portraitEditPrompt}
+                        onChange={(e) => setPortraitEditPrompt(e.target.value.slice(0, 500))}
+                        placeholder="Describe what to change... e.g. Add a glowing sword, change armor to plate mail"
+                        rows={2}
+                        disabled={isGeneratingPortrait}
+                        className="w-full text-xs rounded border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white p-2 resize-none placeholder:text-gray-400 disabled:opacity-50"
+                      />
+                      <div className="text-xs text-gray-400 text-right">{portraitEditPrompt.length}/500</div>
+                    </div>
+                  )}
 
                   {portraitError && (
                     <div className="text-xs text-red-600 dark:text-red-400">
@@ -3135,6 +3158,7 @@ export function CharacterSheetPanel({
                             setPortraitReferenceUrl(null);
                             setPortraitReferenceBase64(null);
                             setShowPortraitRefLibrary(false);
+                            setPortraitEditPrompt("");
                           }}
                           className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
                         >
@@ -3341,6 +3365,7 @@ export function CharacterSheetPanel({
                         setPortraitReferenceUrl(null);
                         setPortraitReferenceBase64(null);
                         setShowPortraitRefLibrary(false);
+                        setPortraitEditPrompt("");
                       }
                     }}
                     className="text-xs px-2 py-0.5 bg-purple-600 text-white rounded hover:bg-purple-700 cursor-pointer flex items-center gap-1"
@@ -3375,7 +3400,7 @@ export function CharacterSheetPanel({
                       />
                       <span className="flex-1 text-purple-700 dark:text-purple-300 font-medium">Reference image</span>
                       <button
-                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); }}
+                        onClick={() => { setPortraitReferenceUrl(null); setPortraitReferenceBase64(null); setPortraitEditPrompt(""); }}
                         className="text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 cursor-pointer"
                         title="Remove reference"
                       >
@@ -3428,7 +3453,7 @@ export function CharacterSheetPanel({
                     <div className="flex items-center gap-1.5 ml-auto">
                       <button
                         onClick={() => handleGeneratePortrait()}
-                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0}
+                        disabled={isGeneratingPortrait || portraitRemaining === 0 || (sheet?.appearance ?? "").trim().length === 0 || (!!(portraitReferenceUrl || portraitReferenceBase64) && !portraitEditPrompt.trim())}
                         className="text-xs px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                       >
                         {isGeneratingPortrait ? (
@@ -3452,6 +3477,21 @@ export function CharacterSheetPanel({
                       </button>
                     </div>
                   </div>
+
+                  {/* Edit instructions input (when reference image is set) */}
+                  {(portraitReferenceUrl || portraitReferenceBase64) && (
+                    <div className="space-y-1">
+                      <textarea
+                        value={portraitEditPrompt}
+                        onChange={(e) => setPortraitEditPrompt(e.target.value.slice(0, 500))}
+                        placeholder="Describe what to change... e.g. Add a glowing sword, change armor to plate mail"
+                        rows={2}
+                        disabled={isGeneratingPortrait}
+                        className="w-full text-xs rounded border border-purple-300 dark:border-purple-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white p-2 resize-none placeholder:text-gray-400 disabled:opacity-50"
+                      />
+                      <div className="text-xs text-gray-400 text-right">{portraitEditPrompt.length}/500</div>
+                    </div>
+                  )}
 
                   {portraitError && (
                     <div className="text-xs text-red-600 dark:text-red-400">
@@ -3527,6 +3567,7 @@ export function CharacterSheetPanel({
                             setPortraitReferenceUrl(null);
                             setPortraitReferenceBase64(null);
                             setShowPortraitRefLibrary(false);
+                            setPortraitEditPrompt("");
                           }}
                           className="text-xs px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 cursor-pointer"
                         >
