@@ -8,6 +8,7 @@ import { Combobox } from "./Combobox";
 import { formatModifier, getHpPercentage, getHpBarColor, createDefaultCharacterSheet, calculatePassivePerception, getEffectivePassivePerception, ensureSkills, ensureSpeed, calculateProficiencyBonus } from "../../utils/character-utils";
 import { DND_RACES, DND_CLASSES, DND_BACKGROUNDS, DND_WEAPONS, DND_DICE, DND_EQUIPMENT, DND_MAGIC_ITEMS, DND_LANGUAGES, DND_TOOLS, DND_SPECIES_TRAITS, DND_FEATS, DND_SPELL_RANGES, getSubclasses, getSpellNames } from "../../data/character-options";
 import { useIsMobile } from "../../hooks/useIsMobile";
+import { ConfirmModal } from "../ConfirmModal";
 import { apiUrl } from "~/lib/api-config";
 import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
@@ -319,6 +320,7 @@ export function CharacterSheetPanel({
   const [portraitReferenceBase64, setPortraitReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
   const [showPortraitRefLibrary, setShowPortraitRefLibrary] = useState(false);
   const [portraitEditPrompt, setPortraitEditPrompt] = useState("");
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const handleGeneratePortrait = useCallback(async () => {
     const appearanceText = (sheet?.appearance ?? "").trim();
@@ -609,6 +611,15 @@ export function CharacterSheetPanel({
     onClose();
   }, [hasPendingChanges, effectivelyLinked, characterId, syncToServer, onClose]);
 
+  // Guard close: confirm if unsaved portrait or edits exist
+  const handleGuardedClose = useCallback(() => {
+    if (portraitPreview || hasPendingChanges) {
+      setShowCloseConfirm(true);
+    } else {
+      handleClose();
+    }
+  }, [portraitPreview, hasPendingChanges, handleClose]);
+
   // Save token (with sheet) to the current user's library
   const handleSaveToLibrary = useCallback(async () => {
     if (!token || !sheet || !onLinkCharacter) return;
@@ -789,7 +800,23 @@ export function CharacterSheetPanel({
   const hpColor = getHpBarColor(hpPercent);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleGuardedClose}>
+      <ConfirmModal
+        isOpen={showCloseConfirm}
+        title="Unsaved Changes"
+        message={
+          portraitPreview && hasPendingChanges
+            ? "You have an unsaved AI portrait and character edits. Discard everything and close?"
+            : portraitPreview
+              ? "You have an unsaved AI portrait. Discard it and close?"
+              : "You have unsaved character edits. Discard them and close?"
+        }
+        confirmLabel="Discard & Close"
+        cancelLabel="Keep Editing"
+        confirmVariant="danger"
+        onConfirm={() => { setShowCloseConfirm(false); handleClose(); }}
+        onCancel={() => setShowCloseConfirm(false)}
+      />
       <div
         className="bg-white dark:bg-gray-800 shadow-xl w-full h-[100dvh] overflow-y-auto lg:rounded-lg lg:max-w-5xl lg:mx-4 lg:max-h-[90vh] lg:h-auto"
         onClick={(e) => e.stopPropagation()}
@@ -905,7 +932,7 @@ export function CharacterSheetPanel({
                 </div>
 
                 {/* Close button */}
-                <button onClick={handleClose} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
+                <button onClick={handleGuardedClose} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -1288,7 +1315,7 @@ export function CharacterSheetPanel({
             </button>
 
             {/* Close button */}
-            <button onClick={handleClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
+            <button onClick={handleGuardedClose} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer flex-shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
