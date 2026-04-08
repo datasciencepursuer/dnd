@@ -116,7 +116,20 @@ SCALE IS CRITICAL — each grid cell = 5 feet:
 - Fill the ENTIRE image edge-to-edge — NO borders, margins, frames, UI elements, text labels, compass roses, or legends
 - ABSOLUTELY NO grid lines, grid squares, grid overlay, hexagonal grid, or any visible grid pattern — the application overlays its own grid digitally, so the image must be a clean uninterrupted scene with NO drawn grid whatsoever
 - Include natural environmental variation and interesting terrain features
-- Lighting and shadows are fine for atmosphere and readability, but should serve the 2D board game aesthetic, not simulate a 3D environment`;
+- Lighting and shadows are fine for atmosphere and readability, but should serve the 2D board game aesthetic, not simulate a 3D environment
+
+DUNGEON CRAWLING LAYOUT RULES (apply unless the prompt explicitly describes an open/outdoor area):
+- Default to dungeon interiors — stone corridors, underground passages, cave tunnels, castle hallways, crypt passages, or similar enclosed spaces
+- Corridors should be NARROW: typically 2-3 cells (10-15ft) wide. Avoid wide open hallways — tight spaces create tension and tactical decisions
+- Include winding pathways, T-junctions, forks, and dead ends to create exploration and navigational choices
+- Scatter 2-4 encounter chambers along the corridors — these can range from 3×3 cells (small skirmish) up to 7×7 cells (medium encounter), sized to fit the dungeon's scale
+- Include at least one boss chamber: 8×8 to 12×12 cells, with distinct visual features (pillars, elevated platform, ritual circle, throne, etc.)
+- Room shapes should VARY — don't make every room a plain box. Use rectangles, L-shapes, and irregular outlines. Visually, rooms can appear as octagons, circles, cavern shapes, or any organic form — but the actual walkable floor area should resolve to a square or rectangular footprint for grid-based token movement
+- Mix room sizes and proportions: some tall-narrow (3×6), some wide (6×4), some roughly square — variety makes exploration feel rewarding
+- Walls should be clearly visible and distinct from floor — use strong contrast between walkable floor and solid walls/rock
+- Add environmental details that reward exploration: alcoves, collapsed sections, rubble, cracks, dripping water, torches, scattered bones, broken furniture, or dungeon dressing appropriate to the theme
+- Corridors should connect rooms meaningfully — avoid isolated rooms floating in empty space. The layout should feel like a cohesive underground structure
+- If the prompt mentions "open area", "outdoor", "forest", "field", "village", "town", "city", or similar outdoor/open themes, IGNORE these dungeon rules and generate an appropriate open environment instead`;
 
 const MAP_STYLE_PARAGRAPHS: Record<MapArtStyle, string> = {
   realistic: `- Style: Photorealistic bird's-eye view — natural textures (stone, wood, grass, water), atmospheric lighting
