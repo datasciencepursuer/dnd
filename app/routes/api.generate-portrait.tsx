@@ -86,7 +86,7 @@ export async function action({ request }: { request: Request }) {
     referenceImageMimeType?: string;
     referenceImageUrl?: string;
   };
-  const validArtStyles: ArtStyle[] = ["chibi", "classic", "pixel"];
+  const validArtStyles: ArtStyle[] = ["chibi", "fantasy", "pixel"];
   const artStyle: ArtStyle = validArtStyles.includes(rawArtStyle as ArtStyle) ? (rawArtStyle as ArtStyle) : "chibi";
 
   // Build reference image if provided
