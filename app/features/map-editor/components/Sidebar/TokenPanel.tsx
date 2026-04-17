@@ -13,13 +13,11 @@ import { UpgradePrompt } from "~/components/UpgradePrompt";
 import { apiUrl } from "~/lib/api-config";
 import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
 import type { TierLimits } from "~/lib/tier-limits";
-
-type PortraitArtStyle = "jrpg" | "classic" | "pixel";
-const PORTRAIT_STYLE_OPTIONS: { value: PortraitArtStyle; label: string }[] = [
-  { value: "jrpg", label: "JRPG" },
-  { value: "classic", label: "Classic" },
-  { value: "pixel", label: "Pixel" },
-];
+import {
+  PORTRAIT_STYLE_OPTIONS,
+  DEFAULT_PORTRAIT_STYLE,
+  type PortraitArtStyle,
+} from "../../portrait-styles";
 
 interface TokenPanelProps {
   onEditToken?: (token: Token) => void;
@@ -76,7 +74,7 @@ export function TokenPanel({
   const [deleteConfirm, setDeleteConfirm] = useState<Token | null>(null);
   const [showAiPortrait, setShowAiPortrait] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiStyle, setAiStyle] = useState<PortraitArtStyle>("jrpg");
+  const [aiStyle, setAiStyle] = useState<PortraitArtStyle>(DEFAULT_PORTRAIT_STYLE);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiPreview, setAiPreview] = useState<{ base64: string; mimeType: string } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -885,6 +883,7 @@ export function TokenPanel({
                       <button
                         key={opt.value}
                         onClick={() => setAiStyle(opt.value)}
+                        title={opt.tooltip}
                         className={`px-2.5 py-1 text-xs rounded-full cursor-pointer transition-colors ${
                           aiStyle === opt.value
                             ? "bg-purple-600 text-white"

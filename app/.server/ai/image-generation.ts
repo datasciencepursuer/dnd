@@ -1,11 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
+import type { PortraitArtStyle } from "~/features/map-editor/portrait-styles";
 
 // Chroma key color — pure white, universally understood by AI models
 export const CHROMA_KEY_R = 255;
 export const CHROMA_KEY_G = 255;
 export const CHROMA_KEY_B = 255;
 
-export type ArtStyle = "jrpg" | "classic" | "pixel";
+export type ArtStyle = PortraitArtStyle;
 
 const SHARED_REQUIREMENTS = `CRITICAL REQUIREMENTS:
 - The background MUST be solid pure white (#FFFFFF). Fill the ENTIRE background with flat white, no gradients, no shadows, no floor, no scenery
@@ -28,14 +29,14 @@ const STYLE_PARAGRAPHS: Record<ArtStyle, string> = {
 - Style: Colorful JRPG / MapleStory-inspired 2D sprite art — chibi-proportioned with large expressive heads, big eyes, small bodies, thick clean outlines, cel-shaded flat colors, and a cute but detailed aesthetic. Think MapleStory character art, Ragnarok Online sprites, or chibi Final Fantasy Tactics portraits. Bright saturated candy-like colors, exaggerated accessories and weapons, charming and playful energy. Vibrant saturated colors, chibi/stylized proportions, detailed armor/clothing/features with an adorable flair.`,
   classic: `- Clean sharp edges with strong linework and painterly rendering, suitable for compositing onto any map background
 - Style: Bold classic fantasy illustration in the tradition of D&D sourcebook art and Fire Emblem character portraits — detailed hand-painted look with realistic body proportions, rich color palette, dramatic lighting and shading. Think official Player's Handbook artwork, Pathfinder character portraits, or Fire Emblem Heroes full-body art. Heroic poses, intricate armor and clothing details, grounded and serious tone with a sense of epic adventure.`,
-  pixel: `- Crisp pixel-perfect outlines with no anti-aliasing on edges, suitable for compositing onto any map background
-- Style: HD-2D pixel art inspired by Octopath Traveler and Triangle Strategy — carefully placed pixels with rich sub-pixel shading, limited but expressive color palette, and a nostalgic retro RPG feel elevated by modern lighting techniques. Think classic SNES-era Final Fantasy sprites given HD treatment with soft bloom and depth. Dithering for gradients, detailed but readable at small sizes, charming and evocative.`,
+  pixel: `- CHUNKY VISIBLE PIXELS — every edge, shadow, and color transition must be made of clearly readable square pixels. NO smooth anti-aliased curves. NO painterly brushwork. NO airbrushed gradients. If you zoom in you should see individual pixel tiles
+- Style: 16-bit JRPG sprite art in the HD-2D tradition of Octopath Traveler, Triangle Strategy, and SNES-era Final Fantasy / Chrono Trigger character sprites. Strict pixel art discipline — limited indexed palette (roughly 16-32 colors per character), hand-placed dithering for any gradients, hard pixel edges on outlines and shading. The "HD" in HD-2D refers ONLY to soft ambient lighting and gentle bloom around the silhouette — the character itself remains unmistakably pixelated sprite art, not painted illustration. Think of a high-resolution screenshot of a SNES sprite — readable, iconic, blocky, nostalgic.`,
 };
 
 const STYLE_PROMPT_HINTS: Record<ArtStyle, string> = {
   jrpg: "in colorful chibi JRPG sprite art style (MapleStory / Fire Emblem chibi)",
   classic: "in detailed classic fantasy illustration style (D&D sourcebook / Fire Emblem portrait)",
-  pixel: "in HD-2D pixel art style (Octopath Traveler / Triangle Strategy sprites)",
+  pixel: "as a chunky 16-bit pixel-art sprite (HD-2D / Octopath Traveler / SNES Final Fantasy), visible square pixels, no painterly rendering",
 };
 
 function buildSystemInstruction(artStyle: ArtStyle): string {

@@ -14,6 +14,11 @@ import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { useEditorStore } from "../../store";
+import {
+  PORTRAIT_STYLE_OPTIONS,
+  DEFAULT_PORTRAIT_STYLE,
+  type PortraitArtStyle,
+} from "../../portrait-styles";
 
 const FEATURE_CATEGORIES: { value: FeatureCategory; label: string; color: string }[] = [
   { value: "action", label: "Action", color: "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300" },
@@ -315,7 +320,7 @@ export function CharacterSheetPanel({
   const portraitLimit = useEditorStore((s) => s.aiImageLimit);
   const updateAiImageUsage = useEditorStore((s) => s.updateAiImageUsage);
   const [isUploadingPortrait, setIsUploadingPortrait] = useState(false);
-  const [portraitStyle, setPortraitStyle] = useState<"jrpg" | "classic" | "pixel">("jrpg");
+  const [portraitStyle, setPortraitStyle] = useState<PortraitArtStyle>(DEFAULT_PORTRAIT_STYLE);
   const [portraitReferenceUrl, setPortraitReferenceUrl] = useState<string | null>(null);
   const [portraitReferenceBase64, setPortraitReferenceBase64] = useState<{ base64: string; mimeType: string } | null>(null);
   const [showPortraitRefLibrary, setShowPortraitRefLibrary] = useState(false);
@@ -3054,18 +3059,18 @@ export function CharacterSheetPanel({
 
                   {/* Style pills + Generate button row */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
+                    {PORTRAIT_STYLE_OPTIONS.map((opt) => (
                       <button
-                        key={key}
-                        onClick={() => setPortraitStyle(key)}
-                        title={tooltip}
+                        key={opt.value}
+                        onClick={() => setPortraitStyle(opt.value)}
+                        title={opt.tooltip}
                         className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                          portraitStyle === key
+                          portraitStyle === opt.value
                             ? "bg-purple-600 text-white border-purple-600"
                             : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
                         }`}
                       >
-                        {label}
+                        {opt.label}
                       </button>
                     ))}
                     <div className="flex items-center gap-1.5 ml-auto">
@@ -3463,18 +3468,18 @@ export function CharacterSheetPanel({
 
                   {/* Style pills + Generate button row */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    {([["jrpg", "JRPG", "Best for short characters (Cute)"], ["pixel", "HD-2D", "Best for medium characters (Standard)"], ["classic", "Classic Fantasy", "Best for tall characters (Cool)"]] as const).map(([key, label, tooltip]) => (
+                    {PORTRAIT_STYLE_OPTIONS.map((opt) => (
                       <button
-                        key={key}
-                        onClick={() => setPortraitStyle(key)}
-                        title={tooltip}
+                        key={opt.value}
+                        onClick={() => setPortraitStyle(opt.value)}
+                        title={opt.tooltip}
                         className={`text-xs px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
-                          portraitStyle === key
+                          portraitStyle === opt.value
                             ? "bg-purple-600 text-white border-purple-600"
                             : "bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30"
                         }`}
                       >
-                        {label}
+                        {opt.label}
                       </button>
                     ))}
                     <div className="flex items-center gap-1.5 ml-auto">
