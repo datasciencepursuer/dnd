@@ -25,7 +25,7 @@ TOKEN SIZE GUIDELINES (D&D 5e grid, each cell = 5 feet):
 Generate the character at the appropriate visual scale for the requested size. The image will be placed directly on a grid map as a game token.`;
 
 const STYLE_PARAGRAPHS: Record<ArtStyle, string> = {
-  jrpg: `- Clean sharp edges with visible linework, suitable for compositing onto any map background
+  chibi: `- Clean sharp edges with visible linework, suitable for compositing onto any map background
 - Style: Colorful JRPG / MapleStory-inspired 2D sprite art — chibi-proportioned with large expressive heads, big eyes, small bodies, thick clean outlines, cel-shaded flat colors, and a cute but detailed aesthetic. Think MapleStory character art, Ragnarok Online sprites, or chibi Final Fantasy Tactics portraits. Bright saturated candy-like colors, exaggerated accessories and weapons, charming and playful energy. Vibrant saturated colors, chibi/stylized proportions, detailed armor/clothing/features with an adorable flair.`,
   classic: `- Clean sharp edges with strong linework and painterly rendering, suitable for compositing onto any map background
 - Style: Bold classic fantasy illustration in the tradition of D&D sourcebook art and Fire Emblem character portraits — detailed hand-painted look with realistic body proportions, rich color palette, dramatic lighting and shading. Think official Player's Handbook artwork, Pathfinder character portraits, or Fire Emblem Heroes full-body art. Heroic poses, intricate armor and clothing details, grounded and serious tone with a sense of epic adventure.`,
@@ -34,14 +34,14 @@ const STYLE_PARAGRAPHS: Record<ArtStyle, string> = {
 };
 
 const STYLE_PROMPT_HINTS: Record<ArtStyle, string> = {
-  jrpg: "in colorful chibi JRPG sprite art style (MapleStory / Fire Emblem chibi)",
+  chibi: "in colorful chibi JRPG sprite art style (MapleStory / Fire Emblem chibi)",
   classic: "in detailed classic fantasy illustration style (D&D sourcebook / Fire Emblem portrait)",
   pixel: "as a chunky 16-bit pixel-art sprite (HD-2D / Octopath Traveler / SNES Final Fantasy), visible square pixels, no painterly rendering",
 };
 
 function buildSystemInstruction(artStyle: ArtStyle): string {
   const styleLabel =
-    artStyle === "jrpg" ? "a JRPG / MapleStory-inspired style" :
+    artStyle === "chibi" ? "a chibi / MapleStory-inspired style" :
     artStyle === "classic" ? "a classic D&D sourcebook / Fire Emblem portrait style" :
     "an Octopath Traveler / Triangle Strategy HD-2D pixel art style";
   return `You are a 2D fantasy RPG character artist for virtual tabletop (VTT) games, drawing in ${styleLabel}.\n\n${SHARED_REQUIREMENTS}\n\n${STYLE_PARAGRAPHS[artStyle]}`;
@@ -224,7 +224,7 @@ export async function generateCharacterPortrait(
   apiKey: string,
   userPrompt: string,
   tokenSize: number = 1,
-  artStyle: ArtStyle = "jrpg",
+  artStyle: ArtStyle = "chibi",
   referenceImage?: ReferenceImage
 ): Promise<GeneratedImage> {
   const ai = new GoogleGenAI({ apiKey });
