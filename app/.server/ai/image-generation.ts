@@ -237,7 +237,7 @@ export async function generateCharacterPortrait(
 
   const isEdit = !!referenceImage;
   const fullPrompt = isEdit
-    ? `Edit this existing character image based on the following instructions. CRITICAL: You MUST preserve the character's facial features — face shape, eye color, eye shape, nose, mouth, hair color, hairstyle, skin tone, and any distinctive facial marks (scars, tattoos, freckles). The edited character must be clearly recognizable as the same person. Apply these changes: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders.`
+    ? `Use the provided image ONLY as a reference for the character's IDENTITY (face shape, eye color/shape, nose, mouth, hair color/style, skin tone, distinctive marks like scars/tattoos/freckles, and overall species/race). You MUST fully REDRAW the character from scratch ${STYLE_PROMPT_HINTS[artStyle]} — do NOT return the reference image unchanged, do NOT keep the reference's art style, line work, shading, or proportions. The OUTPUT art style must match the requested style exactly, even if the reference is in a completely different style (e.g. reference is anime/fantasy but output must be chibi, or vice versa). Character proportions, pose, linework, and rendering technique must come from the requested style, not the reference. Identity-only preservation: keep the character recognizable as the same person, but everything visual that defines the ART STYLE must be redrawn. Additional changes from the user: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) on a plain white (#FFFFFF) background, no frames or borders.`
     : `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders: ${userPrompt}`;
 
   // Build multimodal content when reference image is provided
@@ -249,7 +249,7 @@ export async function generateCharacterPortrait(
     : fullPrompt;
 
   const systemInstruction = isEdit
-    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image of an existing character is provided. You MUST preserve the character's identity — their facial features (face shape, eyes, nose, mouth, hair, skin tone, distinguishing marks) must remain recognizable in the output. Only modify what the user explicitly requests. Everything else — especially the face — should stay as close to the original as possible.`
+    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image is provided. The reference is for CHARACTER IDENTITY ONLY — face features (face shape, eyes, nose, mouth), hair color/style, skin tone, and distinguishing marks. You MUST completely REDRAW the character in the target art style defined above. If the reference is in a different art style (e.g. anime, fantasy, realistic, pixel), DO NOT preserve that style — fully redraw everything in the target style: its linework, proportions, shading, color palette, and rendering technique must all match the target style. Never return the reference image unchanged. Never copy the reference's art style. Only the character's identity carries over; the visual style comes entirely from the target style description.`
     : buildSystemInstruction(artStyle);
 
   const response = await ai.models.generateContent({
