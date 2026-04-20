@@ -26,7 +26,7 @@ Generate the character at the appropriate visual scale for the requested size. T
 
 const STYLE_PARAGRAPHS: Record<ArtStyle, string> = {
   chibi: `- Clean sharp edges with visible linework, suitable for compositing onto any map background
-- Style: Colorful JRPG / MapleStory-inspired 2D sprite art — chibi-proportioned with large expressive heads, big eyes, small bodies, thick clean outlines, cel-shaded flat colors, and a cute but detailed aesthetic. Think MapleStory character art, Ragnarok Online sprites, or chibi Final Fantasy Tactics portraits. Bright saturated candy-like colors, exaggerated accessories and weapons, charming and playful energy. Vibrant saturated colors, chibi/stylized proportions, detailed armor/clothing/features with an adorable flair.`,
+- Style: Colorful JRPG / MapleStory-inspired 2D sprite art — stylized semi-chibi proportions. The HEAD stays large and expressive (big eyes, readable facial features) for visibility on small grid tokens, but the BODY is longer and more elongated than traditional chibi — roughly 3.5–4 heads tall overall (not the squat 2-head chibi). Torso, arms, and legs have clear length and natural articulation; limbs are NOT stubby. Think "deformed-but-tall" sprite style — MapleStory adventurer sprites, Fire Emblem Heroes portraits with visible limbs, or Granblue Fantasy chibi art — where the character reads as a real adventurer with a slightly oversized head rather than a chibi blob. Thick clean outlines, cel-shaded flat colors, bright saturated candy-like palette, exaggerated accessories and weapons, charming and playful energy. Detailed armor/clothing/features with an adorable flair, but recognizably full-bodied.`,
   fantasy: `- Clean sharp edges with crisp anime linework and cel-shaded rendering, suitable for compositing onto any map background
 - Style: Modern anime and Chinese manhua (donghua) fantasy illustration — sharp confident line art, cel-shaded lighting with clean highlight/shadow separation, xianxia/wuxia-inflected character design with anime-proportioned bodies (tall, slender, stylized but not chibi), expressive faces, and elaborate flowing hair. Think Mo Dao Zu Shi (Grandmaster of Demonic Cultivation), Heaven Official's Blessing, Soul Land (Douluo Dalu), Battle Through the Heavens (Doupo Cangqiong), and modern Chinese 3D donghua character art. Rich saturated colors with dramatic rim lighting, ornate cultivator robes and intricate fantasy armor with flowing cloth and ribbons, heroic dynamic poses, cool and cinematic tone with a sense of epic cultivation-era adventure.`,
   pixel: `- CHUNKY VISIBLE PIXELS — every edge, shadow, and color transition must be made of clearly readable square pixels. NO smooth anti-aliased curves. NO painterly brushwork. NO airbrushed gradients. If you zoom in you should see individual pixel tiles
@@ -34,14 +34,14 @@ const STYLE_PARAGRAPHS: Record<ArtStyle, string> = {
 };
 
 const STYLE_PROMPT_HINTS: Record<ArtStyle, string> = {
-  chibi: "in colorful chibi JRPG sprite art style (MapleStory / Fire Emblem chibi)",
+  chibi: "in colorful semi-chibi JRPG sprite art style (MapleStory / Fire Emblem Heroes) — oversized expressive head for readability but with a longer, fully-articulated body (roughly 3.5–4 heads tall), NOT squat short-limbed chibi",
   fantasy: "in modern anime / Chinese manhua (donghua) fantasy illustration style (Mo Dao Zu Shi / Heaven Official's Blessing / Soul Land / Battle Through the Heavens), sharp cel-shaded line art with xianxia flair",
   pixel: "as a chunky 16-bit pixel-art sprite (HD-2D / Octopath Traveler / SNES Final Fantasy), visible square pixels, no painterly rendering",
 };
 
 function buildSystemInstruction(artStyle: ArtStyle): string {
   const styleLabel =
-    artStyle === "chibi" ? "a chibi / MapleStory-inspired style" :
+    artStyle === "chibi" ? "a semi-chibi / MapleStory-inspired style with an oversized expressive head but a longer, fully-articulated body (roughly 3.5–4 heads tall)" :
     artStyle === "fantasy" ? "a modern anime / Chinese manhua (donghua) fantasy portrait style (Mo Dao Zu Shi / Heaven Official's Blessing / Soul Land / Battle Through the Heavens)" :
     "an Octopath Traveler / Triangle Strategy HD-2D pixel art style";
   return `You are a 2D fantasy RPG character artist for virtual tabletop (VTT) games, drawing in ${styleLabel}.\n\n${SHARED_REQUIREMENTS}\n\n${STYLE_PARAGRAPHS[artStyle]}`;

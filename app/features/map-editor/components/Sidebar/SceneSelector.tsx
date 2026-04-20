@@ -240,9 +240,10 @@ export function SceneSelector({
                 e.stopPropagation();
                 openMenu(scene.id, e.currentTarget);
               }}
-              className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded bg-black/30 text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
+              className="absolute top-0.5 right-0.5 w-6 h-6 lg:w-5 lg:h-5 flex items-center justify-center rounded bg-black/60 lg:bg-black/30 text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
+              title="Scene options (rename, duplicate, delete)"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 lg:w-3 lg:h-3">
                 <path d="M8 2a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM8 6.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM9.5 12.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
               </svg>
             </button>

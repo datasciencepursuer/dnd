@@ -6,11 +6,44 @@ import { PresenceList } from "../Sidebar/PresenceList";
 import { CombatPanel } from "../Sidebar/CombatPanel";
 import { ChatPanel } from "../ChatPanel";
 import { useEditorStore, useChatStore } from "../../store";
-import type { Token, MonsterGroup, InitiativeEntry } from "../../types";
+import type { Token, MonsterGroup, InitiativeEntry, EditorTool, WallType, TerrainType } from "../../types";
 import type { ChatMessageData } from "../../store/chat-store";
 import type { TierLimits } from "~/lib/tier-limits";
 
 type PanelId = "units" | "create" | "editMap" | "players";
+
+const mapEditTools: { id: EditorTool; label: string; icon: string; shortcut: string; hint?: string }[] = [
+  { id: "fog", label: "Fog", icon: "🌫", shortcut: "4", hint: "Drag to paint fog" },
+  { id: "wall", label: "Wall", icon: "🧱", shortcut: "5", hint: "Tap to place wall points, double-tap to finish" },
+  { id: "area", label: "Area", icon: "🗺", shortcut: "6", hint: "Drag to create terrain area" },
+];
+
+const WALL_TYPE_OPTIONS: { value: WallType; label: string }[] = [
+  { value: "wall", label: "Wall" },
+  { value: "half-wall", label: "Half Wall" },
+  { value: "window", label: "Window" },
+  { value: "arrow-slit", label: "Arrow Slit" },
+  { value: "door-closed", label: "Door (Closed)" },
+  { value: "door-open", label: "Door (Open)" },
+  { value: "door-locked", label: "Door (Locked)" },
+  { value: "pillar", label: "Pillar" },
+  { value: "fence", label: "Fence" },
+];
+
+const TERRAIN_TYPE_OPTIONS: { value: TerrainType; label: string }[] = [
+  { value: "difficult", label: "Difficult" },
+  { value: "water-shallow", label: "Shallow Water" },
+  { value: "water-deep", label: "Deep Water" },
+  { value: "ice", label: "Ice" },
+  { value: "lava", label: "Lava" },
+  { value: "pit", label: "Pit" },
+  { value: "chasm", label: "Chasm" },
+  { value: "elevated", label: "Elevated" },
+  { value: "vegetation", label: "Vegetation" },
+  { value: "darkness", label: "Darkness" },
+  { value: "trap", label: "Trap" },
+  { value: "normal", label: "Normal" },
+];
 
 interface MobileSidebarRailProps {
   mapId?: string;
@@ -135,7 +168,12 @@ export function MobileSidebarRail({
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const isPlayingLocally = useEditorStore((s) => s.isPlayingLocally);
   const setBuildMode = useEditorStore((s) => s.setBuildMode);
+  const selectedTool = useEditorStore((s) => s.selectedTool);
   const setTool = useEditorStore((s) => s.setTool);
+  const currentWallType = useEditorStore((s) => s.currentWallType);
+  const setWallType = useEditorStore((s) => s.setWallType);
+  const currentTerrainType = useEditorStore((s) => s.currentTerrainType);
+  const setTerrainType = useEditorStore((s) => s.setTerrainType);
   const unreadCount = useChatStore((s) => s.unreadCount);
   const setChatOpen = useChatStore((s) => s.setOpen);
 
@@ -143,12 +181,15 @@ export function MobileSidebarRail({
     setActivePanel(null);
     setChatOverlay(false);
     setChatOpen(false);
+    setBuildMode(false);
   };
 
   const togglePanel = (id: PanelId) => {
     setChatOverlay(false);
     setChatOpen(false);
-    setActivePanel(activePanel === id ? null : id);
+    const next = activePanel === id ? null : id;
+    setActivePanel(next);
+    setBuildMode(next === "editMap");
   };
 
   const handleSetupEnvironment = () => {
@@ -288,6 +329,61 @@ export function MobileSidebarRail({
                   />
                 )}
                 <BackgroundPanel mapId={mapId} onBackgroundChange={onBackgroundChange} />
+                {/* DM Tools: Fog, Wall, Area */}
+                <div className="px-3 py-2 space-y-2 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tools</h3>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {mapEditTools.map((tool) => {
+                      const isLocked = (tool.id === "wall" || tool.id === "area") && tierLimits && !tierLimits.wallsAndTerrain;
+                      return (
+                        <button
+                          key={tool.id}
+                          onClick={() => !isLocked && setTool(tool.id)}
+                          disabled={!!isLocked}
+                          className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded text-xs font-medium transition-colors ${
+                            isLocked
+                              ? "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500"
+                              : selectedTool === tool.id
+                                ? "bg-blue-600 text-white cursor-pointer"
+                                : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                          }`}
+                          title={isLocked ? `${tool.label} requires Hero plan` : tool.hint || `${tool.label} (${tool.shortcut})`}
+                        >
+                          <span className="text-base">{tool.icon}</span>
+                          <span>{tool.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedTool === "wall" && (
+                    <div className="pt-1">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Wall Type</label>
+                      <select
+                        value={currentWallType}
+                        onChange={(e) => setWallType(e.target.value as WallType)}
+                        className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      >
+                        {WALL_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {selectedTool === "area" && (
+                    <div className="pt-1">
+                      <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Terrain Type</label>
+                      <select
+                        value={currentTerrainType}
+                        onChange={(e) => setTerrainType(e.target.value as TerrainType)}
+                        className="w-full text-sm px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                      >
+                        {TERRAIN_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             {activePanel === "players" && mapId && (

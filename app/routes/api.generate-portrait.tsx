@@ -202,7 +202,7 @@ export async function action({ request }: { request: Request }) {
   // Generate image
   try {
     const size = typeof tokenSize === "number" && tokenSize >= 1 && tokenSize <= 4 ? tokenSize : 1;
-    const result = await generateCharacterPortrait(apiKey, prompt.trim(), size, artStyle);
+    const result = await generateCharacterPortrait(apiKey, prompt.trim(), size, artStyle, referenceImage);
 
     // Record the generation
     await db.insert(aiImageGenerations).values({
