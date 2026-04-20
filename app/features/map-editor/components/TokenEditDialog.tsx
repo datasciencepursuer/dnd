@@ -262,6 +262,35 @@ export function TokenEditDialog({
     }
   };
 
+  // Fetch a token image URL and convert it to base64 so the server doesn't have to
+  // refetch it (avoids CDN auth / CORS / cold-start fetch failures silently dropping the reference).
+  const loadReferenceFromUrl = useCallback(async (url: string) => {
+    setAiError(null);
+    // Optimistically set URL so UI shows "reference attached" state immediately
+    setAiReferenceUrl(url);
+    setAiReferenceBase64(null);
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const mimeType = blob.type || "image/png";
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const commaIdx = result.indexOf(",");
+          resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+      setAiReferenceBase64({ base64, mimeType });
+      setAiReferenceUrl(null);
+    } catch {
+      // Keep URL as fallback — server will attempt to fetch it and will surface any failure.
+    }
+  }, []);
+
   const handleSave = () => {
     const updates: Record<string, unknown> = {
       name: name.trim() || "Unnamed Token",
@@ -730,7 +759,7 @@ export function TokenEditDialog({
                   <div className="flex items-center gap-2">
                     {imageUrl && (
                       <button
-                        onClick={() => setAiReferenceUrl(imageUrl)}
+                        onClick={() => loadReferenceFromUrl(imageUrl)}
                         className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer underline"
                       >
                         Use current image as reference
@@ -748,7 +777,7 @@ export function TokenEditDialog({
                   <div className="p-2 border border-purple-200 dark:border-purple-700 rounded">
                     <ImageLibraryPicker
                       type="token"
-                      onSelect={(url) => { setAiReferenceUrl(url); setShowAiRefLibrary(false); }}
+                      onSelect={(url) => { loadReferenceFromUrl(url); setShowAiRefLibrary(false); }}
                     />
                   </div>
                 )}

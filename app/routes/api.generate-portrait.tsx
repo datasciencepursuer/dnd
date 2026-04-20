@@ -96,14 +96,22 @@ export async function action({ request }: { request: Request }) {
   } else if (referenceImageUrl) {
     try {
       const imgRes = await fetch(referenceImageUrl);
-      if (imgRes.ok) {
-        const buf = await imgRes.arrayBuffer();
-        const base64 = Buffer.from(buf).toString("base64");
-        const mimeType = imgRes.headers.get("content-type") || "image/png";
-        referenceImage = { base64, mimeType };
+      if (!imgRes.ok) {
+        return Response.json(
+          { error: `Could not load reference image (HTTP ${imgRes.status}). Try uploading the image as a token first, then retry.` },
+          { status: 422 }
+        );
       }
-    } catch {
-      // Ignore fetch errors — proceed without reference image
+      const buf = await imgRes.arrayBuffer();
+      const base64 = Buffer.from(buf).toString("base64");
+      const mimeType = imgRes.headers.get("content-type") || "image/png";
+      referenceImage = { base64, mimeType };
+    } catch (err) {
+      console.error("[Portrait Generation] Reference fetch failed:", err);
+      return Response.json(
+        { error: "Could not load reference image. Try uploading the image as a token first, then retry." },
+        { status: 422 }
+      );
     }
   }
 
