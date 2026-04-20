@@ -23,11 +23,8 @@ export function SceneSelector({
   maxScenes,
 }: SceneSelectorProps) {
   const map = useMapStore((s) => s.map);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [menuPosition, setMenuPosition] = useState<"left" | "right">("left");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -48,36 +45,6 @@ export function SceneSelector({
     setSelectedTokenIds(new Set());
   }, [activeSceneId]);
 
-  // Determine if the menu should open left or right based on available space
-  const openMenu = useCallback((sceneId: string, triggerEl: HTMLElement) => {
-    if (menuOpenId === sceneId) {
-      setMenuOpenId(null);
-      return;
-    }
-
-    // Check if there's enough room to the right (128px menu width)
-    const containerRect = containerRef.current?.getBoundingClientRect();
-    const triggerRect = triggerEl.getBoundingClientRect();
-    const spaceRight = containerRect
-      ? containerRect.right - triggerRect.right
-      : window.innerWidth - triggerRect.right;
-
-    setMenuPosition(spaceRight >= 128 ? "left" : "right");
-    setMenuOpenId(sceneId);
-  }, [menuOpenId]);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (!menuOpenId) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpenId(null);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [menuOpenId]);
-
   // Focus rename input when starting rename
   useEffect(() => {
     if (renamingId && renameInputRef.current) {
@@ -94,7 +61,6 @@ export function SceneSelector({
   const handleStartRename = (scene: SceneInfo) => {
     setRenamingId(scene.id);
     setRenameValue(scene.name);
-    setMenuOpenId(null);
   };
 
   const handleCommitRename = () => {
@@ -234,53 +200,38 @@ export function SceneSelector({
               </div>
             </button>
 
-            {/* Context menu trigger — always visible on touch, hover-reveal on desktop */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                openMenu(scene.id, e.currentTarget);
-              }}
-              className="absolute top-0.5 right-0.5 w-6 h-6 lg:w-5 lg:h-5 flex items-center justify-center rounded bg-black/60 lg:bg-black/30 text-white lg:opacity-0 lg:group-hover:opacity-100 transition-opacity cursor-pointer"
-              title="Scene options (rename, duplicate, delete)"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 lg:w-3 lg:h-3">
-                <path d="M8 2a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM8 6.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM9.5 12.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-              </svg>
-            </button>
-
-            {/* Context menu — positioned dynamically to stay in view */}
-            {menuOpenId === scene.id && (
-              <div
-                ref={menuRef}
-                className={`absolute top-6 z-50 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 ${
-                  menuPosition === "right" ? "right-0" : "left-0"
-                }`}
-              >
+            {/* Action icons overlaid on scene card — always visible on touch, hover-reveal on desktop */}
+            {renamingId !== scene.id && (
+              <div className="absolute top-0.5 right-0.5 left-0.5 flex items-center justify-end gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity pointer-events-none">
                 <button
-                  onClick={() => handleStartRename(scene)}
-                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); handleStartRename(scene); }}
+                  className="pointer-events-auto w-5 h-5 flex items-center justify-center rounded bg-black/60 text-white hover:bg-black/80 cursor-pointer"
+                  title="Rename scene"
                 >
-                  Rename
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                    <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                  </svg>
                 </button>
                 <button
-                  onClick={() => {
-                    onDuplicateScene(scene.id);
-                    setMenuOpenId(null);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); if (!atLimit) onDuplicateScene(scene.id); }}
                   disabled={atLimit}
-                  className="w-full px-3 py-1.5 text-xs text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 cursor-pointer"
+                  className="pointer-events-auto w-5 h-5 flex items-center justify-center rounded bg-black/60 text-white hover:bg-black/80 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title={atLimit ? `Max ${effectiveMax} scenes` : "Duplicate scene"}
                 >
-                  Duplicate
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                    <path d="M7 3a1 1 0 011-1h8a1 1 0 011 1v10a1 1 0 01-1 1h-2v-6a3 3 0 00-3-3H7V3z" />
+                    <path d="M3 7a1 1 0 011-1h8a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7z" />
+                  </svg>
                 </button>
                 <button
-                  onClick={() => {
-                    onDeleteScene(scene.id);
-                    setMenuOpenId(null);
-                  }}
+                  onClick={(e) => { e.stopPropagation(); if (totalScenes > 1) onDeleteScene(scene.id); }}
                   disabled={totalScenes <= 1}
-                  className="w-full px-3 py-1.5 text-xs text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 cursor-pointer"
+                  className="pointer-events-auto w-5 h-5 flex items-center justify-center rounded bg-red-600/80 text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title={totalScenes <= 1 ? "Cannot delete last scene" : "Delete scene"}
                 >
-                  Delete
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193V3.75A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
             )}
