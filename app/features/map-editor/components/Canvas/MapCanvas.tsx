@@ -1462,7 +1462,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               dash={[5, 5]}
             />
           )}
-          {/* Token drag overlay — rendered above fog/pings so line and ghost are always visible */}
+        </Layer>
+        {/* Dedicated layer for the moving token ghost. Isolated from the fog/
+            overlay-token canvas so per-frame drag updates only redraw this small
+            layer instead of re-rasterizing fog gradients and every overlay token.
+            Stacking is unchanged: above the overlay layer, below controls. */}
+        <Layer name="drag" listening={false}>
           {dragOverlay && (
             <DragOverlay
               dragState={dragOverlay.dragState}
