@@ -1388,6 +1388,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
           <Group>
             <PingLayer pings={activePings} />
           </Group>
+        </Layer>
+        {/* Dedicated layer for all transient, high-frequency previews: the token
+            drag ghost plus the wall / area / erase-rectangle previews. Isolated
+            from the fog + overlay-token canvas so their per-frame imperative
+            batchDraw repaints only this small layer instead of re-rasterizing fog
+            gradients and every overlay token. Stacking is unchanged: above the
+            overlay layer, below controls. */}
+        <Layer name="preview" listening={false}>
           {/* Wall preview: placed points + preview line to cursor */}
           {buildMode && selectedTool === "wall" && wallPoints.length > 0 && (
             <>
@@ -1462,12 +1470,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               dash={[5, 5]}
             />
           )}
-        </Layer>
-        {/* Dedicated layer for the moving token ghost. Isolated from the fog/
-            overlay-token canvas so per-frame drag updates only redraw this small
-            layer instead of re-rasterizing fog gradients and every overlay token.
-            Stacking is unchanged: above the overlay layer, below controls. */}
-        <Layer name="drag" listening={false}>
+          {/* Token drag ghost — line, distance label, destination ghost */}
           {dragOverlay && (
             <DragOverlay
               dragState={dragOverlay.dragState}

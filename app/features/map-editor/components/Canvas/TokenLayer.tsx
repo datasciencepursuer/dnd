@@ -1,6 +1,6 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
 import Konva from "konva";
-import { useState, useRef, useCallback, useEffect, useLayoutEffect, memo } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, memo } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
@@ -601,6 +601,11 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
   const isPanning = useEditorStore((s) => s.isPanning);
+  // Permission context — subscribed only so the memoized z-order below recomputes
+  // when movability changes (DM transfer, permission edits), never per drag frame.
+  const permissions = useEditorStore((s) => s.permissions);
+  const permission = useEditorStore((s) => s.permission);
+  const userId = useEditorStore((s) => s.userId);
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [lockedMouseDownId, setLockedMouseDownId] = useState<string | null>(null);
@@ -893,18 +898,24 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
     onDragChangeRef.current?.(dragState, draggingTokenRef.current);
   }, [dragState]);
 
+  // Z-order: movable above locked, then selected, then hovered on top.
+  // Memoized so the per-frame drag re-render (dragState position changes) doesn't
+  // recompute the sort — it only depends on token set, selection, hover, and perms.
+  const sortedTokens = useMemo(() => {
+    return [...tokens].sort((a, b) => {
+      const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
+      const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
+      const aSelected = selectedIds.includes(a.id) ? 2 : 0;
+      const bSelected = selectedIds.includes(b.id) ? 2 : 0;
+      const aHovered = hoveredTokenId === a.id ? 4 : 0;
+      const bHovered = hoveredTokenId === b.id ? 4 : 0;
+      return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
+    });
+  }, [tokens, selectedIds, hoveredTokenId, canMoveToken, permissions, permission, userId]);
+
   return (
     <>
-      {/* Sort tokens: movable (non-locked) above locked, then selected/hovered on top */}
-      {[...tokens].sort((a, b) => {
-        const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
-        const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
-        const aSelected = selectedIds.includes(a.id) ? 2 : 0;
-        const bSelected = selectedIds.includes(b.id) ? 2 : 0;
-        const aHovered = hoveredTokenId === a.id ? 4 : 0;
-        const bHovered = hoveredTokenId === b.id ? 4 : 0;
-        return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
-      }).map((token) => {
+      {sortedTokens.map((token) => {
         if (!token.visible) return null;
 
         const isMovable = canMoveToken(token.ownerId);
@@ -1372,18 +1383,26 @@ interface NonFoggedTokensOverlayProps {
 export const NonFoggedTokensOverlay = memo(function NonFoggedTokensOverlay({ tokens, cellSize, isDM, hoveredTokenId }: NonFoggedTokensOverlayProps) {
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
   const canMoveToken = useEditorStore((s) => s.canMoveToken);
+  const permissions = useEditorStore((s) => s.permissions);
+  const permission = useEditorStore((s) => s.permission);
+  const userId = useEditorStore((s) => s.userId);
+
+  // Same z-order as TokenLayer; memoized so unrelated re-renders don't re-sort.
+  const sortedTokens = useMemo(() => {
+    return [...tokens].sort((a, b) => {
+      const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
+      const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
+      const aSelected = selectedIds.includes(a.id) ? 2 : 0;
+      const bSelected = selectedIds.includes(b.id) ? 2 : 0;
+      const aHovered = hoveredTokenId === a.id ? 4 : 0;
+      const bHovered = hoveredTokenId === b.id ? 4 : 0;
+      return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
+    });
+  }, [tokens, selectedIds, hoveredTokenId, canMoveToken, permissions, permission, userId]);
 
   return (
     <>
-      {[...tokens].sort((a, b) => {
-        const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
-        const bMovable = canMoveToken(b.ownerId) ? 1 : 0;
-        const aSelected = selectedIds.includes(a.id) ? 2 : 0;
-        const bSelected = selectedIds.includes(b.id) ? 2 : 0;
-        const aHovered = hoveredTokenId === a.id ? 4 : 0;
-        const bHovered = hoveredTokenId === b.id ? 4 : 0;
-        return (aMovable + aSelected + aHovered) - (bMovable + bSelected + bHovered);
-      }).map((token) => (
+      {sortedTokens.map((token) => (
         <OverlayTokenItem
           key={`overlay-${token.id}`}
           token={token}
