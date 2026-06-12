@@ -5,7 +5,7 @@ import { BackgroundLayer } from "./BackgroundLayer";
 import { GridLayer } from "./GridLayer";
 import { AuraLayer } from "./AuraLayer";
 import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay, DragOverlay, SelectedTokenControls } from "./TokenLayer";
-import type { DragState } from "./TokenLayer";
+import type { DragState, DragOverlayHandle } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { WallLayer } from "./WallLayer";
 import { AreaLayer } from "./AreaLayer";
@@ -159,8 +159,11 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   // Hovered token state (lifted from TokenLayer)
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
 
-  // Drag overlay state (lifted from TokenLayer so we can render above fog)
+  // Drag overlay state (lifted from TokenLayer so we can render above fog).
+  // Set only on drag start/end — per-move position updates go through
+  // dragOverlayHandleRef imperatively, with no React render.
   const [dragOverlay, setDragOverlay] = useState<{ dragState: DragState; token: Token } | null>(null);
+  const dragOverlayHandleRef = useRef<DragOverlayHandle | null>(null);
   const handleDragChange = useCallback((dragState: DragState | null, token: Token | null) => {
     setDragOverlay(dragState && token ? { dragState, token } : null);
   }, []);
@@ -1360,6 +1363,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               onTokenMoved={onTokenMoved}
               onAutoScroll={handleAutoScroll}
               onDragChange={handleDragChange}
+              dragOverlayRef={dragOverlayHandleRef}
             />
           </Group>
         </Layer>
@@ -1473,6 +1477,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
           {/* Token drag ghost — line, distance label, destination ghost */}
           {dragOverlay && (
             <DragOverlay
+              ref={dragOverlayHandleRef}
               dragState={dragOverlay.dragState}
               token={dragOverlay.token}
               cellSize={cellSize}

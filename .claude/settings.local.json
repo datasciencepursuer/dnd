@@ -58,7 +58,8 @@
       "Bash(rtk git diff --stat)",
       "Bash(rtk tsc)",
       "Bash(rtk pnpm run typecheck 2>&1)",
-      "Bash(rtk git:*)"
+      "Bash(rtk git:*)",
+      "Bash(rtk find *)"
     ]
   }
 }

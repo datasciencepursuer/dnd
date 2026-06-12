@@ -1,6 +1,6 @@
 import { Circle, Group, Text, Image, Rect, Line } from "react-konva";
 import Konva from "konva";
-import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo, memo } from "react";
+import { useState, useRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, memo } from "react";
 import type { Token, GridPosition } from "../../types";
 import { useMapStore, useEditorStore } from "../../store";
 import { useImage } from "../../hooks";
@@ -482,99 +482,140 @@ function TokenGhost({
   );
 }
 
-// Drag overlay — renders path line, distance label, and ghost during drag
-// Isolated so drag position updates don't re-render TokenItems
+// Drag overlay — renders path line, distance label, and ghost during drag.
+// Mounted once on drag start; per-move position updates go through the
+// imperative handle (update) so no React render happens while the finger moves.
+export interface DragOverlayHandle {
+  /** Update overlay to a new pointer position (world coords). Recomputes only when the snapped cell changes. */
+  update: (worldX: number, worldY: number) => void;
+}
+
 export interface DragOverlayProps {
   dragState: DragState;
   token: Token;
   cellSize: number;
   walls: WallSegment[];
   areas: AreaShape[];
+  ref?: React.Ref<DragOverlayHandle>;
 }
 
-export function DragOverlay({ dragState, token, cellSize, walls, areas }: DragOverlayProps) {
+export function DragOverlay({ dragState, token, cellSize, walls, areas, ref }: DragOverlayProps) {
+  const lineRef = useRef<Konva.Line>(null);
+  const labelGroupRef = useRef<Konva.Group>(null);
+  const labelRectRef = useRef<Konva.Rect>(null);
+  const labelTextRef = useRef<Konva.Text>(null);
+  const ghostGroupRef = useRef<Konva.Group>(null);
+  const lastCellRef = useRef<{ col: number; row: number } | null>(null);
+
   const offset = (token.size * cellSize) / 2;
-
-  // Get snapped destination for ghost
-  const col = Math.round((dragState.currentX - offset) / cellSize);
-  const row = Math.round((dragState.currentY - offset) / cellSize);
-  const snappedX = col * cellSize + offset;
-  const snappedY = row * cellSize + offset;
-
-  // Calculate distance in cells (using center-to-center)
   const startCol = Math.round((dragState.startX - offset) / cellSize);
   const startRow = Math.round((dragState.startY - offset) / cellSize);
 
-  // Compute terrain-aware movement info
-  const moveInfo = computeDragMovementInfo(
-    startCol, startRow, col, row, token.size, walls, areas,
-  );
-  const distanceInFeet = Math.round(moveInfo.totalFeet * 10) / 10;
+  useImperativeHandle(ref, () => ({
+    update: (worldX: number, worldY: number) => {
+      const col = Math.round((worldX - offset) / cellSize);
+      const row = Math.round((worldY - offset) / cellSize);
 
-  // Walk speed: character sheet walk speed or default 30ft
-  const walkSpeed = token.characterSheet?.speed.walk ?? 30;
-  const isOverSpeed = distanceInFeet > walkSpeed;
-  const lineColor = distanceInFeet === 0 ? token.color : isOverSpeed ? "#ef4444" : "#22c55e";
+      // Distance, label, line endpoint, and ghost all derive from the snapped
+      // cell — skip everything until the destination cell changes.
+      const last = lastCellRef.current;
+      if (last && last.col === col && last.row === row) return;
+      lastCellRef.current = { col, row };
 
-  // Build display text: distance + wall crossing only
-  const feetText = Number.isInteger(distanceInFeet)
-    ? `${distanceInFeet}ft`
-    : `${distanceInFeet.toFixed(1)}ft`;
-  const indicators: string[] = [feetText];
-  if (moveInfo.crossedWallIds.length > 0) indicators.push("Wall");
-  const displayText = indicators.join(" | ");
+      const snappedX = col * cellSize + offset;
+      const snappedY = row * cellSize + offset;
 
-  // Position the label at the midpoint of the line
-  const midX = (dragState.startX + snappedX) / 2;
-  const midY = (dragState.startY + snappedY) / 2;
+      const moveInfo = computeDragMovementInfo(
+        startCol, startRow, col, row, token.size, walls, areas,
+      );
+      const distanceInFeet = Math.round(moveInfo.totalFeet * 10) / 10;
 
-  const labelWidth = Math.max(40, displayText.length * 8 + 12);
+      const walkSpeed = token.characterSheet?.speed.walk ?? 30;
+      const isOverSpeed = distanceInFeet > walkSpeed;
+      const lineColor = distanceInFeet === 0 ? token.color : isOverSpeed ? "#ef4444" : "#22c55e";
 
-  // Warning color for wall crossing
-  const hasWarning = moveInfo.crossedWallIds.length > 0;
+      const feetText = Number.isInteger(distanceInFeet)
+        ? `${distanceInFeet}ft`
+        : `${distanceInFeet.toFixed(1)}ft`;
+      const indicators: string[] = [feetText];
+      if (moveInfo.crossedWallIds.length > 0) indicators.push("Wall");
+      const displayText = indicators.join(" | ");
+      const labelWidth = Math.max(40, displayText.length * 8 + 12);
+      const hasWarning = moveInfo.crossedWallIds.length > 0;
+
+      const line = lineRef.current;
+      if (line) {
+        line.points([dragState.startX, dragState.startY, snappedX, snappedY]);
+        line.stroke(lineColor);
+      }
+
+      const labelGroup = labelGroupRef.current;
+      if (labelGroup) {
+        labelGroup.visible(distanceInFeet > 0);
+        labelGroup.position({
+          x: (dragState.startX + snappedX) / 2,
+          y: (dragState.startY + snappedY) / 2,
+        });
+      }
+      const labelRect = labelRectRef.current;
+      if (labelRect) {
+        labelRect.width(labelWidth);
+        labelRect.offsetX(labelWidth / 2);
+        labelRect.stroke(hasWarning ? "#ef4444" : "");
+        labelRect.strokeWidth(hasWarning ? 1.5 : 0);
+      }
+      const labelText = labelTextRef.current;
+      if (labelText) {
+        labelText.text(displayText);
+        labelText.fill(lineColor);
+        labelText.width(labelWidth);
+        labelText.offsetX(labelWidth / 2);
+      }
+
+      ghostGroupRef.current?.position({ x: snappedX, y: snappedY });
+
+      line?.getLayer()?.batchDraw();
+    },
+  }), [dragState.startX, dragState.startY, startCol, startRow, offset, cellSize, token, walls, areas]);
 
   return (
     <>
       <Line
-        points={[dragState.startX, dragState.startY, snappedX, snappedY]}
-        stroke={lineColor}
+        ref={lineRef}
+        points={[dragState.startX, dragState.startY, dragState.startX, dragState.startY]}
+        stroke={token.color}
         strokeWidth={3}
         dash={[10, 5]}
         lineCap="round"
         lineJoin="round"
       />
-      {/* Distance label */}
-      {distanceInFeet > 0 && (
-        <Group x={midX} y={midY}>
-          <Rect
-            offsetX={labelWidth / 2}
-            offsetY={12}
-            width={labelWidth}
-            height={24}
-            fill="rgba(0, 0, 0, 0.85)"
-            cornerRadius={4}
-            stroke={hasWarning ? "#ef4444" : undefined}
-            strokeWidth={hasWarning ? 1.5 : 0}
-          />
-          <Text
-            text={displayText}
-            fontSize={13}
-            fontStyle="bold"
-            fill={lineColor}
-            align="center"
-            width={labelWidth}
-            offsetX={labelWidth / 2}
-            offsetY={7}
-          />
-        </Group>
-      )}
-      {/* Ghost at destination */}
-      <TokenGhost
-        token={token}
-        cellSize={cellSize}
-        x={snappedX}
-        y={snappedY}
-      />
+      {/* Distance label — always mounted, visibility toggled imperatively */}
+      <Group ref={labelGroupRef} x={dragState.startX} y={dragState.startY} visible={false}>
+        <Rect
+          ref={labelRectRef}
+          offsetX={20}
+          offsetY={12}
+          width={40}
+          height={24}
+          fill="rgba(0, 0, 0, 0.85)"
+          cornerRadius={4}
+        />
+        <Text
+          ref={labelTextRef}
+          text=""
+          fontSize={13}
+          fontStyle="bold"
+          fill={token.color}
+          align="center"
+          width={40}
+          offsetX={20}
+          offsetY={7}
+        />
+      </Group>
+      {/* Ghost at destination — positioned imperatively via ghostGroupRef */}
+      <Group ref={ghostGroupRef} x={dragState.startX} y={dragState.startY}>
+        <TokenGhost token={token} cellSize={cellSize} x={0} y={0} />
+      </Group>
     </>
   );
 }
@@ -590,9 +631,10 @@ interface TokenLayerProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onAutoScroll?: (dx: number, dy: number) => void;
   onDragChange?: (dragState: DragState | null, token: Token | null) => void;
+  dragOverlayRef?: React.RefObject<DragOverlayHandle | null>;
 }
 
-export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onAutoScroll, onDragChange }: TokenLayerProps) {
+export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onAutoScroll, onDragChange, dragOverlayRef }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
@@ -639,6 +681,8 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   onAutoScrollRef.current = onAutoScroll;
   const onDragChangeRef = useRef(onDragChange);
   onDragChangeRef.current = onDragChange;
+  const dragOverlayRefRef = useRef(dragOverlayRef);
+  dragOverlayRefRef.current = dragOverlayRef;
 
   // Handle mouse/touch move during drag - use refs to avoid effect re-running on every move
   useEffect(() => {
@@ -665,7 +709,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
           const mouseY = (lastClientPosRef.current.y - rect.top - stageY) / scale;
 
           dragPositionRef.current = { x: mouseX, y: mouseY };
-          setDragState((prev) => prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null);
+          dragOverlayRefRef.current?.current?.update(mouseX, mouseY);
         }
       }
 
@@ -694,9 +738,8 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
       dragPositionRef.current = { x: mouseX, y: mouseY };
 
-      setDragState((prev) =>
-        prev ? { ...prev, currentX: mouseX, currentY: mouseY } : null
-      );
+      // Imperative overlay update — no React render per move event
+      dragOverlayRefRef.current?.current?.update(mouseX, mouseY);
 
       // Start auto-scroll loop if not already running
       if (autoScrollRafRef.current === null) {
@@ -899,8 +942,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   }, [dragState]);
 
   // Z-order: movable above locked, then selected, then hovered on top.
-  // Memoized so the per-frame drag re-render (dragState position changes) doesn't
-  // recompute the sort — it only depends on token set, selection, hover, and perms.
+  // Memoized — only depends on token set, selection, hover, and perms.
   const sortedTokens = useMemo(() => {
     return [...tokens].sort((a, b) => {
       const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
