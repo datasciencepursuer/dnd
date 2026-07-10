@@ -1,16 +1,27 @@
-import { UTApi } from "uploadthing/server";
+import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "~/.server/auth/session";
-import { env } from "~/.server/env";
+import { db } from "~/.server/db";
+import { uploads } from "~/.server/db/schema";
 
 export async function loader({ request }: { request: Request }) {
-  // Require authentication to list files
-  await requireAuth(request);
-
-  const utapi = new UTApi({ token: env.UPLOADTHING_TOKEN });
+  const session = await requireAuth(request);
 
   try {
-    const files = await utapi.listFiles();
-    return Response.json({ files: files.files });
+    const files = await db
+      .select({
+        id: uploads.id,
+        url: uploads.url,
+        type: uploads.type,
+        fileName: uploads.fileName,
+        fileSize: uploads.fileSize,
+        mimeType: uploads.mimeType,
+        createdAt: uploads.createdAt,
+      })
+      .from(uploads)
+      .where(eq(uploads.userId, session.user.id))
+      .orderBy(desc(uploads.createdAt));
+
+    return Response.json({ files });
   } catch (error) {
     console.error("Failed to list files:", error);
     return Response.json({ error: "Failed to list files" }, { status: 500 });

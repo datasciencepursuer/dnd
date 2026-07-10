@@ -5,6 +5,7 @@ import { getUserTierLimits } from "~/.server/subscription";
 import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
 import { generateCharacterPortrait, type ArtStyle, type ReferenceImage } from "~/.server/ai/image-generation";
+import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
 
 // GET — return usage stats (remaining generations, window)
 export async function loader({ request }: { request: Request }) {
@@ -74,6 +75,11 @@ export async function action({ request }: { request: Request }) {
       { error: "AI Portrait Generation is not available on your current plan.", upgrade: true },
       { status: 403 }
     );
+  }
+
+  const rateLimit = await checkAiRateLimit(userId);
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit.retryAfter);
   }
 
   // Parse and validate prompt

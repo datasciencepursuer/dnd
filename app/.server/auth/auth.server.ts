@@ -75,6 +75,12 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins,
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60, // Serve session from signed cookie for 5 min before re-checking DB
+    },
+  },
   rateLimit: {
     enabled: true,
     storage: "database",

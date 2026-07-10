@@ -3,6 +3,7 @@ import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { analyzeMapBackground } from "~/.server/ai/auto-draw";
 import { getUserTierLimits } from "~/.server/subscription";
+import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
 
 interface RouteArgs {
   request: Request;
@@ -32,6 +33,11 @@ export async function action({ request, params }: RouteArgs) {
       { error: "AI Auto-Draw requires a Hero subscription.", upgrade: true },
       { status: 403 }
     );
+  }
+
+  const rateLimit = await checkAiRateLimit(session.user.id);
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit.retryAfter);
   }
 
   // Only DM can use AI auto-draw

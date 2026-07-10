@@ -13,12 +13,12 @@ D&D Map Editor - A React Router v7 full-stack application for creating and manag
 - `pnpm run dev:all` - Start both React Router and PartyKit servers concurrently
 - `pnpm run typecheck` - Generate route types (`react-router typegen`) then run `tsc`
 - `pnpm run email:dev` - Preview email templates at http://localhost:3000
-- `pnpm drizzle-kit generate` - Generate migration files
-- `pnpm drizzle-kit migrate` - Apply pending migrations
+- `pnpm db:generate` - Generate migration files after editing `schema.ts`; commit the generated SQL in `drizzle/` with the schema change
+- `pnpm db:migrate` - Apply pending migrations (run locally after pulling schema changes; runs automatically on Vercel production deploys via `vercel.json`)
 - `pnpm run party:deploy` - Deploy PartyKit to production
 - `pnpm start` - Serve production build via `react-router-serve`
 
-**Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it. The build command runs three steps: `drizzle-kit generate` → `drizzle-kit migrate` → `react-router build`.
+**Important**: Do not run `pnpm run build` automatically. Ask the user to run it manually for testing. Running `pnpm build` while dev server is active will crash it. `pnpm build` runs `react-router build` only — migrations are separate (`db:generate` at authoring time, `db:migrate` at deploy time; production deploys migrate via the guarded build command in `vercel.json`).
 
 **No test suite**: There are no tests configured. No test runner, no test files.
 
@@ -60,6 +60,7 @@ Uses better-auth for email/password + Google OAuth authentication.
 - `VITE_PARTYKIT_HOST` - PartyKit host (defaults to `127.0.0.1:1999` in dev)
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (optional, enables social login)
 - `GEMINI_API_KEY` - Google Gemini API key (optional, enables AI DM assistant)
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis (optional, enables per-user burst rate limiting on AI endpoints; rate limiting no-ops when unset)
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).

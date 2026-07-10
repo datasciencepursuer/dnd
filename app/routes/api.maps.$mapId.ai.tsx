@@ -2,6 +2,7 @@ import { env } from "~/.server/env";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { getUserTierLimits } from "~/.server/subscription";
+import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
 import {
   serializeCombatContext,
   generateCombatResponse,
@@ -48,6 +49,11 @@ export async function action({ request, params }: RouteArgs) {
       { error: "AI DM Assistant requires a Hero subscription.", upgrade: true },
       { status: 403 }
     );
+  }
+
+  const rateLimit = await checkAiRateLimit(session.user.id);
+  if (!rateLimit.success) {
+    return rateLimitResponse(rateLimit.retryAfter);
   }
 
   // Only DM can use AI assistant

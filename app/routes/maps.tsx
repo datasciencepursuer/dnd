@@ -14,7 +14,7 @@ import type { CharacterSheet, Token } from "~/features/map-editor/types";
 import { MigrationPrompt } from "~/features/map-editor/components/MigrationPrompt";
 import { PatchNotesPanel } from "~/components/PatchNotesPanel";
 import { GroupSwitcher } from "~/components/GroupSwitcher";
-import { tierDisplayName, type AccountTier } from "~/lib/tier-limits";
+import { tierDisplayName, getTierLimits, type AccountTier } from "~/lib/tier-limits";
 
 interface MapListItem {
   id: string;
