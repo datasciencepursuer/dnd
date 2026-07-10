@@ -48,8 +48,9 @@ Uses better-auth for email/password + Google OAuth authentication.
 - API routes: `/api/auth/*` handled by `app/routes/api.auth.$.tsx`
 - Session helper: `app/.server/auth/session.ts` - use `requireAuth(request)` in loaders (throws redirect to `/login` if unauthenticated)
 - Schema: Auth tables (user, session, account, verification) in `app/.server/db/schema.ts`
-- Rate limiting: 3 signups per IP per 12 hours
+- Rate limiting: 3 signups per IP per 12 hours (better-auth, `storage: "database"`)
 - Google OAuth with account linking (`trustedProviders: ["google"]`)
+- Session cookie cache enabled (`session.cookieCache`, 5 min): `getSession` serves from a signed cookie between DB checks, so revocation can lag up to 5 minutes
 
 ### Required Environment Variables
 - `BETTER_AUTH_SECRET` - Generate with: `openssl rand -base64 32`
@@ -60,7 +61,10 @@ Uses better-auth for email/password + Google OAuth authentication.
 - `VITE_PARTYKIT_HOST` - PartyKit host (defaults to `127.0.0.1:1999` in dev)
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (optional, enables social login)
 - `GEMINI_API_KEY` - Google Gemini API key (optional, enables AI DM assistant)
-- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis (optional, enables per-user burst rate limiting on AI endpoints; rate limiting no-ops when unset)
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_ADVENTURER_PRICE_ID` / `STRIPE_HERO_PRICE_ID` - Stripe billing
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis (optional, enables per-user burst rate limiting on AI endpoints; rate limiting no-ops when unset; production-only by design)
+
+`app/.server/env.ts` uses lazy getters — env vars are read on first access, not at import. This is what allows `pnpm build` and CI to run with no secrets configured; don't convert it to eager reads.
 
 ### Map Editor (`app/features/map-editor/`)
 Canvas-based map editor using Konva.js (`react-konva`).
@@ -186,6 +190,20 @@ Uses UploadThing for image uploads (token images, map backgrounds).
 - Permission checks via `editor-store.ts`: `isDungeonMaster()`, `canEditToken()`, `canMoveToken()`
 - Server-side permission checks: `app/.server/permissions/map-permissions.ts` and `group-permissions.ts`
 
+### Subscriptions & Tiers (Stripe)
+Feature gating is tier-based, separate from the permissions model above.
+- `AccountTier`: `adventurer` (free) | `hero` | `dungeon_master` | `the_six` | `lodestar`; stored on the `user` table with Stripe customer/subscription fields
+- `app/lib/tier-limits.ts` - **client-safe** tier definitions (`TierLimits`: map/group/upload caps, feature flags like `aiDmAssistant`, `aiImageGeneration` + windowed `aiImageLimit`)
+- `app/.server/subscription.ts` - server helpers: `getUserTier`, `getUserTierLimits`, `getUserSubscriptionInfo`
+- Stripe routes: `api.stripe.checkout.ts`, `api.stripe.portal.ts`, `api.stripe.webhook.ts`, `api.stripe.success.ts`; `/api/me` returns tier + limits for clients
+- AI image generation usage is metered in the `aiImageGenerations` table (windowed count per user, checked in the generate routes)
+
+### AI Rate Limiting (`app/.server/rate-limit.ts`)
+Upstash Redis burst limiter on all four Gemini endpoints (`api.generate-map`, `api.generate-portrait`, `api.maps.$mapId.ai`, `api.maps.$mapId.ai-draw`), layered on top of the tier quotas.
+- `checkAiRateLimit(userId)`: 10 requests/min sliding window per user; returns 429 + `Retry-After` via `rateLimitResponse`
+- **Fails open**: no Upstash env vars (or Redis errors) → all requests allowed. Local dev and previews run without it; only production has the env vars
+- `app/.server/redis.ts` exports the shared client (`null` when unconfigured)
+
 ### AI DM Assistant (`app/.server/ai/`)
 Google Gemini-powered combat narration and rules adjudication. DM-only feature.
 - `gemini.ts` - Gemini 2.5 Flash integration, serializes full combat context (initiative, distances, HP, conditions, abilities, recent chat)
@@ -218,6 +236,15 @@ D&D 5e closest-edge distance system for combat.
 
 ### Patch Notes
 - Version tracking and changelog in `app/lib/patch-notes.ts`
+
+## CI/CD & Deployment
+
+Three independent pipelines; GitHub Actions verifies, Vercel deploys the app, a path-filtered action deploys PartyKit.
+
+- **CI** (`.github/workflows/ci.yml`, PRs + main): `pnpm typecheck` → migration drift check (`pnpm db:generate` must produce no new files — schema changes without committed migrations fail CI) → `pnpm build`. Needs zero secrets.
+- **App deploy**: Vercel Git integration — previews per PR, production on main. `vercel.json` sets the build command: `db:migrate` runs **only when `VERCEL_ENV=production`**; preview builds never touch the database.
+- **PartyKit deploy** (`.github/workflows/partykit.yml`): on pushes to main touching `party/**` or `partykit.json`. Uses `PARTYKIT_TOKEN`/`PARTYKIT_LOGIN` GitHub secrets. PartyKit has a single environment (`dnd-maps` project) — there is no staging party; main deploys straight to the live WebSocket server.
+- **Migration workflow**: edit `schema.ts` → `pnpm db:generate` → commit the SQL in `drizzle/` with the change. Never run `generate` in CI/CD contexts; `migrate` runs locally on demand and automatically on production deploys.
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
