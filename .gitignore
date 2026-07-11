@@ -9,3 +9,7 @@
 # Capacitor native projects (regenerated via `cap sync`)
 /ios/
 /android/
+
+# Claude Code local files
+/.claude/skills/
+/.claude/settings.local.json
