@@ -1,5 +1,6 @@
 import { Shape, Group } from "react-konva";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
+import type Konva from "konva";
 import type { FogCell, GridSettings } from "../../types";
 
 interface FogLayerProps {
@@ -278,6 +279,7 @@ function drawFluff(ctx: CanvasRenderingContext2D, fluff: FluffInfo) {
 
 export const FogLayer = memo(function FogLayer({ paintedCells, grid, currentUserId, showFluffyClouds = true, isPlayingLocally = false }: FogLayerProps) {
   const { cellSize, width, height } = grid;
+  const groupRef = useRef<Konva.Group>(null);
 
   const regions = useMemo(() => {
     return findConnectedRegions(paintedCells);
@@ -289,11 +291,49 @@ export const FogLayer = memo(function FogLayer({ paintedCells, grid, currentUser
     return regions.map(region => generateRegionClouds(region, cellSize));
   }, [regions, cellSize, showFluffyClouds]);
 
+  // Cache the whole fog group to a bitmap. The sceneFuncs below rebuild
+  // hundreds of gradients plus shadowBlur passes on every draw; without a
+  // cache they re-execute on EVERY layer redraw — including every pan/zoom
+  // frame. Cached, a redraw is a single bitmap blit; the expensive raster
+  // only reruns when the fog cells themselves change.
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    if (regions.length === 0) {
+      group.clearCache();
+      return;
+    }
+    // Bounds across all regions, padded for glow (0.25 cell), cloud puffs and
+    // shadow offsets (~0.5 cell covers all of them).
+    let minCol = Infinity, maxCol = -Infinity, minRow = Infinity, maxRow = -Infinity;
+    for (const r of regions) {
+      minCol = Math.min(minCol, r.minCol);
+      maxCol = Math.max(maxCol, r.maxCol);
+      minRow = Math.min(minRow, r.minRow);
+      maxRow = Math.max(maxRow, r.maxRow);
+    }
+    minCol = Math.max(0, minCol);
+    maxCol = Math.min(width - 1, maxCol);
+    minRow = Math.max(0, minRow);
+    maxRow = Math.min(height - 1, maxRow);
+    const margin = cellSize * 0.5;
+    group.cache({
+      x: minCol * cellSize - margin,
+      y: minRow * cellSize - margin,
+      width: (maxCol - minCol + 1) * cellSize + margin * 2,
+      height: (maxRow - minRow + 1) * cellSize + margin * 2,
+      // Fog is soft/cloudy, so a 1:1 raster upscaled at high zoom stays
+      // acceptable. Raise if fog edges look too blurry when zoomed in.
+      pixelRatio: 1,
+    });
+    group.getLayer()?.batchDraw();
+  }, [regions, regionClouds, cellSize, width, height, currentUserId, isPlayingLocally, showFluffyClouds]);
+
   const padding = cellSize * 0.08;
   const cornerRadius = cellSize * 0.2;
 
   return (
-    <Group>
+    <Group ref={groupRef}>
       {/* Base fog layer */}
       {regions.map((region, idx) => {
         const isCreator = currentUserId && region.creatorId === currentUserId && !isPlayingLocally;
