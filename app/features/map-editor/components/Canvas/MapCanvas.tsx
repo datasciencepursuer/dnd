@@ -1394,8 +1394,16 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
             />
           </Group>
         </Layer>
-        <Layer name="overlay" listening={false}>
-          <Group>
+        {/* Single "top" canvas for fog + overlays + transient previews +
+            selection controls. Each Konva Layer is its own <canvas>, i.e. a
+            separate GPU texture the browser composites full-window every
+            frame — merging these (5 layers -> 3) cuts compositor bandwidth,
+            the bottleneck on large high-refresh displays. Cheap to redraw
+            per frame now that FogLayer is bitmap-cached. Stacking order of
+            the groups matches the old layer order exactly: fog/overlays,
+            then previews, then controls on top. */}
+        <Layer name="top">
+          <Group listening={false}>
             <FogLayer
               paintedCells={fogPaintedCells || []}
               grid={grid}
@@ -1403,11 +1411,11 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               isPlayingLocally={isPlayingLocally}
             />
           </Group>
-          <Group>
+          <Group listening={false}>
             <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
           </Group>
           {fogActive && nonFoggedTokens.length > 0 && (
-            <Group>
+            <Group listening={false}>
               <NonFoggedTokensOverlay
                 tokens={nonFoggedTokens}
                 cellSize={cellSize}
@@ -1416,17 +1424,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               />
             </Group>
           )}
-        </Layer>
-        {/* Dedicated layer for all transient, high-frequency previews: the token
-            drag ghost, ping animations, plus the wall / area / erase-rectangle
-            previews. Isolated from the fog + overlay-token canvas so their
-            per-frame imperative batchDraw repaints only this small layer instead
-            of re-rasterizing fog gradients and every overlay token. Stacking is
-            unchanged: above the overlay layer, below controls. */}
-        <Layer name="preview" listening={false}>
-          <Group>
+          <Group listening={false}>
             <PingLayer pings={activePings} />
-          </Group>
           {/* Wall preview: placed points + preview line to cursor */}
           {buildMode && selectedTool === "wall" && wallPoints.length > 0 && (
             <>
@@ -1512,8 +1511,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               areas={areasRef.current ?? []}
             />
           )}
-        </Layer>
-        <Layer name="controls">
+          </Group>
           <SelectedTokenControls
             tokens={tokens}
             cellSize={cellSize}
