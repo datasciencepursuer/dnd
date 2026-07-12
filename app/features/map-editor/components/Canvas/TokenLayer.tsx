@@ -29,7 +29,8 @@ function isLightColor(color: string): boolean {
 
 // Auto-scroll constants and helper
 const AUTO_SCROLL_EDGE_ZONE = 60;
-const AUTO_SCROLL_MAX_SPEED = 8;
+// px per second (delta-time normalized in autoScrollLoop, refresh-rate independent)
+const AUTO_SCROLL_MAX_SPEED = 480;
 
 function computeScrollVelocity(clientX: number, clientY: number, containerRect: DOMRect): { vx: number; vy: number } {
   let vx = 0;
@@ -697,6 +698,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const isDraggingRef = useRef(false);
   const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
   const autoScrollRafRef = useRef<number | null>(null);
+  const autoScrollLastTimeRef = useRef<number>(0);
   const scrollVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
   const lastClientPosRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -728,15 +730,20 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
   // Handle mouse/touch move during drag - use refs to avoid effect re-running on every move
   useEffect(() => {
-    const autoScrollLoop = () => {
+    const autoScrollLoop = (now: number) => {
       if (!isDraggingRef.current) {
         autoScrollRafRef.current = null;
         return;
       }
 
+      // Delta-time normalized: velocities are px/sec regardless of monitor
+      // refresh rate. Clamp dt to avoid a huge jump after a background-tab stall.
+      const dt = Math.min((now - autoScrollLastTimeRef.current) / 1000, 0.05);
+      autoScrollLastTimeRef.current = now;
+
       const { vx, vy } = scrollVelocityRef.current;
       if (vx !== 0 || vy !== 0) {
-        onAutoScrollRef.current?.(vx, vy);
+        onAutoScrollRef.current?.(vx * dt, vy * dt);
 
         // Recalculate world position from last client coords since viewport shifted
         const stage = stageRef.current;
@@ -785,6 +792,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
       // Start auto-scroll loop if not already running
       if (autoScrollRafRef.current === null) {
+        autoScrollLastTimeRef.current = performance.now();
         autoScrollRafRef.current = requestAnimationFrame(autoScrollLoop);
       }
     };

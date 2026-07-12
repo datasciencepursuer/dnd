@@ -40,7 +40,7 @@ const DEFAULT_SCROLL_HOUR = 8; // scroll to 8 AM on mount
 const TOUCH_HOLD_MS = 300; // ms hold before drag starts
 const TOUCH_MOVE_THRESHOLD = 8; // px movement allowed during hold
 const AUTO_SCROLL_EDGE = 40; // px from container edge to trigger auto-scroll
-const AUTO_SCROLL_SPEED = 4; // px per animation frame
+const AUTO_SCROLL_SPEED = 240; // px per second (delta-time normalized, refresh-rate independent)
 
 export function WeeklyCalendar({
   weekStart,
@@ -70,7 +70,8 @@ export function WeeklyCalendar({
     rafId: number | null;
     direction: -1 | 0 | 1; // -1 = up, 0 = none, 1 = down
     clientY: number; // last known cursor/finger Y for slot recalc during scroll
-  }>({ rafId: null, direction: 0, clientY: 0 });
+    lastTime: number; // rAF timestamp of previous tick, for delta-time scrolling
+  }>({ rafId: null, direction: 0, clientY: 0, lastTime: 0 });
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
   const prevWeekStartRef = useRef(weekStart);
 
@@ -169,14 +170,18 @@ export function WeeklyCalendar({
   }, []);
 
   // Auto-scroll: runs a rAF loop that scrolls the container and updates the drag slot
-  const autoScrollTick = useCallback(() => {
+  const autoScrollTick = useCallback((now: number) => {
     const as = autoScrollRef.current;
     const container = containerRef.current;
     if (!as.direction || !container || !dragRef.current.active) {
       as.rafId = null;
       return;
     }
-    container.scrollTop += as.direction * AUTO_SCROLL_SPEED;
+    // Delta-time normalized: speed is px/sec regardless of monitor refresh rate.
+    // Clamp dt to avoid a huge jump after a background-tab stall.
+    const dt = Math.min((now - as.lastTime) / 1000, 0.05);
+    as.lastTime = now;
+    container.scrollTop += as.direction * AUTO_SCROLL_SPEED * dt;
     // Recalculate slot from the last-known clientY after scroll shift
     const slot = getSlotFromY(as.clientY);
     if (slot >= 0 && slot !== dragRef.current.currentSlot) {
@@ -192,6 +197,7 @@ export function WeeklyCalendar({
       as.direction = direction;
       as.clientY = clientY;
       if (!as.rafId) {
+        as.lastTime = performance.now();
         as.rafId = requestAnimationFrame(autoScrollTick);
       }
     },
