@@ -184,6 +184,10 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   // Fog lookup set for O(1) per-cell checks
   const fogSet = useMemo(() => buildFogSet(fogPaintedCells || []), [fogPaintedCells]);
 
+  // With no fog painted, tokens render normally in the content layer and the
+  // overlay duplication (visual copy above fog + hit target below) is skipped.
+  const fogActive = fogSet.size > 0;
+
   // All visible, non-fogged tokens — rendered in overlay above fog
   const nonFoggedTokens = useMemo(() => {
     if (!tokens) return [];
@@ -1358,6 +1362,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               stageRef={stageRef}
               hoveredTokenId={hoveredTokenId}
               nonFoggedTokenIds={nonFoggedTokenIds}
+              overlayActive={fogActive}
               onHoverStart={handleTokenHoverStart}
               onHoverEnd={handleTokenHoverEnd}
               onTokenMoved={onTokenMoved}
@@ -1379,7 +1384,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
           <Group>
             <SelectedTokenOverlay tokens={tokens} cellSize={cellSize} />
           </Group>
-          {nonFoggedTokens.length > 0 && (
+          {fogActive && nonFoggedTokens.length > 0 && (
             <Group>
               <NonFoggedTokensOverlay
                 tokens={nonFoggedTokens}

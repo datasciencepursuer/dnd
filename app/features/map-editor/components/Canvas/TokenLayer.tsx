@@ -8,6 +8,10 @@ import { getHpPercentage, getHpBarColor } from "../../utils/character-utils";
 import { gridMovementDistance, computeDragMovementInfo } from "../../utils/distance-utils";
 import type { WallSegment, AreaShape } from "../../types";
 
+// Token art is drawn at most a few hundred px on screen — downscale huge
+// uploads once at load so layer repaints don't rescale multi-MB bitmaps.
+const TOKEN_IMAGE_MAX_SIZE = 512;
+
 // Helper to determine if a color is light (needs dark text/stroke for contrast)
 function isLightColor(color: string): boolean {
   // Handle hex colors
@@ -96,7 +100,7 @@ const TokenItem = memo(function TokenItem({
   onHoverEnd,
   onDoubleClick,
 }: TokenItemProps) {
-  const image = useImage(token.imageUrl);
+  const image = useImage(token.imageUrl, TOKEN_IMAGE_MAX_SIZE);
   const groupRef = useRef<Konva.Group>(null);
 
   const offset = (token.size * cellSize) / 2;
@@ -136,7 +140,7 @@ const TokenItem = memo(function TokenItem({
   let imgWidth = maxSize;
   let imgHeight = maxSize;
   if (image) {
-    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    const aspectRatio = image.width / image.height;
     if (aspectRatio > 1) {
       // Wider than tall
       imgHeight = maxSize / aspectRatio;
@@ -208,13 +212,48 @@ const TokenItem = memo(function TokenItem({
   const acTextColor = isLight ? "#000000" : "#ffffff";
   const acStrokeColor = isLight ? "#374151" : "#ffffff";
 
+  // When the visual copy is rendered in the overlay above fog, keep only a
+  // cheap invisible hit target here — a full group at opacity 0 still costs
+  // the image/text draw calls on every layer repaint. Opacity doesn't affect
+  // Konva's hit graph, so events keep working.
+  if (forceHidden) {
+    const footprint = token.size * cellSize;
+    return (
+      <Group
+        ref={groupRef}
+        x={x}
+        y={y}
+        rotation={token.rotation}
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleMouseDown}
+        onClick={handleClick}
+        onTap={handleClick}
+        onDblClick={handleDoubleClick}
+        onDblTap={handleDoubleClick}
+        onContextMenu={handleRightClick}
+        onMouseEnter={handleHoverStart}
+        onMouseLeave={onHoverEnd}
+      >
+        <Rect
+          width={footprint}
+          height={footprint}
+          offsetX={footprint / 2}
+          offsetY={footprint / 2}
+          fill="#000000"
+          opacity={0}
+          perfectDrawEnabled={false}
+        />
+      </Group>
+    );
+  }
+
   return (
     <Group
       ref={groupRef}
       x={x}
       y={y}
       rotation={token.rotation}
-      opacity={forceHidden ? 0 : isDragging ? 0.5 : 1}
+      opacity={isDragging ? 0.5 : 1}
       onMouseDown={handleMouseDown}
       onTouchStart={handleMouseDown}
       onClick={handleClick}
@@ -434,7 +473,7 @@ function TokenGhost({
   x: number;
   y: number;
 }) {
-  const image = useImage(token.imageUrl);
+  const image = useImage(token.imageUrl, TOKEN_IMAGE_MAX_SIZE);
   const offset = (token.size * cellSize) / 2;
   const radius = offset - 4;
   const maxSize = token.size * cellSize - 2;
@@ -443,7 +482,7 @@ function TokenGhost({
   let imgWidth = maxSize;
   let imgHeight = maxSize;
   if (image) {
-    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    const aspectRatio = image.width / image.height;
     if (aspectRatio > 1) {
       imgHeight = maxSize / aspectRatio;
     } else {
@@ -626,6 +665,9 @@ interface TokenLayerProps {
   stageRef: React.RefObject<any>;
   hoveredTokenId: string | null;
   nonFoggedTokenIds: Set<string>;
+  /** True when fog exists and non-fogged tokens render in the overlay layer.
+      Only then are content-layer copies reduced to hit targets. */
+  overlayActive: boolean;
   onHoverStart: (tokenId: string) => void;
   onHoverEnd: () => void;
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
@@ -634,7 +676,7 @@ interface TokenLayerProps {
   dragOverlayRef?: React.RefObject<DragOverlayHandle | null>;
 }
 
-export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onAutoScroll, onDragChange, dragOverlayRef }: TokenLayerProps) {
+export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef, hoveredTokenId, nonFoggedTokenIds, overlayActive, onHoverStart: onHoverStartProp, onHoverEnd: onHoverEndProp, onTokenMoved, onAutoScroll, onDragChange, dragOverlayRef }: TokenLayerProps) {
   const moveToken = useMapStore((s) => s.moveToken);
   const selectedTool = useEditorStore((s) => s.selectedTool);
   const selectedIds = useEditorStore((s) => s.selectedElementIds);
@@ -974,7 +1016,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
             selectedTool={selectedTool}
             isDragging={dragState?.tokenId === token.id}
             isLockedMouseDown={lockedMouseDownId === token.id}
-            forceHidden={nonFoggedTokenIds.has(token.id)}
+            forceHidden={overlayActive && nonFoggedTokenIds.has(token.id)}
             onMouseDown={handleMouseDown}
             onSelect={handleSelect}
             onHoverStart={handleHoverStart}
@@ -1053,7 +1095,7 @@ const FlipButtonOverlay = memo(function FlipButtonOverlay({
   cellSize: number;
   onFlip: (tokenId: string) => void;
 }) {
-  const image = useImage(token.imageUrl);
+  const image = useImage(token.imageUrl, TOKEN_IMAGE_MAX_SIZE);
 
   const offset = (token.size * cellSize) / 2;
   const x = token.position.col * cellSize + offset;
@@ -1063,7 +1105,7 @@ const FlipButtonOverlay = memo(function FlipButtonOverlay({
   let imgWidth = maxSize;
   let imgHeight = maxSize;
   if (image) {
-    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    const aspectRatio = image.width / image.height;
     if (aspectRatio > 1) {
       imgHeight = maxSize / aspectRatio;
     } else {
@@ -1164,7 +1206,7 @@ interface OverlayTokenItemProps {
 }
 
 const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM, isHovered }: OverlayTokenItemProps) {
-  const image = useImage(token.imageUrl);
+  const image = useImage(token.imageUrl, TOKEN_IMAGE_MAX_SIZE);
   const groupRef = useRef<Konva.Group>(null);
 
   const offset = (token.size * cellSize) / 2;
@@ -1200,7 +1242,7 @@ const OverlayTokenItem = memo(function OverlayTokenItem({ token, cellSize, isDM,
   let imgWidth = maxSize;
   let imgHeight = maxSize;
   if (image) {
-    const aspectRatio = image.naturalWidth / image.naturalHeight;
+    const aspectRatio = image.width / image.height;
     if (aspectRatio > 1) {
       imgHeight = maxSize / aspectRatio;
     } else {
