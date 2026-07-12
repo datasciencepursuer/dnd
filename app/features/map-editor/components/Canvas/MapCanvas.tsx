@@ -39,6 +39,27 @@ function segIntersectsRect(ax: number, ay: number, bx: number, by: number, minX:
   }
 }
 
+// Cap the canvas backing-store resolution at 1080p. Konva defaults every layer
+// canvas to devicePixelRatio, so a hi-DPI screen rasterizes at 4K+ even in a
+// small window — needless fill cost per frame. Capping the pixel ratio keeps
+// backing pixels <= 1920x1080 (never above native DPR), trading invisible
+// sharpness for smoother animation. Hit canvases are unaffected (ratio 1).
+const MAX_RENDER_WIDTH = 1920;
+const MAX_RENDER_HEIGHT = 1080;
+
+function applyRenderResolutionCap(stage: any, width: number, height: number) {
+  if (!stage || width <= 0 || height <= 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const ratio = Math.min(dpr, MAX_RENDER_WIDTH / width, MAX_RENDER_HEIGHT / height);
+  for (const layer of stage.getLayers()) {
+    const canvas = layer.getCanvas();
+    if (Math.abs(canvas.getPixelRatio() - ratio) > 0.001) {
+      canvas.setPixelRatio(ratio);
+      layer.batchDraw();
+    }
+  }
+}
+
 interface MapCanvasProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
@@ -347,6 +368,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
         setDimensions({ width, height });
         dimensionsRef.current = { width, height };
         setCanvasDimensions(width, height);
+        applyRenderResolutionCap(stageRef.current, width, height);
       }
     };
 
