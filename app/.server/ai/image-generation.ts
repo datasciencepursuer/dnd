@@ -11,6 +11,8 @@ const SHARED_REQUIREMENTS = `CRITICAL REQUIREMENTS:
 - ABSOLUTELY NO frames, borders, circles, rings, medallions, pedestals, platforms, or any UI elements around the character. The output must be ONLY the character on solid white. If you are tempted to add a circular token frame — DO NOT. This is not a token with a frame, it is a raw character sprite
 - Render a full-body character in a 2D illustrated style — NOT 3D rendered, NOT photorealistic
 - Front-facing or slight 3/4 angle, full body visible head to feet, dynamic but readable pose
+- COMPOSITION IS CRITICAL: Center and scale the character so the complete character silhouette occupies approximately 94-96% of the canvas height and as much of the canvas width as the pose allows. Leave only a 2-3% white safety margin between the outermost character pixels and the canvas edges
+- Keep the entire head, hair, body, feet, clothing, weapons, and accessories visible without clipping. Use a compact readable pose for wide weapons or accessories so the character itself remains large. Never render the character small, distant, or surrounded by excessive empty white space
 - ANATOMY RULE: Unless the prompt explicitly states otherwise, assume the character is a standard humanoid with exactly 2 arms and 2 legs. Do NOT add extra limbs, tails, wings, tentacles, or other additional body parts unless the prompt specifically requests them
 
 TOKEN SIZE GUIDELINES (D&D 5e grid, each cell = 5 feet):
@@ -235,8 +237,8 @@ export async function generateCharacterPortrait(
 
   const isEdit = !!referenceImage;
   const fullPrompt = isEdit
-    ? `Use the provided image ONLY as a reference for the character's IDENTITY (face shape, eye color/shape, nose, mouth, hair color/style, skin tone, distinctive marks like scars/tattoos/freckles, and overall species/race). You MUST fully REDRAW the character from scratch ${STYLE_PROMPT_HINTS[artStyle]} - do NOT return the reference image unchanged, do NOT keep the reference's art style, line work, shading, proportions, or background. The OUTPUT art style must match the requested style exactly, even if the reference is in a completely different style. Character proportions, pose, linework, and rendering technique must come from the requested style, not the reference. Identity-only preservation: keep the character recognizable as the same person, but everything visual that defines the ART STYLE must be redrawn. Additional changes from the user: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) with every non-character pixel set to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency.`
-    : `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} with every non-character pixel set to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency. Character description: ${userPrompt}`;
+    ? `Use the provided image ONLY as a reference for the character's IDENTITY (face shape, eye color/shape, nose, mouth, hair color/style, skin tone, distinctive marks like scars/tattoos/freckles, and overall species/race). You MUST fully REDRAW the character from scratch ${STYLE_PROMPT_HINTS[artStyle]} - do NOT return the reference image unchanged, do NOT keep the reference's art style, line work, shading, proportions, background, crop, or framing. The OUTPUT art style must match the requested style exactly, even if the reference is in a completely different style. Character proportions, pose, linework, and rendering technique must come from the requested style, not the reference. Identity-only preservation: keep the character recognizable as the same person, but everything visual that defines the ART STYLE must be redrawn. Additional changes from the user: ${userPrompt}. Output a centered full-body character sprite (${sizeLabel} size) at the largest scale that fits without clipping, filling approximately 94-96% of the canvas height with only a 2-3% safety margin. Set every non-character pixel to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency.`
+    : `Generate a centered full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} at the largest scale that fits without clipping, filling approximately 94-96% of the canvas height with only a 2-3% safety margin. Set every non-character pixel to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency. Character description: ${userPrompt}`;
 
   // Build multimodal content when reference image is provided
   const contents = referenceImage
@@ -247,7 +249,7 @@ export async function generateCharacterPortrait(
     : fullPrompt;
 
   const systemInstruction = isEdit
-    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image is provided. The reference is for CHARACTER IDENTITY ONLY - face features (face shape, eyes, nose, mouth), hair color/style, skin tone, and distinguishing marks. You MUST completely REDRAW the character in the target art style defined above. Do not preserve the reference's art style or background. Only the character's identity carries over. Replace every non-character pixel, including every edge and corner, with exactly ${PORTRAIT_CHROMA_KEY.hex}.`
+    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image is provided. The reference is for CHARACTER IDENTITY ONLY - face features (face shape, eyes, nose, mouth), hair color/style, skin tone, and distinguishing marks. You MUST completely REDRAW the character in the target art style defined above. Do not preserve the reference's art style, background, scale, crop, margins, or framing. Recompose the full body at the maximum size allowed by the canvas while keeping every part visible. Only the character's identity carries over. Replace every non-character pixel, including every edge and corner, with exactly ${PORTRAIT_CHROMA_KEY.hex}.`
     : buildSystemInstruction(artStyle);
 
   const response = await ai.models.generateContent({
@@ -256,6 +258,9 @@ export async function generateCharacterPortrait(
     config: {
       systemInstruction,
       responseModalities: ["image", "text"],
+      imageConfig: {
+        aspectRatio: "1:1",
+      },
     },
   });
 
