@@ -1,15 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 import type { PortraitArtStyle } from "~/features/map-editor/portrait-styles";
-
-// Chroma key color — pure white, universally understood by AI models
-export const CHROMA_KEY_R = 255;
-export const CHROMA_KEY_G = 255;
-export const CHROMA_KEY_B = 255;
+import { PORTRAIT_CHROMA_KEY } from "~/features/map-editor/portrait-background";
 
 export type ArtStyle = PortraitArtStyle;
 
 const SHARED_REQUIREMENTS = `CRITICAL REQUIREMENTS:
-- The background MUST be solid pure white (#FFFFFF). Fill the ENTIRE background with flat white, no gradients, no shadows, no floor, no scenery
+- The background MUST be exactly ${PORTRAIT_CHROMA_KEY.hex}. Fill the ENTIRE canvas, including every edge and corner pixel, with one flat solid ${PORTRAIT_CHROMA_KEY.hex} color. No gradients, shadows, floor, scenery, texture, transparency, or inherited reference-image background
+- When a reference image is supplied, DISCARD its background completely and replace it with the required solid ${PORTRAIT_CHROMA_KEY.hex} background
 - The character must have clear contrast against the white background — avoid white clothing or armor unless it has visible outlines/shading to distinguish it
 - ABSOLUTELY NO frames, borders, circles, rings, medallions, pedestals, platforms, or any UI elements around the character. The output must be ONLY the character on solid white. If you are tempted to add a circular token frame — DO NOT. This is not a token with a frame, it is a raw character sprite
 - Render a full-body character in a 2D illustrated style — NOT 3D rendered, NOT photorealistic
@@ -196,7 +193,7 @@ export async function generateBattlemap(
     : fullPrompt;
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-image",
+    model: "gemini-3.1-flash-image",
     contents,
     config: {
       systemInstruction: buildMapSystemInstruction(artStyle, gridWidth, gridHeight, cellSizeFt, aspect),
@@ -238,8 +235,8 @@ export async function generateCharacterPortrait(
 
   const isEdit = !!referenceImage;
   const fullPrompt = isEdit
-    ? `Use the provided image ONLY as a reference for the character's IDENTITY (face shape, eye color/shape, nose, mouth, hair color/style, skin tone, distinctive marks like scars/tattoos/freckles, and overall species/race). You MUST fully REDRAW the character from scratch ${STYLE_PROMPT_HINTS[artStyle]} — do NOT return the reference image unchanged, do NOT keep the reference's art style, line work, shading, or proportions. The OUTPUT art style must match the requested style exactly, even if the reference is in a completely different style (e.g. reference is anime/fantasy but output must be chibi, or vice versa). Character proportions, pose, linework, and rendering technique must come from the requested style, not the reference. Identity-only preservation: keep the character recognizable as the same person, but everything visual that defines the ART STYLE must be redrawn. Additional changes from the user: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) on a plain white (#FFFFFF) background, no frames or borders.`
-    : `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} on a plain white (#FFFFFF) background, no frames or borders: ${userPrompt}`;
+    ? `Use the provided image ONLY as a reference for the character's IDENTITY (face shape, eye color/shape, nose, mouth, hair color/style, skin tone, distinctive marks like scars/tattoos/freckles, and overall species/race). You MUST fully REDRAW the character from scratch ${STYLE_PROMPT_HINTS[artStyle]} - do NOT return the reference image unchanged, do NOT keep the reference's art style, line work, shading, proportions, or background. The OUTPUT art style must match the requested style exactly, even if the reference is in a completely different style. Character proportions, pose, linework, and rendering technique must come from the requested style, not the reference. Identity-only preservation: keep the character recognizable as the same person, but everything visual that defines the ART STYLE must be redrawn. Additional changes from the user: ${userPrompt}. Output a full-body character sprite (${sizeLabel} size) with every non-character pixel set to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency.`
+    : `Generate a full-body character sprite (${sizeLabel} size) ${STYLE_PROMPT_HINTS[artStyle]} with every non-character pixel set to exactly ${PORTRAIT_CHROMA_KEY.hex}, including all edges and corners. No frames, borders, floor, shadows, scenery, gradients, or transparency. Character description: ${userPrompt}`;
 
   // Build multimodal content when reference image is provided
   const contents = referenceImage
@@ -250,11 +247,11 @@ export async function generateCharacterPortrait(
     : fullPrompt;
 
   const systemInstruction = isEdit
-    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image is provided. The reference is for CHARACTER IDENTITY ONLY — face features (face shape, eyes, nose, mouth), hair color/style, skin tone, and distinguishing marks. You MUST completely REDRAW the character in the target art style defined above. If the reference is in a different art style (e.g. anime, fantasy, realistic, pixel), DO NOT preserve that style — fully redraw everything in the target style: its linework, proportions, shading, color palette, and rendering technique must all match the target style. Never return the reference image unchanged. Never copy the reference's art style. Only the character's identity carries over; the visual style comes entirely from the target style description.`
+    ? buildSystemInstruction(artStyle) + `\n\nEDITING MODE: A reference image is provided. The reference is for CHARACTER IDENTITY ONLY - face features (face shape, eyes, nose, mouth), hair color/style, skin tone, and distinguishing marks. You MUST completely REDRAW the character in the target art style defined above. Do not preserve the reference's art style or background. Only the character's identity carries over. Replace every non-character pixel, including every edge and corner, with exactly ${PORTRAIT_CHROMA_KEY.hex}.`
     : buildSystemInstruction(artStyle);
 
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash-image",
+    model: "gemini-3.1-flash-image",
     contents,
     config: {
       systemInstruction,

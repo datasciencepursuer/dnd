@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import type { WallType, TerrainType, Position } from "~/features/map-editor/types";
 
 const VALID_WALL_TYPES: Set<string> = new Set([
@@ -196,11 +196,11 @@ export async function analyzeMapBackground(
 
   const ai = new GoogleGenAI({ apiKey });
 
-  // NOTE: Do NOT use responseMimeType with vision/multimodal — it can cause
-  // empty responses on Gemini 2.5 Flash. Instead, we instruct the model in the
+  // NOTE: Do NOT use responseMimeType with vision/multimodal - it can cause
+  // empty responses. Instead, we instruct the model in the
   // prompt and strip code fences from the response manually.
   const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+    model: "gemini-3.6-flash",
     contents: [
       {
         role: "user",
@@ -222,9 +222,8 @@ export async function analyzeMapBackground(
     config: {
       systemInstruction: systemPrompt,
       maxOutputTokens: 65536,
-      temperature: 0.2,
       thinkingConfig: {
-        thinkingBudget: 8192,
+        thinkingLevel: ThinkingLevel.HIGH,
       },
     },
   });

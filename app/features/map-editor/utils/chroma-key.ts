@@ -1,14 +1,22 @@
+import { PORTRAIT_CHROMA_KEY } from "../portrait-background";
+
 /**
  * Removes a white background from a base64 image via flood-fill from edges.
  * Returns a PNG with transparency where the background was.
  */
 
-const BG_THRESHOLD = 225; // pixels with R,G,B all >= this are considered "white"
+function chromaDistance(data: Uint8ClampedArray, idx: number): number {
+  return Math.max(
+    Math.abs(data[idx] - PORTRAIT_CHROMA_KEY.red),
+    Math.abs(data[idx + 1] - PORTRAIT_CHROMA_KEY.green),
+    Math.abs(data[idx + 2] - PORTRAIT_CHROMA_KEY.blue)
+  );
+}
 
-function isWhite(data: Uint8ClampedArray, idx: number): boolean {
-  return data[idx] >= BG_THRESHOLD &&
-    data[idx + 1] >= BG_THRESHOLD &&
-    data[idx + 2] >= BG_THRESHOLD;
+function isChromaBackground(data: Uint8ClampedArray, idx: number): boolean {
+  if (data[idx + 3] === 0) return true;
+
+  return chromaDistance(data, idx) <= PORTRAIT_CHROMA_KEY.tolerance;
 }
 
 /**
@@ -23,18 +31,18 @@ function findBackground(
   const mask = new Uint8Array(width * height); // 0 = not bg, 1 = background
   const queue: number[] = [];
 
-  // Seed all edge pixels that are white
+  // Seed all edge pixels that match the chroma key.
   for (let x = 0; x < width; x++) {
     const top = x;
     const bot = x + (height - 1) * width;
-    if (isWhite(data, top * 4)) { mask[top] = 1; queue.push(top); }
-    if (isWhite(data, bot * 4)) { mask[bot] = 1; queue.push(bot); }
+    if (isChromaBackground(data, top * 4)) { mask[top] = 1; queue.push(top); }
+    if (isChromaBackground(data, bot * 4)) { mask[bot] = 1; queue.push(bot); }
   }
   for (let y = 1; y < height - 1; y++) {
     const left = y * width;
     const right = (width - 1) + y * width;
-    if (isWhite(data, left * 4)) { mask[left] = 1; queue.push(left); }
-    if (isWhite(data, right * 4)) { mask[right] = 1; queue.push(right); }
+    if (isChromaBackground(data, left * 4)) { mask[left] = 1; queue.push(left); }
+    if (isChromaBackground(data, right * 4)) { mask[right] = 1; queue.push(right); }
   }
 
   // BFS flood fill
@@ -52,7 +60,7 @@ function findBackground(
     ];
 
     for (const n of neighbors) {
-      if (n >= 0 && mask[n] === 0 && isWhite(data, n * 4)) {
+      if (n >= 0 && mask[n] === 0 && isChromaBackground(data, n * 4)) {
         mask[n] = 1;
         queue.push(n);
       }
@@ -80,10 +88,16 @@ export function removeChromaKey(imageBase64: string, mimeType: string): Promise<
         const bgMask = findBackground(data, width, height);
 
         // Apply transparency
+        let backgroundPixels = 0;
         for (let i = 0; i < bgMask.length; i++) {
           if (bgMask[i] === 1) {
             data[i * 4 + 3] = 0;
+            backgroundPixels++;
           }
+        }
+
+        if (backgroundPixels === 0) {
+          throw new Error(`No ${PORTRAIT_CHROMA_KEY.hex} chroma-key background detected`);
         }
 
         // Anti-alias edges next to background
@@ -101,12 +115,16 @@ export function removeChromaKey(imageBase64: string, mimeType: string): Promise<
 
             if (hasAdjacentBg) {
               const idx = pos * 4;
-              const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-              // If this edge pixel is near-white, make it semi-transparent
-              if (r >= 200 && g >= 200 && b >= 200) {
-                const minChannel = Math.min(255 - r, 255 - g, 255 - b);
-                // More white = more transparent
-                const alpha = Math.min(255, minChannel * 8);
+              const distance = chromaDistance(data, idx);
+              if (distance <= PORTRAIT_CHROMA_KEY.featherTolerance) {
+                const featherRange =
+                  PORTRAIT_CHROMA_KEY.featherTolerance - PORTRAIT_CHROMA_KEY.tolerance;
+                const alpha = featherRange > 0
+                  ? Math.round(
+                      Math.max(0, distance - PORTRAIT_CHROMA_KEY.tolerance) /
+                        featherRange * 255
+                    )
+                  : 255;
                 data[idx + 3] = Math.min(data[idx + 3], alpha);
               }
             }
@@ -116,6 +134,34 @@ export function removeChromaKey(imageBase64: string, mimeType: string): Promise<
         ctx.putImageData(imageData, 0, 0);
         const dataUrl = canvas.toDataURL("image/png");
         resolve(dataUrl.split(",")[1]);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = `data:${mimeType};base64,${imageBase64}`;
+  });
+}
+
+/**
+ * Restores the required chroma-key background before a transparent preview is
+ * reused as an image-generation reference.
+ */
+export function addChromaKeyBackground(imageBase64: string, mimeType: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("No canvas context")); return; }
+
+        ctx.fillStyle = PORTRAIT_CHROMA_KEY.hex;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png").split(",")[1]);
       } catch (err) {
         reject(err);
       }

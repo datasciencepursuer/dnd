@@ -211,12 +211,14 @@ export function TokenEditDialog({
       }
 
       // Apply chroma key removal for white background transparency
-      let finalBase64 = data.imageBase64;
+      let finalBase64: string;
       try {
         const { removeChromaKey } = await import("../utils/chroma-key");
         finalBase64 = await removeChromaKey(data.imageBase64, data.mimeType ?? "image/png");
       } catch (chromaErr) {
-        console.error("Chroma key removal failed, using raw image:", chromaErr);
+        console.error("Chroma key removal failed:", chromaErr);
+        setAiError("The generated portrait did not have the required white background. Please retry.");
+        return;
       }
       setAiPreview({ base64: finalBase64, mimeType: "image/png" });
       updateAiImageUsage(data.remaining ?? null, data.window ?? null);
@@ -252,13 +254,19 @@ export function TokenEditDialog({
     setAiReferenceBase64(null);
   };
 
-  const handleAiEditPreview = () => {
-    // Use the current AI preview as reference for further iteration
-    if (aiPreview) {
-      setAiReferenceBase64({ base64: aiPreview.base64, mimeType: aiPreview.mimeType });
+  const handleAiEditPreview = async () => {
+    if (!aiPreview) return;
+
+    try {
+      const { addChromaKeyBackground } = await import("../utils/chroma-key");
+      const referenceBase64 = await addChromaKeyBackground(aiPreview.base64, aiPreview.mimeType);
+      setAiReferenceBase64({ base64: referenceBase64, mimeType: "image/png" });
       setAiReferenceUrl(null);
       setAiPreview(null);
       setAiPrompt("");
+    } catch (error) {
+      console.error("Failed to prepare portrait reference:", error);
+      setAiError("Failed to prepare the portrait for another edit.");
     }
   };
 

@@ -529,12 +529,11 @@ export async function generateCombatResponse(
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.6-flash",
       contents: `${contextText}\n\nDM's Question: ${userPrompt}`,
       config: {
         systemInstruction: COMBAT_DM_SYSTEM_PROMPT,
         maxOutputTokens: 8192,
-        temperature: 0.8,
       },
     });
 

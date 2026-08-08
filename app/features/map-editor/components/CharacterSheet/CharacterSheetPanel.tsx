@@ -364,12 +364,14 @@ export function CharacterSheetPanel({
         return;
       }
       // Apply chroma key removal to get true transparency
-      let finalBase64 = data.imageBase64;
+      let finalBase64: string;
       try {
         const { removeChromaKey } = await import("../../utils/chroma-key");
         finalBase64 = await removeChromaKey(data.imageBase64, data.mimeType ?? "image/png");
       } catch (chromaErr) {
-        console.error("Chroma key removal failed, using raw image:", chromaErr);
+        console.error("Chroma key removal failed:", chromaErr);
+        setPortraitError("The generated portrait did not have the required white background. Please retry.");
+        return;
       }
       setPortraitPreview(finalBase64);
       updateAiImageUsage(data.remaining ?? null, data.window ?? null);
@@ -382,12 +384,20 @@ export function CharacterSheetPanel({
 
   // Promote the generated preview to the reference for further edits. Clears the
   // edit prompt so the next generate can't silently re-apply the previous instruction.
-  const handlePromotePreviewToReference = useCallback(() => {
+  const handlePromotePreviewToReference = useCallback(async () => {
     if (!portraitPreview) return;
-    setPortraitReferenceBase64({ base64: portraitPreview, mimeType: "image/png" });
-    setPortraitReferenceUrl(null);
-    setPortraitPreview(null);
-    setPortraitEditPrompt("");
+
+    try {
+      const { addChromaKeyBackground } = await import("../../utils/chroma-key");
+      const referenceBase64 = await addChromaKeyBackground(portraitPreview, "image/png");
+      setPortraitReferenceBase64({ base64: referenceBase64, mimeType: "image/png" });
+      setPortraitReferenceUrl(null);
+      setPortraitPreview(null);
+      setPortraitEditPrompt("");
+    } catch (error) {
+      console.error("Failed to prepare portrait reference:", error);
+      setPortraitError("Failed to prepare the portrait for another edit.");
+    }
   }, [portraitPreview]);
 
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
