@@ -109,16 +109,26 @@ export async function action({ request }: { request: Request }) {
   if (referenceImageBase64 && referenceImageMimeType) {
     referenceImage = { base64: referenceImageBase64, mimeType: referenceImageMimeType };
   } else if (referenceImageUrl) {
+    // Fail loudly: silently dropping the reference turns an edit into a fresh
+    // generation, which still consumes a quota slot.
     try {
       const imgRes = await fetch(referenceImageUrl);
-      if (imgRes.ok) {
-        const buf = await imgRes.arrayBuffer();
-        const base64 = Buffer.from(buf).toString("base64");
-        const mimeType = imgRes.headers.get("content-type") || "image/png";
-        referenceImage = { base64, mimeType };
+      if (!imgRes.ok) {
+        return Response.json(
+          { error: `Could not load reference image (HTTP ${imgRes.status}). Try uploading the image as a map background first, then retry.` },
+          { status: 422 }
+        );
       }
-    } catch {
-      // Ignore fetch errors — proceed without reference image
+      const buf = await imgRes.arrayBuffer();
+      const base64 = Buffer.from(buf).toString("base64");
+      const mimeType = imgRes.headers.get("content-type") || "image/png";
+      referenceImage = { base64, mimeType };
+    } catch (err) {
+      console.error("[Map Generation] Reference fetch failed:", err);
+      return Response.json(
+        { error: "Could not load reference image. Try uploading the image as a map background first, then retry." },
+        { status: 422 }
+      );
     }
   }
 
@@ -162,88 +172,53 @@ export async function action({ request }: { request: Request }) {
   // Check rate limit based on window (shared pool with portraits)
   const limit = limits.aiImageLimit;
   const window = limits.aiImageLimitWindow;
+  const isUnlimited = limit === Infinity;
 
-  // Unlimited — skip rate check
-  if (limit === Infinity) {
-    try {
-      const result = await generateBattlemap(
-        apiKey, prompt.trim(), gridWidth, gridHeight, cellSizeFt, artStyle, referenceImage
+  // Only finite tiers need the usage count; unlimited skips the query entirely.
+  let used = 0;
+  if (!isUnlimited) {
+    const windowStart = new Date();
+    if (window === "monthly") {
+      windowStart.setDate(windowStart.getDate() - 30);
+      windowStart.setHours(0, 0, 0, 0);
+    } else if (window === "weekly") {
+      windowStart.setDate(windowStart.getDate() - 7);
+      windowStart.setHours(0, 0, 0, 0);
+    } else {
+      windowStart.setHours(0, 0, 0, 0);
+    }
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(aiImageGenerations)
+      .where(
+        and(
+          eq(aiImageGenerations.userId, userId),
+          gte(aiImageGenerations.createdAt, windowStart)
+        )
       );
 
-      await db.insert(aiImageGenerations).values({
-        id: crypto.randomUUID(),
-        userId,
-        prompt: prompt.trim(),
-      });
+    used = countResult?.count ?? 0;
 
-      return Response.json({
-        imageBase64: result.imageBase64,
-        mimeType: result.mimeType,
-        remaining: null,
-        window,
-      });
-    } catch (error) {
-      if (error instanceof Error && error.message === "SAFETY_FILTER") {
-        return Response.json(
-          {
-            error:
-              "The image was blocked by safety filters. Try adjusting your description.",
-            safetyFilter: true,
-          },
-          { status: 422 }
-        );
-      }
-
-      console.error("[Map Generation] Error:", error);
+    if (used >= limit) {
+      const windowLabel = window === "monthly" ? "per month" : window === "weekly" ? "per week" : "per day";
+      const retryLabel = window === "monthly" ? "Try again next month." : window === "weekly" ? "Try again next week." : "Try again tomorrow.";
       return Response.json(
-        { error: "Failed to generate map. Please try again." },
-        { status: 500 }
+        {
+          error: `Limit reached (${limit} generations ${windowLabel}). ${retryLabel}`,
+          limitReached: true,
+          remaining: 0,
+          window,
+        },
+        { status: 429 }
       );
     }
   }
 
-  // Compute window start
-  const windowStart = new Date();
-  if (window === "monthly") {
-    windowStart.setDate(windowStart.getDate() - 30);
-    windowStart.setHours(0, 0, 0, 0);
-  } else if (window === "weekly") {
-    windowStart.setDate(windowStart.getDate() - 7);
-    windowStart.setHours(0, 0, 0, 0);
-  } else {
-    windowStart.setHours(0, 0, 0, 0);
-  }
-
-  const [countResult] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(aiImageGenerations)
-    .where(
-      and(
-        eq(aiImageGenerations.userId, userId),
-        gte(aiImageGenerations.createdAt, windowStart)
-      )
-    );
-
-  const used = countResult?.count ?? 0;
-
-  if (used >= limit) {
-    const windowLabel = window === "monthly" ? "per month" : window === "weekly" ? "per week" : "per day";
-    const retryLabel = window === "monthly" ? "Try again next month." : window === "weekly" ? "Try again next week." : "Try again tomorrow.";
-    return Response.json(
-      {
-        error: `Limit reached (${limit} generations ${windowLabel}). ${retryLabel}`,
-        limitReached: true,
-        remaining: 0,
-        window,
-      },
-      { status: 429 }
-    );
-  }
-
-  // Generate map
+  // Generate map from one call site so tier branches cannot drift apart.
   try {
     const result = await generateBattlemap(
-      apiKey, prompt.trim(), gridWidth, gridHeight, cellSizeFt, artStyle
+      apiKey, prompt.trim(), gridWidth, gridHeight, cellSizeFt, artStyle, referenceImage
     );
 
     await db.insert(aiImageGenerations).values({
@@ -252,12 +227,10 @@ export async function action({ request }: { request: Request }) {
       prompt: prompt.trim(),
     });
 
-    const remaining = limit - used - 1;
-
     return Response.json({
       imageBase64: result.imageBase64,
       mimeType: result.mimeType,
-      remaining,
+      remaining: isUnlimited ? null : limit - used - 1,
       window,
     });
   } catch (error) {

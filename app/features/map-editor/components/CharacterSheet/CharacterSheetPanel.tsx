@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { useFetcher } from "react-router";
 import type { Token, CharacterSheet, AbilityScore, AbilityScores, SkillProficiencies, SkillLevel, ClassFeature, FeatureCategory, Weapon, Condition, Spell, Equipment, RechargeCondition, DamageType } from "../../types";
@@ -330,16 +331,17 @@ export function CharacterSheetPanel({
   const handleGeneratePortrait = useCallback(async () => {
     const appearanceText = (sheet?.appearance ?? "").trim();
     const isEditing = !!(portraitReferenceUrl || portraitReferenceBase64);
-    if (!appearanceText || isGeneratingPortrait) return;
-    if (isEditing && !portraitEditPrompt.trim()) return;
+    if (isGeneratingPortrait) return;
+    // Editing works from the reference image, so only a brand-new generation
+    // needs the appearance text.
+    if (isEditing ? !portraitEditPrompt.trim() : !appearanceText) return;
     setIsGeneratingPortrait(true);
     setPortraitError(null);
     setPortraitPreview(null);
     try {
-      // When editing, send edit instructions as prompt; appearance is base context
-      const prompt = isEditing
-        ? `Character appearance: ${appearanceText}\n\nEdit instructions: ${portraitEditPrompt.trim()}`
-        : appearanceText;
+      // When editing, the reference image already carries the appearance. Re-sending
+      // the appearance text fights the edit instruction and reads as prompt buildup.
+      const prompt = isEditing ? portraitEditPrompt.trim() : appearanceText;
       const bodyPayload: Record<string, unknown> = {
         prompt,
         tokenSize: token?.size ?? 1,
@@ -377,6 +379,16 @@ export function CharacterSheetPanel({
       setIsGeneratingPortrait(false);
     }
   }, [sheet?.appearance, isGeneratingPortrait, portraitStyle, portraitReferenceUrl, portraitReferenceBase64, portraitEditPrompt]);
+
+  // Promote the generated preview to the reference for further edits. Clears the
+  // edit prompt so the next generate can't silently re-apply the previous instruction.
+  const handlePromotePreviewToReference = useCallback(() => {
+    if (!portraitPreview) return;
+    setPortraitReferenceBase64({ base64: portraitPreview, mimeType: "image/png" });
+    setPortraitReferenceUrl(null);
+    setPortraitPreview(null);
+    setPortraitEditPrompt("");
+  }, [portraitPreview]);
 
   // Keep currentImageUrl in sync with prop changes (render-time state reset)
   if (charImageUrl !== prevCharImageUrlRef.current) {
@@ -625,6 +637,14 @@ export function CharacterSheetPanel({
     }
   }, [portraitPreview, hasPendingChanges, handleClose]);
 
+  // Backdrop click closes only when the backdrop itself was clicked. The confirm
+  // dialog renders inside this backdrop, so without the check its buttons bubble
+  // up and immediately re-open the dialog they just dismissed.
+  const handleBackdropClick = useCallback((e: ReactMouseEvent) => {
+    if (e.target !== e.currentTarget) return;
+    handleGuardedClose();
+  }, [handleGuardedClose]);
+
   // Save token (with sheet) to the current user's library
   const handleSaveToLibrary = useCallback(async () => {
     if (!token || !sheet || !onLinkCharacter) return;
@@ -805,7 +825,7 @@ export function CharacterSheetPanel({
   const hpColor = getHpBarColor(hpPercent);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleGuardedClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleBackdropClick}>
       <ConfirmModal
         isOpen={showCloseConfirm}
         title="Unsaved Changes"
@@ -3165,11 +3185,7 @@ export function CharacterSheetPanel({
                           {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
                         </button>
                         <button
-                          onClick={() => {
-                            setPortraitReferenceBase64({ base64: portraitPreview!, mimeType: "image/png" });
-                            setPortraitReferenceUrl(null);
-                            setPortraitPreview(null);
-                          }}
+                          onClick={handlePromotePreviewToReference}
                           className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer"
                           title="Use this result as reference for further edits"
                         >
@@ -3574,11 +3590,7 @@ export function CharacterSheetPanel({
                           {isUploadingPortrait || isUploadingImage ? "Uploading..." : "Use as Avatar"}
                         </button>
                         <button
-                          onClick={() => {
-                            setPortraitReferenceBase64({ base64: portraitPreview!, mimeType: "image/png" });
-                            setPortraitReferenceUrl(null);
-                            setPortraitPreview(null);
-                          }}
+                          onClick={handlePromotePreviewToReference}
                           className="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 cursor-pointer"
                           title="Use this result as reference for further edits"
                         >
