@@ -11,6 +11,9 @@ const aiLimiter = redis
       prefix: "ratelimit:ai",
     })
   : null;
+const failClosed =
+  process.env.VERCEL_ENV === "production" ||
+  (!process.env.VERCEL_ENV && process.env.NODE_ENV === "production");
 
 export interface RateLimitResult {
   success: boolean;
@@ -20,11 +23,12 @@ export interface RateLimitResult {
 
 /**
  * Per-user burst limit for AI endpoints (10 requests/minute, sliding window).
- * Allows everything when Redis is not configured, so local dev and
- * pre-provisioning deploys work unchanged.
+ * Local development and previews remain usable without Redis. Production
+ * rejects AI requests when the limiter is unavailable, protecting unlimited
+ * tiers from an unbounded fallback.
  */
 export async function checkAiRateLimit(userId: string): Promise<RateLimitResult> {
-  if (!aiLimiter) return { success: true, retryAfter: 0 };
+  if (!aiLimiter) return { success: !failClosed, retryAfter: 0 };
 
   try {
     const { success, reset } = await aiLimiter.limit(userId);
@@ -33,9 +37,8 @@ export async function checkAiRateLimit(userId: string): Promise<RateLimitResult>
       retryAfter: success ? 0 : Math.max(1, Math.ceil((reset - Date.now()) / 1000)),
     };
   } catch (error) {
-    // Redis being down should degrade to "allowed", not take AI features out.
-    console.error("AI rate limit check failed, allowing request:", error);
-    return { success: true, retryAfter: 0 };
+    console.error("AI rate limit check failed:", error);
+    return { success: !failClosed, retryAfter: failClosed ? 60 : 0 };
   }
 }
 

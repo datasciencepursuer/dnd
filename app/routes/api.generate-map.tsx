@@ -6,6 +6,23 @@ import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
 import { generateBattlemap, type MapArtStyle, type ReferenceImage } from "~/.server/ai/image-generation";
 import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
+import {
+  fetchRemoteImageAsReference,
+  ImageInputError,
+  readBoundedJson,
+  validateBase64Image,
+} from "~/.server/ai/image-input";
+
+interface MapRequestBody {
+  prompt?: unknown;
+  gridWidth?: unknown;
+  gridHeight?: unknown;
+  cellSizeFt?: unknown;
+  artStyle?: unknown;
+  referenceImageBase64?: unknown;
+  referenceImageMimeType?: unknown;
+  referenceImageUrl?: unknown;
+}
 
 // GET — return usage stats (remaining generations, window)
 export async function loader({ request }: { request: Request }) {
@@ -83,7 +100,16 @@ export async function action({ request }: { request: Request }) {
   }
 
   // Parse and validate
-  const body = await request.json();
+  let body: MapRequestBody;
+  try {
+    body = await readBoundedJson<MapRequestBody>(request);
+  } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+
   const {
     prompt,
     gridWidth,
@@ -93,43 +119,25 @@ export async function action({ request }: { request: Request }) {
     referenceImageBase64,
     referenceImageMimeType,
     referenceImageUrl,
-  } = body as {
-    prompt: string;
-    gridWidth: number;
-    gridHeight: number;
-    cellSizeFt?: number;
-    artStyle?: string;
-    referenceImageBase64?: string;
-    referenceImageMimeType?: string;
-    referenceImageUrl?: string;
-  };
+  } = body;
 
   // Build reference image if provided
   let referenceImage: ReferenceImage | undefined;
-  if (referenceImageBase64 && referenceImageMimeType) {
-    referenceImage = { base64: referenceImageBase64, mimeType: referenceImageMimeType };
-  } else if (referenceImageUrl) {
-    // Fail loudly: silently dropping the reference turns an edit into a fresh
-    // generation, which still consumes a quota slot.
-    try {
-      const imgRes = await fetch(referenceImageUrl);
-      if (!imgRes.ok) {
-        return Response.json(
-          { error: `Could not load reference image (HTTP ${imgRes.status}). Try uploading the image as a map background first, then retry.` },
-          { status: 422 }
-        );
-      }
-      const buf = await imgRes.arrayBuffer();
-      const base64 = Buffer.from(buf).toString("base64");
-      const mimeType = imgRes.headers.get("content-type") || "image/png";
-      referenceImage = { base64, mimeType };
-    } catch (err) {
-      console.error("[Map Generation] Reference fetch failed:", err);
-      return Response.json(
-        { error: "Could not load reference image. Try uploading the image as a map background first, then retry." },
-        { status: 422 }
-      );
+  try {
+    if (referenceImageBase64 !== undefined || referenceImageMimeType !== undefined) {
+      referenceImage = validateBase64Image(referenceImageBase64, referenceImageMimeType);
+    } else if (referenceImageUrl !== undefined) {
+      referenceImage = await fetchRemoteImageAsReference(referenceImageUrl);
     }
+  } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    console.error("[Map Generation] Reference fetch failed:", error);
+    return Response.json(
+      { error: "Could not load reference image. Try uploading the image as a map background first, then retry." },
+      { status: 422 }
+    );
   }
 
   const validArtStyles: MapArtStyle[] = ["realistic", "classic-fantasy", "hd2d"];

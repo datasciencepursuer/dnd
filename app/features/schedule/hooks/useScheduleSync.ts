@@ -1,9 +1,9 @@
 import usePartySocket from "partysocket/react";
 import { useCallback } from "react";
+import { apiUrl } from "~/lib/api-config";
 
-// Reuses the existing map party server (party/map.ts).
+// Reuses the existing PartyKit server (party/map.ts).
 // Room name is "schedule-{groupId}" to avoid collision with map rooms.
-// The server simply broadcasts any message to all other clients in the room.
 
 const PARTYKIT_HOST = import.meta.env.VITE_PARTYKIT_HOST || "127.0.0.1:1999";
 
@@ -20,10 +20,22 @@ export function useScheduleSync({
   onRemoteAvailabilityUpdate,
   onRemoteVoteUpdate,
 }: UseScheduleSyncOptions) {
+  const partyAuthQuery = useCallback(async () => {
+    const response = await fetch(apiUrl(`/api/groups/${groupId}/party-token`), {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) throw new Error("Unable to authorize schedule synchronization");
+
+    const body = (await response.json()) as { token?: string };
+    if (!body.token) throw new Error("Schedule synchronization authorization was empty");
+    return { auth: body.token };
+  }, [groupId]);
+
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
     room: `schedule-${groupId}`,
-    query: { userId },
+    query: partyAuthQuery,
     onMessage(event) {
       try {
         const data = JSON.parse(event.data);

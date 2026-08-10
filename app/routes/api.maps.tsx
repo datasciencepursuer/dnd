@@ -6,6 +6,10 @@ import { requireAuth } from "~/.server/auth/session";
 import { nanoid } from "nanoid";
 import { isGroupMember } from "~/.server/permissions/group-permissions";
 import { getUserTierLimits } from "~/.server/subscription";
+import {
+  collectImageUrlValues,
+  validateOwnedImageUrls,
+} from "~/.server/uploads/image-validation";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await requireAuth(request);
@@ -127,6 +131,14 @@ export async function action({ request }: Route.ActionArgs) {
         { status: 403 }
       );
     }
+  }
+
+  const imageValidation = await validateOwnedImageUrls(
+    userId,
+    collectImageUrlValues(data)
+  );
+  if (!imageValidation.valid) {
+    return Response.json({ error: imageValidation.error }, { status: 400 });
   }
 
   const id = nanoid();

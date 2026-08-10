@@ -3,6 +3,7 @@ import { db } from "~/.server/db";
 import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTierLimits } from "~/.server/subscription";
+import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
 
 /**
  * GET /api/characters
@@ -47,6 +48,11 @@ export async function action({ request }: { request: Request }) {
 
   if (!name?.trim()) {
     return Response.json({ error: "Name is required" }, { status: 400 });
+  }
+
+  const imageValidation = await validateOwnedImageUrls(userId, [imageUrl], { type: "token" });
+  if (!imageValidation.valid) {
+    return Response.json({ error: imageValidation.error }, { status: 400 });
   }
 
   const id = crypto.randomUUID();

@@ -10,6 +10,9 @@ export const env = {
   get BETTER_AUTH_SECRET() {
     return getEnvVar("BETTER_AUTH_SECRET");
   },
+  get PARTYKIT_AUTH_SECRET() {
+    return process.env.PARTYKIT_AUTH_SECRET || this.BETTER_AUTH_SECRET;
+  },
   get BETTER_AUTH_URL() {
     return process.env.BETTER_AUTH_URL || "http://localhost:5173";
   },

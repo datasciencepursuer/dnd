@@ -4,6 +4,7 @@ import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { analyzeMapBackground } from "~/.server/ai/auto-draw";
 import { getUserTierLimits } from "~/.server/subscription";
 import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
+import { ImageInputError, readBoundedJson } from "~/.server/ai/image-input";
 
 interface RouteArgs {
   request: Request;
@@ -49,7 +50,21 @@ export async function action({ request, params }: RouteArgs) {
     );
   }
 
-  const body = await request.json();
+  let body: {
+    imageUrl?: unknown;
+    gridWidth?: unknown;
+    gridHeight?: unknown;
+    region?: unknown;
+  };
+  try {
+    body = await readBoundedJson(request, 128 * 1024);
+  } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+
   const { imageUrl, gridWidth, gridHeight, region } = body as {
     imageUrl: string;
     gridWidth: number;
@@ -85,6 +100,9 @@ export async function action({ request, params }: RouteArgs) {
     const suggestions = await analyzeMapBackground(apiKey, imageUrl, gridWidth, gridHeight, region);
     return Response.json({ suggestions });
   } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
     console.error("[AI Auto-Draw] Error:", error);
     return Response.json(
       { error: "Failed to analyze map image. Please try again." },

@@ -1,4 +1,5 @@
 import type * as Party from "partykit/server";
+import { verifyPartyAuthToken } from "../shared/party-auth";
 
 // Message types from clients
 interface TokenMoveMessage {
@@ -197,6 +198,16 @@ interface AreaRemoveMessage {
   userId: string;
 }
 
+interface ScheduleAvailabilityMessage {
+  type: "availability-update";
+  userId: string;
+}
+
+interface ScheduleVoteMessage {
+  type: "vote-update";
+  userId: string;
+}
+
 // Server-generated messages
 interface PresenceMessage {
   type: "presence";
@@ -232,13 +243,378 @@ type ClientMessage =
   | WallAddMessage
   | WallRemoveMessage
   | AreaAddMessage
-  | AreaRemoveMessage;
+  | AreaRemoveMessage
+  | ScheduleAvailabilityMessage
+  | ScheduleVoteMessage;
 
 // Track connected users
 interface ConnectedUser {
   id: string;
   name: string;
   connectionId: string;
+}
+
+type JsonRecord = Record<string, unknown>;
+
+const MAX_MESSAGE_BYTES = 512 * 1024;
+const MAX_STRING_LENGTH = 8_192;
+const MAX_ID_LENGTH = 256;
+const MAX_NAME_LENGTH = 256;
+const MAX_IMAGE_URL_LENGTH = 4_096;
+const MAX_COLLECTION_LENGTH = 10_000;
+const MAX_NESTING_DEPTH = 12;
+const IMAGE_URL_FIELD = /^(?:imageUrl|backgroundUrl|thumbnailUrl|avatarUrl)$/i;
+const DISALLOWED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isBoundedString(value: unknown, maxLength = MAX_STRING_LENGTH): value is string {
+  return typeof value === "string" && value.length <= maxLength;
+}
+
+function isNonEmptyString(value: unknown, maxLength = MAX_STRING_LENGTH): value is string {
+  return isBoundedString(value, maxLength) && value.trim().length > 0;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isAllowedImageUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const isUploadThingHost =
+      hostname === "utfs.io" || hostname === "ufs.sh" || hostname.endsWith(".ufs.sh");
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      isUploadThingHost &&
+      url.pathname.startsWith("/f/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isSafeCoordinate(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && Math.abs(value) <= 1_000_000;
+}
+
+function isSafeJsonValue(value: unknown, key = "", depth = 0): boolean {
+  if (depth > MAX_NESTING_DEPTH) return false;
+
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+
+  if (typeof value === "string") {
+    if (!isBoundedString(value)) return false;
+    if (IMAGE_URL_FIELD.test(key) && value !== "") {
+      return value.length <= MAX_IMAGE_URL_LENGTH && isAllowedImageUrl(value);
+    }
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length <= MAX_COLLECTION_LENGTH && value.every((item) =>
+      isSafeJsonValue(item, "", depth + 1)
+    );
+  }
+
+  if (!isRecord(value)) return false;
+
+  const keys = Object.keys(value);
+  if (keys.length > MAX_COLLECTION_LENGTH) return false;
+
+  return keys.every((entryKey) =>
+    !DISALLOWED_KEYS.has(entryKey) && isSafeJsonValue(value[entryKey], entryKey, depth + 1)
+  );
+}
+
+function isSafeRecord(value: unknown): value is JsonRecord {
+  return isRecord(value) && isSafeJsonValue(value);
+}
+
+function hasUserId(value: JsonRecord, userId: string): boolean {
+  return isNonEmptyString(value.userId, MAX_ID_LENGTH) && value.userId === userId;
+}
+
+function hasString(value: JsonRecord, key: string, maxLength = MAX_STRING_LENGTH): boolean {
+  return isBoundedString(value[key], maxLength);
+}
+
+function hasNonEmptyString(value: JsonRecord, key: string, maxLength = MAX_ID_LENGTH): boolean {
+  return isNonEmptyString(value[key], maxLength);
+}
+
+function isTokenRecord(value: unknown): value is JsonRecord {
+  return isSafeRecord(value) && isNonEmptyString(value.id, MAX_ID_LENGTH);
+}
+
+function isMapData(value: unknown, roomId: string): boolean {
+  if (!isSafeRecord(value) || value.id !== roomId || !Array.isArray(value.tokens)) return false;
+  return value.tokens.length <= MAX_COLLECTION_LENGTH && value.tokens.every(isTokenRecord);
+}
+
+function isGridPosition(value: unknown): boolean {
+  return isRecord(value) && isSafeCoordinate(value.col) && isSafeCoordinate(value.row);
+}
+
+function isDrawingPath(value: unknown): boolean {
+  if (!isRecord(value) || !isSafeJsonValue(value)) return false;
+  return (
+    isNonEmptyString(value.id, MAX_ID_LENGTH) &&
+    Array.isArray(value.points) &&
+    value.points.length <= MAX_COLLECTION_LENGTH &&
+    value.points.every(isFiniteNumber) &&
+    isBoundedString(value.color, MAX_STRING_LENGTH) &&
+    isFiniteNumber(value.width)
+  );
+}
+
+function isPing(value: unknown, userId: string): boolean {
+  if (!isRecord(value) || !isSafeJsonValue(value)) return false;
+  return (
+    isNonEmptyString(value.id, MAX_ID_LENGTH) &&
+    isFiniteNumber(value.x) &&
+    isFiniteNumber(value.y) &&
+    isBoundedString(value.color, MAX_STRING_LENGTH) &&
+    value.userId === userId &&
+    isFiniteNumber(value.timestamp)
+  );
+}
+
+function isInitiativeOrder(value: unknown): boolean {
+  if (value === null) return true;
+  if (!Array.isArray(value) || value.length > MAX_COLLECTION_LENGTH) return false;
+
+  return value.every((entry) => {
+    if (!isRecord(entry)) return false;
+    return (
+      isNonEmptyString(entry.tokenId, MAX_ID_LENGTH) &&
+      isBoundedString(entry.tokenName, MAX_NAME_LENGTH) &&
+      isBoundedString(entry.tokenColor, MAX_STRING_LENGTH) &&
+      isFiniteNumber(entry.initiative)
+    );
+  });
+}
+
+function isChatMessage(value: unknown, userId: string, roomId: string): boolean {
+  if (!isRecord(value) || !isSafeJsonValue(value)) return false;
+
+  return (
+    value.mapId === roomId &&
+    isNonEmptyString(value.id, MAX_ID_LENGTH) &&
+    value.userId === userId &&
+    isNonEmptyString(value.userName, MAX_NAME_LENGTH) &&
+    isNonEmptyString(value.message, 500) &&
+    isNonEmptyString(value.role, MAX_NAME_LENGTH) &&
+    isNonEmptyString(value.createdAt, MAX_NAME_LENGTH) &&
+    (value.recipientId === undefined || value.recipientId === null || isNonEmptyString(value.recipientId, MAX_ID_LENGTH)) &&
+    (value.recipientName === undefined || value.recipientName === null || isBoundedString(value.recipientName, MAX_NAME_LENGTH))
+  );
+}
+
+function normalizeQueryValue(value: string | null, maxLength: number): string | null {
+  if (value === null) return null;
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
+}
+
+function asClientMessage(value: JsonRecord): ClientMessage {
+  // The runtime checks above establish the discriminated union after JSON parsing.
+  return value as unknown as ClientMessage;
+}
+
+async function getConnectionIdentity(
+  room: Party.Room,
+  ctx: Party.ConnectionContext
+): Promise<{ id: string; name: string } | null> {
+  const url = new URL(ctx.request.url);
+  const token = url.searchParams.get("auth");
+  const secret = room.env.PARTYKIT_AUTH_SECRET || room.env.BETTER_AUTH_SECRET;
+  if (!token || typeof secret !== "string" || secret.length === 0) return null;
+
+  try {
+    const payload = await verifyPartyAuthToken(token, secret, room.id);
+    if (!payload) return null;
+
+    const userId = normalizeQueryValue(payload.userId, MAX_ID_LENGTH);
+    if (!userId) return null;
+
+    return {
+      id: userId,
+      name: normalizeQueryValue(payload.userName, MAX_NAME_LENGTH) || "Anonymous",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseClientMessage(message: string, userId: string, roomId: string): ClientMessage | null {
+  if (message.length > MAX_MESSAGE_BYTES) return null;
+
+  let value: unknown;
+  try {
+    value = JSON.parse(message);
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(value) || !isNonEmptyString(value.type, MAX_ID_LENGTH) || !isSafeJsonValue(value)) {
+    return null;
+  }
+
+  switch (value.type) {
+    case "token-move":
+      return hasUserId(value, userId) &&
+        hasNonEmptyString(value, "tokenId") &&
+        isGridPosition(value.position) &&
+        hasString(value, "userName", MAX_NAME_LENGTH)
+        ? asClientMessage(value)
+        : null;
+    case "token-update":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "tokenId") && isSafeRecord(value.updates)
+        ? asClientMessage(value)
+        : null;
+    case "token-delete":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "tokenId")
+        ? asClientMessage(value)
+        : null;
+    case "token-create":
+      return hasUserId(value, userId) && isTokenRecord(value.token)
+        ? asClientMessage(value)
+        : null;
+    case "map-sync":
+      return hasUserId(value, userId) && isMapData(value.data, roomId)
+        ? asClientMessage(value)
+        : null;
+    case "fog-paint":
+      return hasUserId(value, userId) &&
+        isSafeCoordinate(value.col) &&
+        isSafeCoordinate(value.row) &&
+        hasNonEmptyString(value, "creatorId")
+        ? asClientMessage(value)
+        : null;
+    case "fog-erase":
+      return hasUserId(value, userId) &&
+        isSafeCoordinate(value.col) &&
+        isSafeCoordinate(value.row) &&
+        typeof value.isDM === "boolean"
+        ? asClientMessage(value)
+        : null;
+    case "fog-paint-range":
+      return hasUserId(value, userId) &&
+        isSafeCoordinate(value.startCol) &&
+        isSafeCoordinate(value.startRow) &&
+        isSafeCoordinate(value.endCol) &&
+        isSafeCoordinate(value.endRow) &&
+        hasNonEmptyString(value, "creatorId")
+        ? asClientMessage(value)
+        : null;
+    case "fog-erase-range":
+      return hasUserId(value, userId) &&
+        isSafeCoordinate(value.startCol) &&
+        isSafeCoordinate(value.startRow) &&
+        isSafeCoordinate(value.endCol) &&
+        isSafeCoordinate(value.endRow) &&
+        typeof value.isDM === "boolean"
+        ? asClientMessage(value)
+        : null;
+    case "ping":
+      return hasUserId(value, userId) && isPing(value.ping, userId)
+        ? asClientMessage(value)
+        : null;
+    case "drawing-add":
+      return hasUserId(value, userId) && isDrawingPath(value.path)
+        ? asClientMessage(value)
+        : null;
+    case "drawing-remove":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "pathId")
+        ? asClientMessage(value)
+        : null;
+    case "dm-transfer":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "newDmId")
+        ? asClientMessage(value)
+        : null;
+    case "combat-request":
+      return value.requesterId === userId && hasString(value, "requesterName", MAX_NAME_LENGTH)
+        ? asClientMessage(value)
+        : null;
+    case "combat-response":
+      return typeof value.accepted === "boolean" && isInitiativeOrder(value.initiativeOrder)
+        ? asClientMessage(value)
+        : null;
+    case "combat-end":
+      return hasUserId(value, userId) ? asClientMessage(value) : null;
+    case "dice-roll":
+      return hasUserId(value, userId) && isSafeRecord(value.roll)
+        ? asClientMessage(value)
+        : null;
+    case "token-stats":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "tokenId") && isSafeRecord(value.stats)
+        ? asClientMessage(value)
+        : null;
+    case "chat-message":
+      return hasUserId(value, userId) && isChatMessage(value.chatMessage, userId, roomId)
+        ? asClientMessage(value)
+        : null;
+    case "chat-clear":
+      return hasUserId(value, userId) ? asClientMessage(value) : null;
+    case "wall-add":
+      return hasUserId(value, userId) && isTokenRecord(value.wall)
+        ? asClientMessage(value)
+        : null;
+    case "wall-remove":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "wallId")
+        ? asClientMessage(value)
+        : null;
+    case "area-add":
+      return hasUserId(value, userId) && isTokenRecord(value.area)
+        ? asClientMessage(value)
+        : null;
+    case "area-remove":
+      return hasUserId(value, userId) && hasNonEmptyString(value, "areaId")
+        ? asClientMessage(value)
+        : null;
+    case "availability-update":
+    case "vote-update":
+      return hasUserId(value, userId) ? asClientMessage(value) : null;
+    default:
+      return null;
+  }
+}
+
+function bindClientIdentity(message: ClientMessage, user: ConnectedUser): void {
+  const value = message as unknown as JsonRecord;
+  if (typeof value.userId === "string") value.userId = user.id;
+
+  switch (message.type) {
+    case "token-move":
+      message.userName = user.name;
+      break;
+    case "combat-request":
+      message.requesterId = user.id;
+      message.requesterName = user.name;
+      break;
+    case "ping":
+      message.ping.userId = user.id;
+      break;
+    case "fog-paint":
+    case "fog-paint-range":
+      message.creatorId = user.id;
+      break;
+    case "chat-message":
+      message.chatMessage.userId = user.id;
+      message.chatMessage.userName = user.name;
+      break;
+    default:
+      break;
+  }
 }
 
 export default class MapPartyServer implements Party.Server {
@@ -248,33 +624,29 @@ export default class MapPartyServer implements Party.Server {
 
   constructor(readonly room: Party.Room) {}
 
-  onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
-    // User info passed via query params
-    const url = new URL(ctx.request.url);
-    const userId = url.searchParams.get("userId");
-    const userName = url.searchParams.get("userName") || "Anonymous";
-
-    // Only track users with valid userId (non-empty string)
-    if (userId && userId.trim() !== "") {
-      this.users.set(conn.id, {
-        id: userId,
-        name: userName,
-        connectionId: conn.id,
-      });
+  async onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
+    const identity = await getConnectionIdentity(this.room, ctx);
+    if (!identity) {
+      conn.close(1008, "invalid PartyKit authorization");
+      return;
     }
+
+    this.users.set(conn.id, {
+      id: identity.id,
+      name: identity.name,
+      connectionId: conn.id,
+    });
 
     // Broadcast updated presence to all clients
     this.broadcastPresence();
 
     // Send chat history buffer to the new connection (filter whispers)
     if (this.chatMessages.length > 0) {
-      const userChatHistory = userId
-        ? this.chatMessages.filter((msg) =>
-            !msg.recipientId ||
-            msg.userId === userId ||
-            msg.recipientId === userId
-          )
-        : this.chatMessages.filter((msg) => !msg.recipientId);
+      const userChatHistory = this.chatMessages.filter((msg) =>
+        !msg.recipientId ||
+        msg.userId === identity.id ||
+        msg.recipientId === identity.id
+      );
       if (userChatHistory.length > 0) {
         conn.send(JSON.stringify({
           type: "chat-history",
@@ -302,12 +674,24 @@ export default class MapPartyServer implements Party.Server {
 
   onMessage(message: string, sender: Party.Connection) {
     try {
-      const data: ClientMessage = JSON.parse(message);
+      const senderUser = this.users.get(sender.id);
+      if (!senderUser) {
+        sender.close(1008, "connection is not admitted");
+        return;
+      }
+
+      const data = parseClientMessage(message, senderUser.id, this.room.id);
+      if (!data) {
+        console.warn("Rejected invalid PartyKit message", { connectionId: sender.id });
+        return;
+      }
+      bindClientIdentity(data, senderUser);
+      const serializedMessage = JSON.stringify(data);
 
       // Clear chat: wipe server buffer and broadcast to all clients
       if (data.type === "chat-clear") {
         this.chatMessages = [];
-        this.room.broadcast(message, [sender.id]);
+        this.room.broadcast(serializedMessage, [sender.id]);
         return;
       }
 
@@ -324,7 +708,7 @@ export default class MapPartyServer implements Party.Server {
           for (const conn of this.room.getConnections()) {
             const connUser = this.users.get(conn.id);
             if (connUser && connUser.id === recipientId) {
-              conn.send(message);
+              conn.send(serializedMessage);
             }
           }
           return;
@@ -332,7 +716,7 @@ export default class MapPartyServer implements Party.Server {
       }
 
       // Broadcast to all OTHER clients (sender already has optimistic update)
-      this.room.broadcast(message, [sender.id]);
+      this.room.broadcast(serializedMessage, [sender.id]);
     } catch (error) {
       console.error("Failed to parse message:", error);
     }

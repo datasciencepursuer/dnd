@@ -59,10 +59,11 @@ Uses better-auth for email/password + Google OAuth authentication.
 - `UPLOADTHING_TOKEN` - UploadThing API token for image uploads
 - `RESEND_API_KEY` - Resend API key for sending emails (verification, password reset)
 - `VITE_PARTYKIT_HOST` - PartyKit host (defaults to `127.0.0.1:1999` in dev)
+- `PARTYKIT_AUTH_SECRET` - Dedicated secret shared by the app and PartyKit for map WebSocket authorization; production PartyKit deploys must configure the GitHub Actions secret of the same name
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - Google OAuth (optional, enables social login)
 - `GEMINI_API_KEY` - Google Gemini API key (optional, enables AI DM assistant)
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_ADVENTURER_PRICE_ID` / `STRIPE_HERO_PRICE_ID` - Stripe billing
-- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis (optional, enables per-user burst rate limiting on AI endpoints; rate limiting no-ops when unset; production-only by design)
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` - Upstash Redis for per-user burst rate limiting on AI endpoints; local development and previews can omit it, while production rejects AI requests if the limiter is unavailable
 
 `app/.server/env.ts` uses lazy getters — env vars are read on first access, not at import. This is what allows `pnpm build` and CI to run with no secrets configured; don't convert it to eager reads.
 

@@ -102,8 +102,8 @@ export default function Characters() {
   // Upload handler
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
-      if (res?.[0]?.url) {
-        setFormImageUrl(res[0].url);
+      if (res?.[0]?.ufsUrl) {
+        setFormImageUrl(res[0].ufsUrl);
       }
       setIsUploading(false);
       setUploadError(null);

@@ -521,8 +521,8 @@ export function CharacterSheetPanel({
 
   const { startUpload: startImageUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
-      if (res?.[0]?.url) {
-        handleImageSelectedRef.current(res[0].url);
+      if (res?.[0]?.ufsUrl) {
+        handleImageSelectedRef.current(res[0].ufsUrl);
       }
       setIsUploadingImage(false);
       setImageUploadError(null);

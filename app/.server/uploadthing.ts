@@ -8,6 +8,13 @@ import { uploads } from "~/.server/db/schema";
 import { getUserTierLimits } from "~/.server/subscription";
 
 const f = createUploadthing();
+const ALLOWED_IMAGE_TYPES = new Set(["image/gif", "image/jpeg", "image/png", "image/webp"]);
+
+function assertAllowedImageTypes(files: ReadonlyArray<{ type: string }>): void {
+  if (files.some((file) => !ALLOWED_IMAGE_TYPES.has(file.type.toLowerCase()))) {
+    throw new UploadThingError("Only PNG, JPEG, GIF, and WebP images are supported.");
+  }
+}
 
 export const uploadRouter = {
   tokenImageUploader: f({
@@ -19,6 +26,7 @@ export const uploadRouter = {
     .middleware(async ({ event, files }) => {
       const session = await getSession(event.request);
       if (!session) throw new UploadThingError("Unauthorized");
+      assertAllowedImageTypes(files);
 
       const limits = await getUserTierLimits(session.user.id);
 
@@ -40,16 +48,24 @@ export const uploadRouter = {
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Token image upload complete for userId:", metadata.userId);
 
-      // Save to uploads table
-      await db.insert(uploads).values({
-        id: crypto.randomUUID(),
-        userId: metadata.userId,
-        url: file.ufsUrl,
-        type: "token",
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-      });
+      // UploadThing may retry callbacks. Avoid charging the library twice for
+      // the same storage object when a callback is delivered more than once.
+      const [existingUpload] = await db
+        .select({ id: uploads.id })
+        .from(uploads)
+        .where(eq(uploads.url, file.ufsUrl))
+        .limit(1);
+      if (!existingUpload) {
+        await db.insert(uploads).values({
+          id: crypto.randomUUID(),
+          userId: metadata.userId,
+          url: file.ufsUrl,
+          type: "token",
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        });
+      }
 
       return { uploadedBy: metadata.userId, url: file.ufsUrl };
     }),
@@ -63,6 +79,7 @@ export const uploadRouter = {
     .middleware(async ({ event, files }) => {
       const session = await getSession(event.request);
       if (!session) throw new UploadThingError("Unauthorized");
+      assertAllowedImageTypes(files);
 
       const limits = await getUserTierLimits(session.user.id);
 
@@ -98,16 +115,22 @@ export const uploadRouter = {
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Map background upload complete for map:", metadata.mapId);
 
-      // Save to uploads table
-      await db.insert(uploads).values({
-        id: crypto.randomUUID(),
-        userId: metadata.userId,
-        url: file.ufsUrl,
-        type: "map",
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-      });
+      const [existingUpload] = await db
+        .select({ id: uploads.id })
+        .from(uploads)
+        .where(eq(uploads.url, file.ufsUrl))
+        .limit(1);
+      if (!existingUpload) {
+        await db.insert(uploads).values({
+          id: crypto.randomUUID(),
+          userId: metadata.userId,
+          url: file.ufsUrl,
+          type: "map",
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        });
+      }
 
       return { uploadedBy: metadata.userId, mapId: metadata.mapId, url: file.ufsUrl };
     }),

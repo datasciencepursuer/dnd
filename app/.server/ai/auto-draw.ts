@@ -1,4 +1,5 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { fetchRemoteImageAsReference } from "./image-input";
 import type { WallType, TerrainType, Position } from "~/features/map-editor/types";
 
 const VALID_WALL_TYPES: Set<string> = new Set([
@@ -174,20 +175,12 @@ export async function analyzeMapBackground(
   gridHeight: number,
   region?: Region
 ): Promise<AutoDrawResult> {
-  // Fetch image and convert to base64
+  // Fetch and validate the stored UploadThing image before sending it to Gemini.
   console.log("[AI Auto-Draw] Fetching image:", imageUrl.slice(0, 100));
-  const imageResponse = await fetch(imageUrl);
-  if (!imageResponse.ok) {
-    throw new Error(`Failed to fetch background image: ${imageResponse.status}`);
-  }
-
-  const imageBuffer = await imageResponse.arrayBuffer();
-  const base64Image = Buffer.from(imageBuffer).toString("base64");
-  console.log("[AI Auto-Draw] Image size:", Math.round(imageBuffer.byteLength / 1024), "KB");
-
-  // Determine MIME type from content-type header or URL
-  const contentType = imageResponse.headers.get("content-type") || "image/png";
-  const mimeType = contentType.split(";")[0].trim();
+  const referenceImage = await fetchRemoteImageAsReference(imageUrl);
+  const base64Image = referenceImage.base64;
+  const mimeType = referenceImage.mimeType;
+  console.log("[AI Auto-Draw] Image size:", Math.round(Buffer.byteLength(base64Image, "base64") / 1024), "KB");
   console.log("[AI Auto-Draw] MIME type:", mimeType);
 
   const systemPrompt = AUTO_DRAW_SYSTEM_PROMPT

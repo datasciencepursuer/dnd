@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "party/**"
+      - "shared/party-auth.ts"
       - "partykit.json"
       - ".github/workflows/partykit.yml"
 
@@ -25,7 +26,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Deploy to PartyKit
-        run: pnpm exec partykit deploy
+        run: pnpm exec partykit deploy --with-vars
         env:
           PARTYKIT_TOKEN: ${{ secrets.PARTYKIT_TOKEN }}
           PARTYKIT_LOGIN: ${{ secrets.PARTYKIT_LOGIN }}
+          PARTYKIT_AUTH_SECRET: ${{ secrets.PARTYKIT_AUTH_SECRET }}

@@ -4,6 +4,7 @@ import { db } from "~/.server/db";
 import { maps } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
+import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
 
 interface Token {
   id: string;
@@ -109,6 +110,14 @@ export async function action({ request, params }: Route.ActionArgs) {
           ...body,
         };
 
+        const imageValidation = await validateOwnedImageUrls(session.user.id, [newToken.imageUrl], {
+          type: "token",
+        });
+        if (!imageValidation.valid) {
+          return Response.json({ error: imageValidation.error }, { status: 400 });
+        }
+        if (newToken.imageUrl === "") newToken.imageUrl = null;
+
         const updatedData = {
           ...currentData,
           tokens: [...currentData.tokens, newToken],
@@ -139,6 +148,15 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       // Update the token
       const updatedToken = { ...currentToken, ...body };
+      const currentImageUrl = typeof currentToken.imageUrl === "string" ? currentToken.imageUrl : null;
+      const imageValidation = await validateOwnedImageUrls(session.user.id, [updatedToken.imageUrl], {
+        allowedExistingUrls: currentImageUrl ? [currentImageUrl] : [],
+        type: "token",
+      });
+      if (!imageValidation.valid) {
+        return Response.json({ error: imageValidation.error }, { status: 400 });
+      }
+      if (updatedToken.imageUrl === "") updatedToken.imageUrl = null;
       const updatedTokens = [...currentData.tokens];
       updatedTokens[tokenIndex] = updatedToken;
 

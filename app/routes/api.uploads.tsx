@@ -79,14 +79,29 @@ export async function action({ request }: { request: Request }) {
   const urlParts = upload.url.split("/f/");
   const fileKey = urlParts.length > 1 ? urlParts[1] : null;
 
+  if (!fileKey) {
+    return Response.json(
+      { error: "Upload storage key is invalid; the file was not removed." },
+      { status: 500 }
+    );
+  }
+
   // Delete from UploadThing storage
-  if (fileKey) {
-    try {
-      await utapi.deleteFiles(fileKey);
-    } catch (error) {
-      console.error("Failed to delete from UploadThing:", error);
-      // Continue with DB deletion even if UploadThing deletion fails
+  try {
+    const result = await utapi.deleteFiles(fileKey);
+    if (!result.success || result.deletedCount !== 1) {
+      console.error("UploadThing did not delete the expected file:", result);
+      return Response.json(
+        { error: "Could not remove the file from storage. Please retry." },
+        { status: 502 }
+      );
     }
+  } catch (error) {
+    console.error("Failed to delete from UploadThing:", error);
+    return Response.json(
+      { error: "Could not remove the file from storage. Please retry." },
+      { status: 502 }
+    );
   }
 
   // Delete from database

@@ -8,6 +8,10 @@ import {
   getEffectivePermissions,
 } from "~/.server/permissions/map-permissions";
 import { getUserTierLimits } from "~/.server/subscription";
+import {
+  collectImageUrlValues,
+  validateOwnedImageUrls,
+} from "~/.server/uploads/image-validation";
 
 interface GroupMemberInfo {
   id: string;
@@ -77,6 +81,32 @@ export async function action({ request, params }: Route.ActionArgs) {
       const body = await request.json();
       const { name, data, newDmId } = body;
 
+      let currentMapData: { data: unknown } | null = null;
+      if (data !== undefined) {
+        const currentMap = await db
+          .select({ data: maps.data })
+          .from(maps)
+          .where(eq(maps.id, mapId))
+          .limit(1);
+
+        if (currentMap.length === 0) {
+          return new Response("Map not found", { status: 404 });
+        }
+
+        currentMapData = currentMap[0];
+        const existingImageUrls = collectImageUrlValues(currentMapData.data).filter(
+          (value): value is string => typeof value === "string"
+        );
+        const imageValidation = await validateOwnedImageUrls(
+          session.user.id,
+          collectImageUrlValues(data),
+          { allowedExistingUrls: existingImageUrls }
+        );
+        if (!imageValidation.valid) {
+          return Response.json({ error: imageValidation.error }, { status: 400 });
+        }
+      }
+
       // Handle DM transfer
       if (newDmId !== undefined) {
         if (!isDM) {
@@ -118,18 +148,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       // Players can only delete tokens they own
       if (!isDM && data) {
-        // Get current map data to validate changes
-        const currentMap = await db
-          .select({ data: maps.data })
-          .from(maps)
-          .where(eq(maps.id, mapId))
-          .limit(1);
-
-        if (currentMap.length === 0) {
-          return new Response("Map not found", { status: 404 });
-        }
-
-        const currentData = currentMap[0].data as { tokens?: Array<{ id: string; ownerId: string | null }> };
+        const currentData = currentMapData!.data as { tokens?: Array<{ id: string; ownerId: string | null }> };
         const newData = data as { tokens?: Array<{ id: string; ownerId: string | null }> };
 
         // Check that player only deleted their own tokens

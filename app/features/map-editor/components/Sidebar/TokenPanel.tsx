@@ -117,8 +117,8 @@ export function TokenPanel({
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
-      if (res?.[0]?.url) {
-        setTokenImageUrl(res[0].url);
+      if (res?.[0]?.ufsUrl) {
+        setTokenImageUrl(res[0].ufsUrl);
       }
       setIsUploading(false);
       setUploadError(null);

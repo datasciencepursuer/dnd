@@ -445,15 +445,31 @@ export function usePartySync({
     }
   }, [userId, moveToken, updateToken, removeToken, addTokenFromSync, syncMap, paintFogCell, eraseFogCell, paintFogInRange, eraseFogInRange, addFreehandPath, removeFreehandPath, addWall, removeWall, addArea, removeArea, setUsers]);
 
-  // Only create query params if we have valid user data
-  const queryParams = userId
-    ? { userId, userName: userName || "Anonymous" }
-    : undefined;
+  // Fetch a short-lived, map-scoped credential. The PartyKit server derives
+  // identity from this signed token instead of trusting query-string values.
+  const partyAuthQuery = useCallback(async () => {
+    if (!mapId || !userId) return {};
+
+    const response = await fetch(apiUrl(`/api/maps/${mapId}/party-token`), {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      throw new Error("Unable to authorize map synchronization");
+    }
+
+    const body = (await response.json()) as { token?: string };
+    if (!body.token) {
+      throw new Error("Map synchronization authorization was empty");
+    }
+
+    return { auth: body.token };
+  }, [mapId, userId]);
 
   const socket = usePartySocket({
     host: PARTYKIT_HOST,
     room: mapId || "lobby",
-    query: queryParams,
+    query: partyAuthQuery,
     // Only connect if we have required data
     startClosed: !enabled || !mapId || !userId,
 

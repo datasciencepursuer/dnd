@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "~/.server/db";
 import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
+import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
 
 async function canAccessCharacter(userId: string, characterId: string) {
   // Get the character
@@ -84,7 +85,16 @@ export async function action({ request, params }: { request: Request; params: { 
 
     // Only allow updating certain fields
     if (body.name !== undefined) updates.name = body.name;
-    if (body.imageUrl !== undefined) updates.imageUrl = body.imageUrl;
+    if (body.imageUrl !== undefined) {
+      const imageValidation = await validateOwnedImageUrls(userId, [body.imageUrl], {
+        allowedExistingUrls: access.character?.imageUrl ? [access.character.imageUrl] : [],
+        type: "token",
+      });
+      if (!imageValidation.valid) {
+        return Response.json({ error: imageValidation.error }, { status: 400 });
+      }
+      updates.imageUrl = body.imageUrl || null;
+    }
     if (body.color !== undefined) updates.color = body.color;
     if (body.size !== undefined) updates.size = body.size;
     if (body.layer !== undefined) updates.layer = body.layer;

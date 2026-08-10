@@ -141,8 +141,8 @@ export function TokenEditDialog({
 
   const { startUpload } = useUploadThing("tokenImageUploader", {
     onClientUploadComplete: (res) => {
-      if (res?.[0]?.url) {
-        setImageUrl(res[0].url);
+      if (res?.[0]?.ufsUrl) {
+        setImageUrl(res[0].ufsUrl);
       }
       setIsUploading(false);
       setUploadError(null);

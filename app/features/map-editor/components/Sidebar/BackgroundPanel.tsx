@@ -101,8 +101,8 @@ export function BackgroundPanel({ mapId, onBackgroundChange }: BackgroundPanelPr
   const { startUpload } = useUploadThing("mapBackgroundUploader", {
     headers: mapId ? { "x-map-id": mapId } : undefined,
     onClientUploadComplete: (res) => {
-      if (res?.[0]?.url) {
-        setBackground(res[0].url);
+      if (res?.[0]?.ufsUrl) {
+        setBackground(res[0].ufsUrl);
         onBackgroundChange?.();
       }
       setIsUploading(false);

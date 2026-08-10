@@ -6,6 +6,21 @@ import { db } from "~/.server/db";
 import { aiImageGenerations } from "~/.server/db/schema";
 import { generateCharacterPortrait, type ArtStyle, type ReferenceImage } from "~/.server/ai/image-generation";
 import { checkAiRateLimit, rateLimitResponse } from "~/.server/rate-limit";
+import {
+  fetchRemoteImageAsReference,
+  ImageInputError,
+  readBoundedJson,
+  validateBase64Image,
+} from "~/.server/ai/image-input";
+
+interface PortraitRequestBody {
+  prompt?: unknown;
+  tokenSize?: unknown;
+  artStyle?: unknown;
+  referenceImageBase64?: unknown;
+  referenceImageMimeType?: unknown;
+  referenceImageUrl?: unknown;
+}
 
 // GET — return usage stats (remaining generations, window)
 export async function loader({ request }: { request: Request }) {
@@ -83,42 +98,37 @@ export async function action({ request }: { request: Request }) {
   }
 
   // Parse and validate prompt
-  const body = await request.json();
-  const { prompt, tokenSize, artStyle: rawArtStyle, referenceImageBase64, referenceImageMimeType, referenceImageUrl } = body as {
-    prompt: string;
-    tokenSize?: number;
-    artStyle?: string;
-    referenceImageBase64?: string;
-    referenceImageMimeType?: string;
-    referenceImageUrl?: string;
-  };
+  let body: PortraitRequestBody;
+  try {
+    body = await readBoundedJson<PortraitRequestBody>(request);
+  } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
+
+  const { prompt, tokenSize, artStyle: rawArtStyle, referenceImageBase64, referenceImageMimeType, referenceImageUrl } = body;
   const validArtStyles: ArtStyle[] = ["chibi", "fantasy", "pixel"];
   const artStyle: ArtStyle = validArtStyles.includes(rawArtStyle as ArtStyle) ? (rawArtStyle as ArtStyle) : "chibi";
 
   // Build reference image if provided
   let referenceImage: ReferenceImage | undefined;
-  if (referenceImageBase64 && referenceImageMimeType) {
-    referenceImage = { base64: referenceImageBase64, mimeType: referenceImageMimeType };
-  } else if (referenceImageUrl) {
-    try {
-      const imgRes = await fetch(referenceImageUrl);
-      if (!imgRes.ok) {
-        return Response.json(
-          { error: `Could not load reference image (HTTP ${imgRes.status}). Try uploading the image as a token first, then retry.` },
-          { status: 422 }
-        );
-      }
-      const buf = await imgRes.arrayBuffer();
-      const base64 = Buffer.from(buf).toString("base64");
-      const mimeType = imgRes.headers.get("content-type") || "image/png";
-      referenceImage = { base64, mimeType };
-    } catch (err) {
-      console.error("[Portrait Generation] Reference fetch failed:", err);
-      return Response.json(
-        { error: "Could not load reference image. Try uploading the image as a token first, then retry." },
-        { status: 422 }
-      );
+  try {
+    if (referenceImageBase64 !== undefined || referenceImageMimeType !== undefined) {
+      referenceImage = validateBase64Image(referenceImageBase64, referenceImageMimeType);
+    } else if (referenceImageUrl !== undefined) {
+      referenceImage = await fetchRemoteImageAsReference(referenceImageUrl);
     }
+  } catch (error) {
+    if (error instanceof ImageInputError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    console.error("[Portrait Generation] Reference fetch failed:", error);
+    return Response.json(
+      { error: "Could not load reference image. Try uploading the image as a token first, then retry." },
+      { status: 422 }
+    );
   }
 
   if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
