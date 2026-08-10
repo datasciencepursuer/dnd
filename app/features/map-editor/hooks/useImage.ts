@@ -66,7 +66,10 @@ export function useImage(url: string | null, maxSize?: number): HTMLImageElement
     }
 
     const img = new Image();
-    img.crossOrigin = "anonymous"; // Enable CORS for external URLs (UploadThing)
+    // UploadThing's public CDN does not return an Access-Control-Allow-Origin
+    // header. Do not opt into CORS here, or the browser will reject the image
+    // before Konva can draw it. The editor only renders these images and does
+    // not read pixels from or export the canvas.
     img.src = url;
 
     // Check if already loaded (from browser cache)
@@ -99,7 +102,6 @@ export function preloadImages(urls: string[]): void {
   urls.forEach((url) => {
     if (!imageCache.has(url)) {
       const img = new window.Image();
-      img.crossOrigin = "anonymous";
       img.onload = () => {
         imageCache.set(url, img);
       };
