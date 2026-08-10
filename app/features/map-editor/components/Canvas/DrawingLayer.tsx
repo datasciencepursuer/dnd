@@ -1,6 +1,11 @@
 import { Line } from "react-konva";
-import { memo, useState } from "react";
+import Konva from "konva";
+import { memo, useImperativeHandle, useRef, useState } from "react";
 import type { FreehandPath } from "../../types";
+
+export interface DrawingLayerHandle {
+  updateCurrentPath: (points: number[]) => void;
+}
 
 interface DrawingLayerProps {
   paths: FreehandPath[];
@@ -11,6 +16,7 @@ interface DrawingLayerProps {
   isDragging?: boolean;
   onErasePath?: (id: string) => void;
   canErasePath?: (path: FreehandPath) => boolean;
+  ref?: React.Ref<DrawingLayerHandle>;
 }
 
 export const DrawingLayer = memo(function DrawingLayer({
@@ -22,8 +28,19 @@ export const DrawingLayer = memo(function DrawingLayer({
   isDragging = false,
   onErasePath,
   canErasePath,
+  ref,
 }: DrawingLayerProps) {
   const [hoveredPathId, setHoveredPathId] = useState<string | null>(null);
+  const currentPathLineRef = useRef<Konva.Line>(null);
+
+  useImperativeHandle(ref, () => ({
+    updateCurrentPath: (points) => {
+      const line = currentPathLineRef.current;
+      if (!line) return;
+      line.points(points);
+      line.getLayer()?.batchDraw();
+    },
+  }), []);
 
   return (
     <>
@@ -53,6 +70,7 @@ export const DrawingLayer = memo(function DrawingLayer({
       {/* Current drawing path */}
       {currentPath && currentPath.length >= 2 && (
         <Line
+          ref={currentPathLineRef}
           points={currentPath}
           stroke={currentColor}
           strokeWidth={currentWidth}

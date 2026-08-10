@@ -7,6 +7,7 @@ import { AuraLayer } from "./AuraLayer";
 import { TokenLayer, SelectedTokenOverlay, NonFoggedTokensOverlay, DragOverlay, SelectedTokenControls } from "./TokenLayer";
 import type { DragState, DragOverlayHandle } from "./TokenLayer";
 import { DrawingLayer } from "./DrawingLayer";
+import type { DrawingLayerHandle } from "./DrawingLayer";
 import { WallLayer } from "./WallLayer";
 import { AreaLayer } from "./AreaLayer";
 import { FogLayer } from "./FogLayer";
@@ -41,7 +42,7 @@ function segIntersectsRect(ax: number, ay: number, bx: number, by: number, minX:
 
 // Cap the canvas backing-store resolution at 1080p. Konva defaults every layer
 // canvas to devicePixelRatio, so a hi-DPI screen rasterizes at 4K+ even in a
-// small window — needless fill cost per frame. Capping the pixel ratio keeps
+// small window - needless fill cost per frame. Capping the pixel ratio keeps
 // backing pixels <= 1920x1080 (never above native DPR), trading invisible
 // sharpness for smoother animation. Hit canvases are unaffected (ratio 1).
 const MAX_RENDER_WIDTH = 1920;
@@ -89,7 +90,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentPath, setCurrentPath] = useState<number[] | null>(null);
+  const currentPathRef = useRef<number[] | null>(null);
 
   // Drag rectangle state for fog and erase tools
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -136,7 +137,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       mapId: s.map?.id,
     }))
   );
-  // Viewport managed as ref — no selector subscription.
+  // Viewport managed as ref - no selector subscription.
   // The Konva Stage is updated imperatively; subscribing to viewport
   // changes in the store would trigger a full React re-render on every
   // zoom/pan, which is unnecessary since Konva already has the correct position.
@@ -181,7 +182,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   const [hoveredTokenId, setHoveredTokenId] = useState<string | null>(null);
 
   // Drag overlay state (lifted from TokenLayer so we can render above fog).
-  // Set only on drag start/end — per-move position updates go through
+  // Set only on drag start/end - per-move position updates go through
   // dragOverlayHandleRef imperatively, with no React render.
   const [dragOverlay, setDragOverlay] = useState<{ dragState: DragState; token: Token } | null>(null);
   const dragOverlayHandleRef = useRef<DragOverlayHandle | null>(null);
@@ -209,7 +210,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   // overlay duplication (visual copy above fog + hit target below) is skipped.
   const fogActive = fogSet.size > 0;
 
-  // All visible, non-fogged tokens — rendered in overlay above fog
+  // All visible, non-fogged tokens - rendered in overlay above fog
   const nonFoggedTokens = useMemo(() => {
     if (!tokens) return [];
     return tokens.filter((t) => t.visible && !isTokenUnderFog(t, fogSet));
@@ -220,8 +221,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   }, [nonFoggedTokens]);
 
   const stageRef = useRef<any>(null);
+  const drawingLayerRef = useRef<DrawingLayerHandle | null>(null);
   const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Viewport ref — source of truth for Stage position/scale, updated imperatively
+  // Viewport ref - source of truth for Stage position/scale, updated imperatively
   const viewportRef = useRef({ x: 0, y: 0, scale: 2.2185 });
 
   // Get selected token for drawing color
@@ -239,7 +241,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
   const areasRef = useRef(areas);
   areasRef.current = areas;
 
-  // Auto-scroll callback — moves the viewport by (dx, dy) screen pixels
+  // Auto-scroll callback - moves the viewport by (dx, dy) screen pixels
   const handleAutoScroll = useCallback((dx: number, dy: number) => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -411,7 +413,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       if (!vp || !prevVp) return;
       if (vp === prevVp) return;
       const ref = viewportRef.current;
-      // Skip if the ref already matches — this was a self-caused update
+      // Skip if the ref already matches - this was a self-caused update
       if (Math.abs(ref.x - vp.x) < 0.5 && Math.abs(ref.y - vp.y) < 0.5 && Math.abs(ref.scale - vp.scale) < 0.001) return;
       viewportRef.current = { x: vp.x, y: vp.y, scale: vp.scale };
       if (stageRef.current) {
@@ -436,7 +438,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       if (hasCenteredRef.current === mapId) return; // Guard against raf race
       const d = dimensionsRef.current;
       if (d.width <= 0 || d.height <= 0) {
-        // Container not measured yet — retry next frame
+        // Container not measured yet - retry next frame
         rafId = requestAnimationFrame(doCenter);
         return;
       }
@@ -664,8 +666,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
     if (selectedTool === "draw" && e.evt.button === 0 && selectedToken) {
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
+      currentPathRef.current = [pos.x, pos.y];
       setIsDrawing(true);
-      setCurrentPath([pos.x, pos.y]);
     }
   };
 
@@ -726,11 +728,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       return;
     }
 
-    if (!isDrawing || selectedTool !== "draw" || !currentPath) return;
+    if (!isDrawing || selectedTool !== "draw" || !currentPathRef.current) return;
 
     const stage = stageRef.current;
     const pos = stage.getRelativePointerPosition();
-    setCurrentPath([...currentPath, pos.x, pos.y]);
+    currentPathRef.current.push(pos.x, pos.y);
+    drawingLayerRef.current?.updateCurrentPath(currentPathRef.current);
   };
 
   const handleMouseUp = (e: any) => {
@@ -899,13 +902,14 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       return;
     }
 
-    // Clean up erase tool click (no drag happened — click-to-erase handled by DrawingLayer)
+    // Clean up erase tool click (no drag happened - click-to-erase handled by DrawingLayer)
     if (dragMode === "erase" && !isDraggingRect) {
       setDragStart(null);
       dragEndRef.current = null;
       setDragMode(null);
     }
 
+    const currentPath = currentPathRef.current;
     if (isDrawing && currentPath && currentPath.length >= 4) {
       // Save the path
       const path: FreehandPath = {
@@ -921,7 +925,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       onDrawingAdd?.(path);
     }
     setIsDrawing(false);
-    setCurrentPath(null);
+    currentPathRef.current = null;
   };
 
   const handleTouchStart = (e: any) => {
@@ -996,8 +1000,8 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
     if (selectedTool === "draw" && selectedToken) {
       const stage = stageRef.current;
       const pos = stage.getRelativePointerPosition();
+      currentPathRef.current = [pos.x, pos.y];
       setIsDrawing(true);
-      setCurrentPath([pos.x, pos.y]);
     }
   };
 
@@ -1080,11 +1084,12 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
       return;
     }
 
-    if (!isDrawing || selectedTool !== "draw" || !currentPath) return;
+    if (!isDrawing || selectedTool !== "draw" || !currentPathRef.current) return;
 
     const stage = stageRef.current;
     const pos = stage.getRelativePointerPosition();
-    setCurrentPath([...currentPath, pos.x, pos.y]);
+    currentPathRef.current.push(pos.x, pos.y);
+    drawingLayerRef.current?.updateCurrentPath(currentPathRef.current);
   };
 
   const handleTouchEnd = (e: any) => {
@@ -1367,8 +1372,9 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
           )}
           <Group>
             <DrawingLayer
+              ref={drawingLayerRef}
               paths={freehand}
-              currentPath={currentPath}
+              currentPath={currentPathRef.current}
               currentColor={drawingColor}
               currentWidth={drawingWidth}
               isEraseMode={selectedTool === "erase"}
@@ -1397,7 +1403,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
         {/* Single "top" canvas for fog + overlays + transient previews +
             selection controls. Each Konva Layer is its own <canvas>, i.e. a
             separate GPU texture the browser composites full-window every
-            frame — merging these (5 layers -> 3) cuts compositor bandwidth,
+            frame - merging these (5 layers -> 3) cuts compositor bandwidth,
             the bottleneck on large high-refresh displays. Cheap to redraw
             per frame now that FogLayer is bitmap-cached. Stacking order of
             the groups matches the old layer order exactly: fog/overlays,
@@ -1485,7 +1491,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               dash={[6, 4]}
             />
           )}
-          {/* Drag rectangle overlay — updated imperatively via dragRectRef */}
+          {/* Drag rectangle overlay - updated imperatively via dragRectRef */}
           {isDraggingRect && dragStart && (
             <Rect
               ref={dragRectRef}
@@ -1500,7 +1506,7 @@ export function MapCanvas({ onTokenMoved, onTokenFlip, onTokenCreate, onFogPaint
               dash={[5, 5]}
             />
           )}
-          {/* Token drag ghost — line, distance label, destination ghost */}
+          {/* Token drag ghost - line, distance label, destination ghost */}
           {dragOverlay && (
             <DragOverlay
               ref={dragOverlayHandleRef}

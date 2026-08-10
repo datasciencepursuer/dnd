@@ -8,7 +8,7 @@ import { getHpPercentage, getHpBarColor } from "../../utils/character-utils";
 import { gridMovementDistance, computeDragMovementInfo } from "../../utils/distance-utils";
 import type { WallSegment, AreaShape } from "../../types";
 
-// Token art is drawn at most a few hundred px on screen — downscale huge
+// Token art is drawn at most a few hundred px on screen - downscale huge
 // uploads once at load so layer repaints don't rescale multi-MB bitmaps.
 const TOKEN_IMAGE_MAX_SIZE = 512;
 
@@ -41,7 +41,7 @@ function computeScrollVelocity(clientX: number, clientY: number, containerRect: 
   const distTop = clientY - containerRect.top;
   const distBottom = containerRect.bottom - clientY;
 
-  // Clamp factor to [0, 1] — when cursor is outside the container (negative dist),
+  // Clamp factor to [0, 1] - when cursor is outside the container (negative dist),
   // factor exceeds 1 so we clamp to max speed for continued scrolling out of bounds
   if (distLeft < AUTO_SCROLL_EDGE_ZONE) {
     vx = AUTO_SCROLL_MAX_SPEED * Math.min(1, 1 - distLeft / AUTO_SCROLL_EDGE_ZONE);
@@ -111,9 +111,9 @@ const TokenItem = memo(function TokenItem({
   const maxSize = token.size * cellSize - 2; // Fill most of the cell
 
   // AI combat move animation
-  const pendingAnim = useEditorStore((s) => s.pendingAnimations[token.id]);
+  const pendingAnim = useEditorStore((s) => forceHidden ? undefined : s.pendingAnimations[token.id]);
   useLayoutEffect(() => {
-    if (!pendingAnim || !groupRef.current) return;
+    if (forceHidden || !pendingAnim || !groupRef.current) return;
     const node = groupRef.current;
     const fromX = pendingAnim.fromCol * cellSize + offset;
     const fromY = pendingAnim.fromRow * cellSize + offset;
@@ -131,7 +131,7 @@ const TokenItem = memo(function TokenItem({
         useEditorStore.getState().clearPendingAnimation(token.id);
       },
     });
-  }, [pendingAnim, x, y, cellSize, offset, token.id]);
+  }, [pendingAnim, x, y, cellSize, offset, token.id, forceHidden]);
 
   // Hover highlight color - use token color for movable, gray for locked
   const hoverStroke = isMovable ? token.color : "#9ca3af";
@@ -214,7 +214,7 @@ const TokenItem = memo(function TokenItem({
   const acStrokeColor = isLight ? "#374151" : "#ffffff";
 
   // When the visual copy is rendered in the overlay above fog, keep only a
-  // cheap invisible hit target here — a full group at opacity 0 still costs
+  // cheap invisible hit target here - a full group at opacity 0 still costs
   // the image/text draw calls on every layer repaint. Opacity doesn't affect
   // Konva's hit graph, so events keep working.
   if (forceHidden) {
@@ -522,7 +522,7 @@ function TokenGhost({
   );
 }
 
-// Drag overlay — renders path line, distance label, and ghost during drag.
+// Drag overlay - renders path line, distance label, and ghost during drag.
 // Mounted once on drag start; per-move position updates go through the
 // imperative handle (update) so no React render happens while the finger moves.
 export interface DragOverlayHandle {
@@ -557,7 +557,7 @@ export function DragOverlay({ dragState, token, cellSize, walls, areas, ref }: D
       const row = Math.round((worldY - offset) / cellSize);
 
       // Distance, label, line endpoint, and ghost all derive from the snapped
-      // cell — skip everything until the destination cell changes.
+      // cell - skip everything until the destination cell changes.
       const last = lastCellRef.current;
       if (last && last.col === col && last.row === row) return;
       lastCellRef.current = { col, row };
@@ -629,7 +629,7 @@ export function DragOverlay({ dragState, token, cellSize, walls, areas, ref }: D
         lineCap="round"
         lineJoin="round"
       />
-      {/* Distance label — always mounted, visibility toggled imperatively */}
+      {/* Distance label - always mounted, visibility toggled imperatively */}
       <Group ref={labelGroupRef} x={dragState.startX} y={dragState.startY} visible={false}>
         <Rect
           ref={labelRectRef}
@@ -652,7 +652,7 @@ export function DragOverlay({ dragState, token, cellSize, walls, areas, ref }: D
           offsetY={7}
         />
       </Group>
-      {/* Ghost at destination — positioned imperatively via ghostGroupRef */}
+      {/* Ghost at destination - positioned imperatively via ghostGroupRef */}
       <Group ref={ghostGroupRef} x={dragState.startX} y={dragState.startY}>
         <TokenGhost token={token} cellSize={cellSize} x={0} y={0} />
       </Group>
@@ -686,7 +686,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const isDungeonMaster = useEditorStore((s) => s.isDungeonMaster);
   const openCharacterSheet = useEditorStore((s) => s.openCharacterSheet);
   const isPanning = useEditorStore((s) => s.isPanning);
-  // Permission context — subscribed only so the memoized z-order below recomputes
+  // Permission context - subscribed only so the memoized z-order below recomputes
   // when movability changes (DM transfer, permission edits), never per drag frame.
   const permissions = useEditorStore((s) => s.permissions);
   const permission = useEditorStore((s) => s.permission);
@@ -702,7 +702,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   const scrollVelocityRef = useRef<{ vx: number; vy: number }>({ vx: 0, vy: 0 });
   const lastClientPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  // Stable refs — keep callbacks stable so React.memo on TokenItem actually works.
+  // Stable refs - keep callbacks stable so React.memo on TokenItem actually works.
   // Without these, every token/tool/cellSize change recreates callbacks,
   // which defeats memo on ALL TokenItems.
   const onTokenMovedRef = useRef(onTokenMoved);
@@ -787,7 +787,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
 
       dragPositionRef.current = { x: mouseX, y: mouseY };
 
-      // Imperative overlay update — no React render per move event
+      // Imperative overlay update - no React render per move event
       dragOverlayRefRef.current?.current?.update(mouseX, mouseY);
 
       // Start auto-scroll loop if not already running
@@ -869,9 +869,9 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
         autoScrollRafRef.current = null;
       }
     };
-  }, [stageRef]); // Only stageRef — everything else via refs
+  }, [stageRef]); // Only stageRef - everything else via refs
 
-  // Stable callbacks — created once, read current values from refs
+  // Stable callbacks - created once, read current values from refs
   const handleMouseDown = useCallback(
     (tokenId: string, e: any) => {
       if (selectedToolRef.current !== "select") return;
@@ -992,7 +992,7 @@ export const TokenLayer = memo(function TokenLayer({ tokens, cellSize, stageRef,
   }, [dragState]);
 
   // Z-order: movable above locked, then selected, then hovered on top.
-  // Memoized — only depends on token set, selection, hover, and perms.
+  // Memoized - only depends on token set, selection, hover, and perms.
   const sortedTokens = useMemo(() => {
     return [...tokens].sort((a, b) => {
       const aMovable = canMoveToken(a.ownerId) ? 1 : 0;
@@ -1093,7 +1093,7 @@ export const SelectedTokenOverlay = memo(function SelectedTokenOverlay({ tokens,
   );
 });
 
-// Flip button for a single token — rendered in the controls layer above fog
+// Flip button for a single token - rendered in the controls layer above fog
 const FlipButtonOverlay = memo(function FlipButtonOverlay({
   token,
   cellSize,
@@ -1166,7 +1166,7 @@ const FlipButtonOverlay = memo(function FlipButtonOverlay({
   );
 });
 
-// Interactive controls overlay — renders flip buttons above fog layer
+// Interactive controls overlay - renders flip buttons above fog layer
 interface SelectedTokenControlsProps {
   tokens: Token[];
   cellSize: number;
