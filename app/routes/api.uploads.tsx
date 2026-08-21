@@ -2,9 +2,10 @@ import { eq, desc, and } from "drizzle-orm";
 import { db } from "~/.server/db";
 import { uploads, type UploadType } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
-import { UTApi } from "uploadthing/server";
-
-const utapi = new UTApi();
+import {
+  deleteUploadThingFile,
+  findUploadReferences,
+} from "~/.server/uploads/lifecycle";
 
 export async function loader({ request }: { request: Request }) {
   const session = await requireAuth(request);
@@ -74,34 +75,42 @@ export async function action({ request }: { request: Request }) {
     );
   }
 
-  // Extract file key from URL for UploadThing deletion
-  // URL format: https://utfs.io/f/{fileKey} or https://*.ufs.sh/f/{fileKey}
-  const urlParts = upload.url.split("/f/");
-  const fileKey = urlParts.length > 1 ? urlParts[1] : null;
-
-  if (!fileKey) {
+  const [references] = await findUploadReferences([upload.url]);
+  if (!references) {
+    console.error("Could not verify upload references before deletion:", upload.id);
     return Response.json(
-      { error: "Upload storage key is invalid; the file was not removed." },
+      { error: "Could not verify upload references. Please retry." },
       { status: 500 }
     );
   }
 
-  // Delete from UploadThing storage
-  try {
-    const result = await utapi.deleteFiles(fileKey);
-    if (!result.success || result.deletedCount !== 1) {
-      console.error("UploadThing did not delete the expected file:", result);
+  if (references.referencedByMapOrCharacter) {
+    return Response.json(
+      {
+        error: "This upload is still used by a map or character and cannot be deleted.",
+      },
+      { status: 409 }
+    );
+  }
+
+  const hasAnotherUploadRow = references.uploadRows.some((row) => row.id !== id);
+
+  // A duplicate metadata row still owns the storage object. Remove only this
+  // library row and let the remaining row keep the file alive.
+  if (!hasAnotherUploadRow) {
+    const storageResult = await deleteUploadThingFile(upload.url);
+    if (storageResult !== "deleted") {
+      if (storageResult === "invalid-file-key") {
+        return Response.json(
+          { error: "Upload storage key is invalid; the file was not removed." },
+          { status: 500 }
+        );
+      }
       return Response.json(
         { error: "Could not remove the file from storage. Please retry." },
         { status: 502 }
       );
     }
-  } catch (error) {
-    console.error("Failed to delete from UploadThing:", error);
-    return Response.json(
-      { error: "Could not remove the file from storage. Please retry." },
-      { status: 502 }
-    );
   }
 
   // Delete from database

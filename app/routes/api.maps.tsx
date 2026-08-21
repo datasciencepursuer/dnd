@@ -122,6 +122,8 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  let authorizedGroupId: string | undefined;
+
   // If groupId is provided, verify user is a member of the group
   if (groupId) {
     const isMember = await isGroupMember(groupId, userId);
@@ -131,11 +133,13 @@ export async function action({ request }: Route.ActionArgs) {
         { status: 403 }
       );
     }
+    authorizedGroupId = groupId;
   }
 
   const imageValidation = await validateOwnedImageUrls(
     userId,
-    collectImageUrlValues(data)
+    collectImageUrlValues(data),
+    authorizedGroupId ? { groupId: authorizedGroupId } : undefined
   );
   if (!imageValidation.valid) {
     return Response.json({ error: imageValidation.error }, { status: 400 });

@@ -10,8 +10,10 @@ import {
 import { getUserTierLimits } from "~/.server/subscription";
 import {
   collectImageUrlValues,
+  collectImageUrlStrings,
   validateOwnedImageUrls,
 } from "~/.server/uploads/image-validation";
+import { cleanupDeletedRecordImages } from "~/.server/uploads/lifecycle";
 
 interface GroupMemberInfo {
   id: string;
@@ -81,10 +83,10 @@ export async function action({ request, params }: Route.ActionArgs) {
       const body = await request.json();
       const { name, data, newDmId } = body;
 
-      let currentMapData: { data: unknown } | null = null;
+      let currentMapData: { data: unknown; groupId: string | null } | null = null;
       if (data !== undefined) {
         const currentMap = await db
-          .select({ data: maps.data })
+          .select({ data: maps.data, groupId: maps.groupId })
           .from(maps)
           .where(eq(maps.id, mapId))
           .limit(1);
@@ -100,7 +102,10 @@ export async function action({ request, params }: Route.ActionArgs) {
         const imageValidation = await validateOwnedImageUrls(
           session.user.id,
           collectImageUrlValues(data),
-          { allowedExistingUrls: existingImageUrls }
+          {
+            allowedExistingUrls: existingImageUrls,
+            ...(currentMapData.groupId ? { groupId: currentMapData.groupId } : {}),
+          }
         );
         if (!imageValidation.valid) {
           return Response.json({ error: imageValidation.error }, { status: 400 });
@@ -217,9 +222,22 @@ export async function action({ request, params }: Route.ActionArgs) {
 
     case "DELETE": {
       // Check delete permission (owner only)
-      await requireMapPermission(mapId, session.user.id, "delete");
+      const access = await requireMapPermission(
+        mapId,
+        session.user.id,
+        "delete",
+        { includeData: true }
+      );
+      const imageUrls = collectImageUrlStrings(access.mapData?.data);
+      const ownerId = access.mapData?.userId;
 
       await db.delete(maps).where(eq(maps.id, mapId));
+
+      try {
+        if (ownerId) await cleanupDeletedRecordImages(imageUrls, ownerId);
+      } catch (error) {
+        console.error("Map deleted, but image cleanup failed:", error);
+      }
 
       return Response.json({ success: true });
     }

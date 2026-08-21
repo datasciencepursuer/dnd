@@ -151,6 +151,7 @@ export function ImageLibraryPicker({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search images..."
+          aria-label="Search images"
           className="flex-1 min-w-0 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
         <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
@@ -165,9 +166,10 @@ export function ImageLibraryPicker({
         {filtered.map((upload) => (
           <div
             key={upload.id}
-            className="group"
+            className="group relative"
           >
             <button
+              type="button"
               onClick={() => onSelect(upload.url)}
               disabled={deletingId === upload.id}
               className={`relative aspect-square w-full rounded-t border-2 border-b-0 overflow-hidden cursor-pointer transition-all ${
@@ -177,22 +179,31 @@ export function ImageLibraryPicker({
               } ${deletingId === upload.id ? "opacity-50" : ""}`}
               title={`${upload.fileName} (${formatFileSize(upload.fileSize)})`}
             >
+              {/* Thumbnails are the full-size originals (no verified UploadThing
+                  resize transform), so keep offscreen rows out of the network and
+                  decode path until the grid is scrolled to them. */}
               <img
                 src={upload.url}
                 alt={upload.fileName}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
+                draggable={false}
                 className="w-full h-full object-cover"
               />
-              {/* Preview expand button */}
-              <span
-                role="button"
-                onClick={(e) => { e.stopPropagation(); setPreviewUrl(upload.url); }}
-                className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
-                title="Preview full size"
-              >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                </svg>
-              </span>
+            </button>
+
+            {/* Preview expand button */}
+            <button
+              type="button"
+              onClick={() => setPreviewUrl(upload.url)}
+              aria-label={`Preview ${upload.fileName} full size`}
+              className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded bg-black/50 text-white opacity-0 group-hover:opacity-100 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-white transition-opacity hover:bg-black/70"
+              title="Preview full size"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
             </button>
 
             {/* Action bar below image */}
@@ -255,9 +266,13 @@ export function ImageLibraryPicker({
             className="relative max-w-[90vw] max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* The preview is an explicit request for the original, so it loads
+                eagerly at high priority — only the grid thumbnails are deferred. */}
             <img
               src={previewUrl}
               alt="Full size preview"
+              decoding="async"
+              fetchPriority="high"
               className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
             />
             <button

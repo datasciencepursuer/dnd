@@ -3,6 +3,7 @@ import { db } from "~/.server/db";
 import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
+import { cleanupDeletedRecordImages } from "~/.server/uploads/lifecycle";
 
 async function canAccessCharacter(userId: string, characterId: string) {
   // Get the character
@@ -63,7 +64,17 @@ export async function action({ request, params }: { request: Request; params: { 
       return Response.json({ error: "Access denied" }, { status: 403 });
     }
 
+    const imageUrl = access.character?.imageUrl;
+    const ownerId = access.character?.userId;
     await db.delete(characters).where(eq(characters.id, characterId));
+
+    if (imageUrl && ownerId) {
+      try {
+        await cleanupDeletedRecordImages([imageUrl], ownerId);
+      } catch (error) {
+        console.error("Character deleted, but image cleanup failed:", error);
+      }
+    }
 
     return Response.json({ success: true });
   }

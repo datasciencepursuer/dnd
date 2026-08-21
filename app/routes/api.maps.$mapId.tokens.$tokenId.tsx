@@ -81,7 +81,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       // Get current map data
       const mapData = await db
-        .select({ data: maps.data, userId: maps.userId })
+        .select({ data: maps.data, userId: maps.userId, groupId: maps.groupId })
         .from(maps)
         .where(eq(maps.id, mapId))
         .limit(1);
@@ -112,6 +112,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
         const imageValidation = await validateOwnedImageUrls(session.user.id, [newToken.imageUrl], {
           type: "token",
+          ...(mapData[0].groupId ? { groupId: mapData[0].groupId } : {}),
         });
         if (!imageValidation.valid) {
           return Response.json({ error: imageValidation.error }, { status: 400 });
@@ -152,6 +153,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       const imageValidation = await validateOwnedImageUrls(session.user.id, [updatedToken.imageUrl], {
         allowedExistingUrls: currentImageUrl ? [currentImageUrl] : [],
         type: "token",
+        ...(mapData[0].groupId ? { groupId: mapData[0].groupId } : {}),
       });
       if (!imageValidation.valid) {
         return Response.json({ error: imageValidation.error }, { status: 400 });

@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "~/.server/db";
-import { uploads, type UploadType } from "~/.server/db/schema";
+import { groupMembers, uploads, type UploadType } from "~/.server/db/schema";
 
 const MAX_PERSISTED_IMAGE_URL_LENGTH = 2048;
 
@@ -10,6 +10,12 @@ export type ImageUrlValidationResult =
 
 interface ImageUrlValidationOptions {
   allowedExistingUrls?: Iterable<string>;
+  /**
+   * Server-authorized group scope. Members' uploads are allowed in addition
+   * to the current user's uploads; callers must derive this from auth/map
+   * state rather than from client-supplied ownership data.
+   */
+  groupId?: string;
   type?: UploadType;
 }
 
@@ -33,6 +39,18 @@ export function collectImageUrlValues(value: unknown): unknown[] {
 
   visit(value);
   return values;
+}
+
+/** Collect distinct, non-empty string image URLs from persisted data. */
+export function collectImageUrlStrings(value: unknown): string[] {
+  return [
+    ...new Set(
+      collectImageUrlValues(value).filter(
+        (candidate): candidate is string =>
+          typeof candidate === "string" && candidate.length > 0
+      )
+    ),
+  ];
 }
 
 /**
@@ -65,8 +83,18 @@ export async function validateOwnedImageUrls(
 
   if (candidateUrls.size === 0) return { valid: true };
 
+  const authorizedUserIds = new Set([userId]);
+  if (options.groupId) {
+    const members = await db
+      .select({ userId: groupMembers.userId })
+      .from(groupMembers)
+      .where(eq(groupMembers.groupId, options.groupId));
+
+    for (const member of members) authorizedUserIds.add(member.userId);
+  }
+
   const conditions = [
-    eq(uploads.userId, userId),
+    inArray(uploads.userId, [...authorizedUserIds]),
     inArray(uploads.url, [...candidateUrls]),
   ];
   if (options.type) conditions.push(eq(uploads.type, options.type));
