@@ -1,0 +1,63 @@
+{
+  "ruleset": "D&D 2024 rules",
+  "srdVersion": "5.2.1",
+  "canonicalSource": {
+    "name": "D&D Beyond System Reference Document v5.2.1",
+    "url": "https://www.dndbeyond.com/srd",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook or Monster Manual coverage"
+  },
+  "extracts": [
+    {
+      "file": "monsters.json",
+      "extractUrl": "https://raw.githubusercontent.com/rschaeff/srd/master/monsters.json",
+      "sha256": "9bf6c5a8b3c1eb7cf3d408ede1968dca1abceee06a1ee88c576f2357f622dcd1",
+      "usedBy": "scripts/generate-srd-2024-monsters.mjs"
+    },
+    {
+      "file": "character-origins.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/character-origins.md",
+      "sha256": "76c92948e8e86011f3bab326d81faac5eaff9515016039cb33c3bf89e34163af",
+      "usedBy": "scripts/generate-character-options.mjs"
+    },
+    {
+      "file": "classes.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/classes.md",
+      "sha256": "faed31b122429262362f97cec71c0ada54786dc7d8c26ebfaa104d4e26325327",
+      "usedBy": "scripts/generate-character-options.mjs"
+    },
+    {
+      "file": "feats.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/feats.md",
+      "sha256": "3894f4a147df40adb8b090825b4c2e3e5ee2c67851aca42305b11f2477bcfbf7",
+      "usedBy": "scripts/generate-character-options.mjs"
+    },
+    {
+      "file": "spells.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/spells.md",
+      "sha256": "3431f5b8f50fdb0c65cdf98f0164301c8757d20983d32b5ae9b5be7dc634bffb",
+      "usedBy": "scripts/generate-character-options.mjs and scripts/generate-srd-2024-monsters.mjs"
+    },
+    {
+      "file": "equipment.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/equipment.md",
+      "sha256": "eef7cb0529d933ce10983fb2c16f51ce8b7ea8044bd0b5961fba5f472b6e9970",
+      "usedBy": "scripts/generate-character-options.mjs"
+    },
+    {
+      "file": "magic-items.md",
+      "extractUrl": "https://raw.githubusercontent.com/azemoning/omni-5e/main/data/raw/5.2.1/magic-items.md",
+      "sha256": "96c71ad35dddf0e79e47ac3d7bbe96704b5209c1f6e1bf01d543080789e18e98",
+      "usedBy": "scripts/generate-character-options.mjs"
+    }
+  ],
+  "generatedArtifacts": [
+    "app/features/map-editor/data/character-options.ts",
+    "app/features/map-editor/data/srd-monsters.json"
+  ],
+  "verification": {
+    "character": "node scripts/generate-character-options.mjs --source-dir <extract-dir>",
+    "monsters": "node scripts/generate-srd-2024-monsters.mjs verify --source <extract-dir>/monsters.json --spell-levels app/features/map-editor/data/character-options.ts",
+    "note": "The extract files are intentionally not deployed. Download the pinned extracts, verify their SHA-256 values, then regenerate the checked-in artifacts."
+  }
+}

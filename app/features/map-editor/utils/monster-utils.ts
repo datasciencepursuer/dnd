@@ -1,5 +1,5 @@
-import type { CharacterSheet, CreatureSize, SkillProficiencies, ClassFeature, Weapon, DamageType, RechargeCondition } from "../types";
-import type { SrdMonster, SrdAction, SrdDamage } from "../data/monster-types";
+import type { CharacterSheet, CreatureSize, SkillProficiencies, ClassFeature, Weapon, DamageType, RechargeCondition, FeatureCategory } from "../types";
+import type { SrdMonster, SrdAction, SrdDamage, SrdUsage } from "../data/monster-types";
 import { formatCR } from "../data/monster-types";
 import {
   createDefaultCharacterSheet,
@@ -17,6 +17,7 @@ function mapMonsterSize(srdSize: string): CreatureSize {
     case "Small":
       return "S";
     case "Medium":
+    case "Medium or Small":
       return "M";
     case "Large":
     case "Huge":
@@ -33,6 +34,7 @@ export function mapMonsterTokenSize(srdSize: string): number {
     case "Tiny":
     case "Small":
     case "Medium":
+    case "Medium or Small":
       return 1;
     case "Large":
       return 2;
@@ -64,7 +66,7 @@ export function getMonsterColor(type: string): string {
     plant: "#15803d",       // dark green
     undead: "#1f2937",      // charcoal
   };
-  // Check for swarm in subtype
+  // 2024 uses full types such as "swarm of tiny beasts".
   if (lowerType.includes("swarm")) return "#78716c";
   return colorMap[lowerType] || "#6b7280";
 }
@@ -139,7 +141,7 @@ function actionToWeapon(action: SrdAction): Weapon | null {
 }
 
 /** Map SRD usage type to our RechargeCondition */
-function mapRecharge(usage?: { type: string; times?: number; rest_types?: string[] }): RechargeCondition {
+function mapRecharge(usage?: SrdUsage): RechargeCondition {
   if (!usage) return "none";
   switch (usage.type) {
     case "per day":
@@ -160,7 +162,8 @@ function abilityToFeature(
   name: string,
   desc: string,
   prefix?: string,
-  usage?: { type: string; times?: number; rest_types?: string[] }
+  usage?: SrdUsage,
+  category: FeatureCategory = prefix === "Reaction" ? "reaction" : "action"
 ): ClassFeature {
   const displayName = prefix ? `[${prefix}] ${name}` : name;
   const hasCharges = usage?.times != null && usage.times > 0;
@@ -169,7 +172,7 @@ function abilityToFeature(
   return {
     id: crypto.randomUUID(),
     name: `${displayName}: ${desc}`,
-    category: prefix === "Reaction" ? "reaction" : "action",
+    category,
     charges: hasCharges ? { current: usage!.times!, max: usage!.times! } : null,
     recharge,
   };
@@ -201,7 +204,9 @@ export function monsterToCharacterSheet(monster: SrdMonster): CharacterSheet {
     climb: parseSpeed(monster.speed?.climb),
     hover: monster.speed?.hover ?? false,
   };
-  sheet.initiative = calculateModifier(monster.dexterity);
+  // Preserve a source-defined initiative modifier when present (some 2024
+  // stat blocks override the normal Dexterity-based calculation).
+  sheet.initiative = monster.initiative?.modifier ?? calculateModifier(monster.dexterity);
 
   // Ability scores
   const abilities: [string, number][] = [
@@ -277,6 +282,13 @@ export function monsterToCharacterSheet(monster: SrdMonster): CharacterSheet {
     features.push(abilityToFeature(ability.name, ability.desc, undefined, ability.usage));
   }
 
+  // Bonus actions → features with their action category preserved
+  for (const action of monster.bonus_actions || []) {
+    features.push(
+      abilityToFeature(action.name, action.desc, "Bonus Action", action.usage, "bonusAction")
+    );
+  }
+
   // Legendary actions → features with [Legendary] prefix
   for (const action of monster.legendary_actions || []) {
     features.push(abilityToFeature(action.name, action.desc, "Legendary"));
@@ -284,7 +296,9 @@ export function monsterToCharacterSheet(monster: SrdMonster): CharacterSheet {
 
   // Reactions → features with [Reaction] prefix
   for (const reaction of monster.reactions || []) {
-    features.push(abilityToFeature(reaction.name, reaction.desc, "Reaction"));
+    features.push(
+      abilityToFeature(reaction.name, reaction.desc, "Reaction", reaction.usage, "reaction")
+    );
   }
 
   sheet.classFeatures = features;
@@ -329,9 +343,13 @@ export function monsterToCharacterSheet(monster: SrdMonster): CharacterSheet {
   }
 
   // Spellcasting detection
-  const spellcasting = monster.special_abilities?.find(
-    (a) => a.spellcasting
-  )?.spellcasting;
+  const spellcasting = [
+    ...(monster.special_abilities || []),
+    ...(monster.actions || []),
+    ...(monster.bonus_actions || []),
+    ...(monster.reactions || []),
+    ...(monster.legendary_actions || []),
+  ].find((a) => a.spellcasting)?.spellcasting;
   if (spellcasting) {
     const abilityIndex = spellcasting.ability?.index;
     if (abilityIndex === "int" || abilityIndex === "intelligence") {

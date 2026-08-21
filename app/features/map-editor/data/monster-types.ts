@@ -1,4 +1,12 @@
-// SRD Monster data types - matches dnd5eapi.co structure (stripped of url fields)
+// 2024 SRD 5.2.1 monster data types. The generated snapshot keeps the
+// dnd5eapi-shaped consumer contract used by the map editor and AI context.
+
+export const SRD_SOURCE = {
+  label: "2024 SRD 5.2.1",
+  attribution: "D&D 2024 System Reference Document",
+  url: "https://www.dndbeyond.com/srd",
+  manifest: "docs/data/2024-srd-catalog-manifest.json",
+} as const;
 
 export interface SrdArmorClass {
   type: string;
@@ -28,6 +36,7 @@ export interface SrdDamage {
     name: string;
   };
   damage_dice: string;
+  average?: number;
 }
 
 export interface SrdDC {
@@ -39,18 +48,46 @@ export interface SrdDC {
   success_type: string;
 }
 
+export interface SrdUsage {
+  type: string;
+  times?: number;
+  dice?: string;
+  min_value?: number;
+  rest_types?: string[];
+  lair_times?: number;
+}
+
+export interface SrdSpell {
+  name: string;
+  level: number;
+  notes?: string;
+  usage?: SrdUsage;
+}
+
+export interface SrdSpellcasting {
+  level?: number;
+  ability: {
+    index: string;
+    name: string;
+  };
+  dc?: number;
+  modifier?: number;
+  slots?: Record<string, number>;
+  spells: SrdSpell[];
+}
+
 export interface SrdAction {
   name: string;
   desc: string;
+  attack_type?: string;
   attack_bonus?: number;
+  reach?: number;
+  range_normal?: number;
+  range_long?: number;
   dc?: SrdDC;
   damage: SrdDamage[];
-  usage?: {
-    type: string;
-    times?: number;
-    dice?: string;
-    min_value?: number;
-  };
+  usage?: SrdUsage;
+  spellcasting?: SrdSpellcasting;
   multiattack_type?: string;
   actions?: { action_name: string; count: string; type: string }[];
 }
@@ -60,43 +97,13 @@ export interface SrdSpecialAbility {
   desc: string;
   dc?: SrdDC;
   damage: SrdDamage[];
-  usage?: {
-    type: string;
-    times?: number;
-    rest_types?: string[];
-  };
-  spellcasting?: {
-    level?: number;
-    ability: {
-      index: string;
-      name: string;
-    };
-    dc?: number;
-    modifier?: number;
-    slots?: Record<string, number>;
-    spells: {
-      name: string;
-      level: number;
-      notes?: string;
-      usage?: { type: string; times?: number; rest_types?: string[] };
-    }[];
-  };
+  usage?: SrdUsage;
+  spellcasting?: SrdSpellcasting;
 }
 
-export interface SrdLegendaryAction {
-  name: string;
-  desc: string;
-  damage: SrdDamage[];
-  dc?: SrdDC;
-  attack_bonus?: number;
-}
+export interface SrdLegendaryAction extends SrdAction {}
 
-export interface SrdReaction {
-  name: string;
-  desc: string;
-  dc?: SrdDC;
-  damage?: SrdDamage[];
-}
+export interface SrdReaction extends SrdAction {}
 
 export interface SrdSenses {
   blindsight?: string;
@@ -109,6 +116,11 @@ export interface SrdSenses {
 export interface SrdConditionImmunity {
   index: string;
   name: string;
+}
+
+export interface SrdInitiative {
+  modifier: number;
+  score: number;
 }
 
 export interface SrdMonster {
@@ -141,8 +153,15 @@ export interface SrdMonster {
   xp: number;
   special_abilities: SrdSpecialAbility[];
   actions: SrdAction[];
+  bonus_actions: SrdAction[];
   legendary_actions: SrdLegendaryAction[];
   reactions: SrdReaction[];
+  telepathy?: number;
+  initiative?: SrdInitiative;
+  gear?: string[];
+  lair_xp?: number;
+  legendary_actions_uses?: number;
+  legendary_actions_lair_uses?: number;
 }
 
 export const MONSTER_TYPES = [
@@ -159,7 +178,8 @@ export const MONSTER_TYPES = [
   "monstrosity",
   "ooze",
   "plant",
-  "swarm",
+  "swarm of tiny beasts",
+  "swarm of tiny undead",
   "undead",
 ] as const;
 

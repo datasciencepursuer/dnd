@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useMapStore, useEditorStore } from "../../store";
 import type { Token } from "../../types";
 import type { SrdMonster } from "../../data/monster-types";
-import { MONSTER_TYPES, CHALLENGE_RATINGS, formatCR } from "../../data/monster-types";
+import { MONSTER_TYPES, CHALLENGE_RATINGS, formatCR, SRD_SOURCE } from "../../data/monster-types";
 import {
   monsterToCharacterSheet,
   mapMonsterTokenSize,
@@ -273,6 +273,20 @@ export function MonsterCompendium({ onTokenCreate, onMapChanged }: MonsterCompen
 
   return (
     <div className="space-y-3">
+      <div className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="font-medium text-gray-700 dark:text-gray-300">
+          {SRD_SOURCE.label} monster compendium
+        </div>
+        <a
+          href={SRD_SOURCE.url}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Official source and attribution
+        </a>
+      </div>
+
       {/* Search */}
       <input
         type="text"

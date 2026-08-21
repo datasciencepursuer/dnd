@@ -3,7 +3,7 @@ import type { SrdMonster } from "~/features/map-editor/data/monster-types";
 
 export interface AbilityDescription {
   name: string;
-  category: "special" | "action" | "legendary" | "reaction";
+  category: "special" | "action" | "bonusAction" | "legendary" | "reaction";
   desc: string;
 }
 
@@ -14,7 +14,7 @@ export interface AbilityDescription {
 function extractFeatureBaseName(featureName: string): string {
   let name = featureName;
   // Strip [Prefix] prefix
-  name = name.replace(/^\[[\w]+\]\s*/, "");
+  name = name.replace(/^\[[\w ]+\]\s*/, "");
   // Strip ": description..." suffix (abilityToFeature embeds desc after colon)
   const colonIdx = name.indexOf(": ");
   if (colonIdx > 0) {
@@ -61,6 +61,18 @@ export function matchAbilityDescriptions(
       results.push({
         name: action.name,
         category: "action",
+        desc: action.desc,
+      });
+    }
+  }
+
+  // Match bonus actions separately so the AI receives their descriptions
+  // instead of only seeing the persisted sheet label.
+  for (const action of srdMonster.bonus_actions ?? []) {
+    if (featureBaseNames.has(action.name)) {
+      results.push({
+        name: action.name,
+        category: "bonusAction",
         desc: action.desc,
       });
     }

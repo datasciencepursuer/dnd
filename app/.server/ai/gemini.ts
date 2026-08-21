@@ -281,6 +281,8 @@ export function serializeCombatContext(ctx: CombatContext): SerializedCombatResu
         const prefix =
           ability.category === "legendary"
             ? "[Legendary] "
+            : ability.category === "bonusAction"
+              ? "[Bonus Action] "
             : ability.category === "reaction"
               ? "[Reaction] "
               : "";
