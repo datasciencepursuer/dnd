@@ -51,12 +51,29 @@
       "usedBy": "scripts/generate-character-options.mjs"
     }
   ],
+  "supplemental": {
+    "characterCreator": {
+      "file": "2024-srd-character-creator-supplemental.json",
+      "sha256": "aadca0b642b30c2dd853970d61c4a9d56a3d1ba3e29c03c985d40a3d7b91bc96",
+      "usedBy": "scripts/generate-character-creator-catalog.mjs",
+      "note": "Checked-in structured SRD tables omitted by the pinned Markdown extracts, including language tables and explicit species/equipment choice aliases."
+    }
+  },
   "generatedArtifacts": [
     "app/features/map-editor/data/character-options.ts",
-    "app/features/map-editor/data/srd-monsters.json"
+    "app/features/map-editor/data/srd-monsters.json",
+    "app/features/character-creator/data/dnd-2024-basic/catalog.json",
+    "app/features/character-creator/data/dnd-2024-basic/classes.json",
+    "app/features/character-creator/data/dnd-2024-basic/backgrounds.json",
+    "app/features/character-creator/data/dnd-2024-basic/species.json",
+    "app/features/character-creator/data/dnd-2024-basic/feats.json",
+    "app/features/character-creator/data/dnd-2024-basic/spells.json",
+    "app/features/character-creator/data/dnd-2024-basic/equipment.json",
+    "app/features/character-creator/data/dnd-2024-basic/languages.json",
+    "docs/data/2024-srd-character-creator-supplemental.json"
   ],
   "verification": {
-    "character": "node scripts/generate-character-options.mjs --source-dir <extract-dir>",
+    "character": "node scripts/generate-character-options.mjs --source-dir <extract-dir> && node scripts/generate-character-creator-catalog.mjs --source-dir <extract-dir>",
     "monsters": "node scripts/generate-srd-2024-monsters.mjs verify --source <extract-dir>/monsters.json --spell-levels app/features/map-editor/data/character-options.ts",
     "note": "The extract files are intentionally not deployed. Download the pinned extracts, verify their SHA-256 values, then regenerate the checked-in artifacts."
   }

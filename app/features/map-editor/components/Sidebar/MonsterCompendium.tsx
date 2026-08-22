@@ -68,7 +68,7 @@ function MonsterNumericInput({
 }
 
 interface MonsterCompendiumProps {
-  onTokenCreate?: (token: Token) => void;
+  onTokenCreate?: (token: Token) => void | Promise<boolean>;
   onMapChanged?: () => void;
 }
 

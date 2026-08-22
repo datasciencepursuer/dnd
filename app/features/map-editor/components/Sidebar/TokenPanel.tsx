@@ -13,6 +13,8 @@ import { UpgradePrompt } from "~/components/UpgradePrompt";
 import { apiUrl } from "~/lib/api-config";
 import type { Token, TokenLayer, MonsterGroup, InitiativeEntry } from "../../types";
 import type { TierLimits } from "~/lib/tier-limits";
+import { GuidedCharacterCreator } from "~/features/character-creator/components/GuidedCharacterCreator";
+import type { CharacterCreationBuild } from "~/features/character-creator/rules/types";
 import {
   PORTRAIT_STYLE_OPTIONS,
   DEFAULT_PORTRAIT_STYLE,
@@ -24,7 +26,7 @@ interface TokenPanelProps {
   mode?: "create" | "list";
   mapId?: string;
   onTokenDelete?: (tokenId: string) => void;
-  onTokenCreate?: (token: Token) => void;
+  onTokenCreate?: (token: Token) => void | Promise<boolean>;
   onMapChanged?: () => void;
   onSelectAndCenter?: (token: Token) => void;
   // Combat props
@@ -71,6 +73,8 @@ export function TokenPanel({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
   const [createMode, setCreateMode] = useState<"custom" | "compendium">("custom");
+  const [showGuidedCreator, setShowGuidedCreator] = useState(false);
+  const guidedTokenIdRef = useRef<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Token | null>(null);
   const [showAiPortrait, setShowAiPortrait] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -97,6 +101,7 @@ export function TokenPanel({
     }))
   );
   const addToken = useMapStore((s) => s.addToken);
+  const updateToken = useMapStore((s) => s.updateToken);
   const removeToken = useMapStore((s) => s.removeToken);
   const reorderTokens = useMapStore((s) => s.reorderTokens);
   const duplicateToken = useMapStore((s) => s.duplicateToken);
@@ -289,6 +294,69 @@ export function TokenPanel({
     onTokenCreate?.(token);
     setTokenName("");
     setTokenImageUrl(null);
+  };
+
+  const saveGuidedTokenBuild = async (build: CharacterCreationBuild) => {
+    if (!mapExists || !viewport || !grid || !canCreateToken()) {
+      throw new Error("This map is not ready for a new character token.");
+    }
+
+    const response = await fetch(apiUrl("/api/characters/guided"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guidedBuild: build }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.errors?.[0]?.message || data?.error || "Failed to validate guided character");
+    }
+
+    const savedBuild = data.build as CharacterCreationBuild;
+    if (guidedTokenIdRef.current) {
+      updateToken(guidedTokenIdRef.current, {
+        name: savedBuild.name,
+        characterSheet: data.characterSheet,
+        characterCreationBuild: savedBuild,
+      });
+      onMapChanged?.();
+      return;
+    }
+
+    const center = getViewportCenterCell(viewport, grid.cellSize);
+    const token: Token = {
+      id: crypto.randomUUID(),
+      name: savedBuild.name,
+      imageUrl: tokenImageUrl,
+      color: tokenColor,
+      size: tokenSize,
+      position: center,
+      rotation: 0,
+      flipped: false,
+      visible: true,
+      layer: "character",
+      ownerId: isDungeonMaster() ? null : userId,
+      characterSheet: data.characterSheet,
+      characterCreationBuild: savedBuild,
+      characterId: null,
+      monsterGroupId: null,
+    };
+
+    addToken(token);
+    const persisted = await onTokenCreate?.(token);
+    if (persisted === false) throw new Error("Failed to save the character token. Please try again.");
+    guidedTokenIdRef.current = token.id;
+  };
+
+  const handleGuidedTokenProgress = async (build: CharacterCreationBuild) => {
+    await saveGuidedTokenBuild(build);
+  };
+
+  const handleGuidedTokenComplete = async (build: CharacterCreationBuild) => {
+    await saveGuidedTokenBuild(build);
+    setShowGuidedCreator(false);
+    setTokenName("");
+    setTokenImageUrl(null);
+    guidedTokenIdRef.current = null;
   };
 
   const canCreate = canCreateToken();
@@ -616,6 +684,11 @@ export function TokenPanel({
                   }`}>
                     {token.name}
                   </span>
+                  {token.characterSheet?.creationProvenance && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 flex-shrink-0">
+                      {token.characterSheet.creationProvenance.rulesComplete ? "2024 rules" : "Needs choices"}
+                    </span>
+                  )}
                   {/* Duplicate button - DM only, any token */}
                   {isDungeonMaster() && (
                     <button
@@ -701,6 +774,19 @@ export function TokenPanel({
   // Create mode
   return (
     <div className="p-4 space-y-4">
+      {showGuidedCreator && (
+        <GuidedCharacterCreator
+          initialName={tokenName}
+          heading="Create a player character token"
+          completeLabel="Save character token"
+          onCancel={() => {
+            setShowGuidedCreator(false);
+            guidedTokenIdRef.current = null;
+          }}
+          onSaveProgress={handleGuidedTokenProgress}
+          onComplete={handleGuidedTokenComplete}
+        />
+      )}
       {canCreate && (
         <>
           <h3 className="font-semibold text-gray-900 dark:text-white">Create Unit</h3>
@@ -1154,6 +1240,15 @@ export function TokenPanel({
             >
               Add Unit
             </button>
+            {tokenLayer === "character" && (
+              <button
+                type="button"
+                onClick={() => setShowGuidedCreator(true)}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+              >
+                Guided player character
+              </button>
+            )}
           </div>
           )}
         </>

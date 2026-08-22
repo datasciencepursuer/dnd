@@ -1,10 +1,11 @@
 import type { Route } from "./+types/api.maps.$mapId.tokens.$tokenId";
 import { eq } from "drizzle-orm";
 import { db } from "~/.server/db";
-import { maps } from "~/.server/db/schema";
+import { characters, maps } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { requireMapPermission } from "~/.server/permissions/map-permissions";
 import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
+import { recompileGuidedToken } from "~/features/character-creator/rules/recompile-token";
 
 interface Token {
   id: string;
@@ -15,6 +16,36 @@ interface Token {
 interface MapData {
   tokens: Token[];
   [key: string]: unknown;
+}
+
+async function canLinkCharacter(userId: string, characterId: unknown): Promise<boolean> {
+  if (characterId === undefined || characterId === null) return true;
+  if (typeof characterId !== "string" || !characterId) return false;
+  const [character] = await db
+    .select({ userId: characters.userId })
+    .from(characters)
+    .where(eq(characters.id, characterId))
+    .limit(1);
+  return character?.userId === userId;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function recompilePersistedToken(
+  token: Token,
+  existingToken: Token | undefined,
+  generatedAt: string,
+) {
+  // Older clients may omit the optional build while updating a guided token.
+  // Keep the stored source build authoritative unless it is explicitly null.
+  const hasSubmittedBuild = Object.prototype.hasOwnProperty.call(token, "characterCreationBuild");
+  const tokenForCompilation = !hasSubmittedBuild && existingToken?.characterCreationBuild !== undefined
+    ? { ...token, characterCreationBuild: existingToken.characterCreationBuild }
+    : token;
+
+  return recompileGuidedToken(tokenForCompilation, generatedAt);
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -101,7 +132,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         }
 
         // Create new token with the provided ID
-        const newToken: Token = {
+        const rawNewToken: Token = {
           id: tokenId,
           ownerId: body.ownerId ?? null,
           characterSheet: body.characterSheet ?? null,
@@ -109,6 +140,19 @@ export async function action({ request, params }: Route.ActionArgs) {
           monsterGroupId: body.monsterGroupId ?? null,
           ...body,
         };
+
+        if (!(await canLinkCharacter(session.user.id, rawNewToken.characterId))) {
+          return Response.json({ error: "Character link is not valid" }, { status: 403 });
+        }
+
+        const compiledToken = recompilePersistedToken(rawNewToken, undefined, new Date().toISOString());
+        if (!compiledToken.valid) {
+          return Response.json(
+            { error: "Invalid guided token build", errors: compiledToken.errors },
+            { status: 400 },
+          );
+        }
+        const newToken = compiledToken.token as Token;
 
         const imageValidation = await validateOwnedImageUrls(session.user.id, [newToken.imageUrl], {
           type: "token",
@@ -147,8 +191,34 @@ export async function action({ request, params }: Route.ActionArgs) {
         return new Response("Only the DM can change token ownership", { status: 403 });
       }
 
+      if (body.characterId !== undefined && !(await canLinkCharacter(session.user.id, body.characterId))) {
+        return Response.json({ error: "Character link is not valid" }, { status: 403 });
+      }
+
       // Update the token
-      const updatedToken = { ...currentToken, ...body };
+      let rawUpdatedToken: Token = { ...currentToken, ...body };
+      if (
+        rawUpdatedToken.characterCreationBuild !== undefined &&
+        rawUpdatedToken.characterCreationBuild !== null &&
+        currentToken.characterSheet !== undefined
+      ) {
+        const existingSheet = isRecord(currentToken.characterSheet) ? currentToken.characterSheet : {};
+        const submittedSheet = isRecord(rawUpdatedToken.characterSheet)
+          ? rawUpdatedToken.characterSheet
+          : {};
+        rawUpdatedToken = {
+          ...rawUpdatedToken,
+          characterSheet: { ...existingSheet, ...submittedSheet },
+        };
+      }
+      const compiledToken = recompilePersistedToken(rawUpdatedToken, currentToken, new Date().toISOString());
+      if (!compiledToken.valid) {
+        return Response.json(
+          { error: "Invalid guided token build", errors: compiledToken.errors },
+          { status: 400 },
+        );
+      }
+      const updatedToken = compiledToken.token as Token;
       const currentImageUrl = typeof currentToken.imageUrl === "string" ? currentToken.imageUrl : null;
       const imageValidation = await validateOwnedImageUrls(session.user.id, [updatedToken.imageUrl], {
         allowedExistingUrls: currentImageUrl ? [currentImageUrl] : [],

@@ -19,22 +19,24 @@ export function useMapSync(mapId: string | undefined) {
    * Use this for high-priority changes (requires edit permission).
    * Clears all dirty tokens on success since full map state is synced.
    */
-  const syncNow = useCallback(async () => {
-    if (!mapId) return;
+  const syncNow = useCallback(async (): Promise<boolean> => {
+    // The playground has no persisted map and is intentionally local-only.
+    if (!mapId) return true;
 
-    const state = useMapStore.getState();
-    const map = state.map;
-    if (!map) return;
-
-    // Cancel any pending debounced sync
+    // Cancel any pending debounced sync before checking the loaded map state.
     if (pendingSyncRef.current) {
       clearTimeout(pendingSyncRef.current);
       pendingSyncRef.current = null;
     }
 
+    const state = useMapStore.getState();
+    const map = state.map;
+    // A persisted editor without a loaded map cannot report a successful save.
+    if (!map) return false;
+
     // Skip if we just synced this exact state
     const mapHash = map.updatedAt;
-    if (lastSyncRef.current === mapHash) return;
+    if (lastSyncRef.current === mapHash) return true;
 
     // Capture dirty tokens before sync
     const tokensToClear = new Set(state.dirtyTokens);
@@ -52,9 +54,12 @@ export function useMapSync(mapId: string | undefined) {
         for (const tokenId of tokensToClear) {
           useMapStore.getState().clearDirtyToken(tokenId);
         }
+        return true;
       }
+      return false;
     } catch (error) {
       console.error("Failed to sync map:", error);
+      return false;
     }
   }, [mapId]);
 
@@ -117,11 +122,12 @@ export function useMapSync(mapId: string | undefined) {
    * Uses PUT endpoint with full token data to create/upsert the token.
    */
   const syncTokenCreate = useCallback(
-    async (token: Token) => {
-      if (!mapId) return;
+    async (token: Token): Promise<boolean> => {
+      // Playground tokens are intentionally local-only and need no server persistence.
+      if (!mapId) return true;
 
       const tokenId = token.id;
-      if (!tokenId) return;
+      if (!tokenId) return false;
 
       try {
         const response = await fetch(apiUrl(`/api/maps/${mapId}/tokens/${tokenId}`), {
@@ -133,12 +139,15 @@ export function useMapSync(mapId: string | undefined) {
         if (response.ok) {
           // Clear dirty flag on successful sync
           useMapStore.getState().clearDirtyToken(tokenId);
+          return true;
         } else {
           console.error("Failed to sync token create:", await response.text());
         }
       } catch (error) {
         console.error("Failed to sync token create:", error);
       }
+
+      return false;
     },
     [mapId]
   );

@@ -9,6 +9,8 @@ import { CharacterSheetPanel } from "~/features/map-editor/components/CharacterS
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { TOKEN_COLORS } from "~/features/map-editor/constants";
 import { apiUrl } from "~/lib/api-config";
+import { GuidedCharacterCreator } from "~/features/character-creator/components/GuidedCharacterCreator";
+import type { CharacterCreationBuild } from "~/features/character-creator/rules/types";
 
 interface CharacterData {
   id: string;
@@ -84,6 +86,8 @@ export default function Characters() {
   const { characters, userName, characterLibraryEnabled } = useLoaderData<LoaderData>();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showGuidedCreator, setShowGuidedCreator] = useState(false);
+  const [guidedCharacter, setGuidedCharacter] = useState<CharacterData | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<CharacterData | null>(null);
   const [editingSheetCharacter, setEditingSheetCharacter] = useState<CharacterData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,6 +139,12 @@ export default function Characters() {
   };
 
   const openCreateModal = () => {
+    setGuidedCharacter(null);
+    setShowGuidedCreator(true);
+    setEditingCharacter(null);
+  };
+
+  const openManualCreateModal = () => {
     setFormName("");
     setFormColor("#ef4444");
     setFormSize(1);
@@ -143,6 +153,12 @@ export default function Characters() {
     setUploadError(null);
     setEditingCharacter(null);
     setShowCreateModal(true);
+  };
+
+  const openGuidedCreator = (character?: CharacterData) => {
+    setGuidedCharacter(character ?? null);
+    setShowGuidedCreator(true);
+    setShowCreateModal(false);
   };
 
   const openEditModal = (character: CharacterData) => {
@@ -191,6 +207,47 @@ export default function Characters() {
     }
   };
 
+  const saveGuidedCharacter = async (build: CharacterCreationBuild) => {
+    const existingCharacter = guidedCharacter;
+    const response = await fetch(
+      apiUrl(existingCharacter ? `/api/characters/${existingCharacter.id}` : "/api/characters"),
+      {
+        method: existingCharacter ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: build.name,
+          ...(existingCharacter
+            ? {}
+            : { color: "#ef4444", size: 1, layer: "character" }),
+          guidedBuild: build,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => null);
+      const detail = result?.errors?.[0]?.message;
+      throw new Error(detail || result?.error || "Failed to save guided character");
+    }
+
+    const result = await response.json();
+    if (!existingCharacter && result.character) {
+      setGuidedCharacter(result.character);
+    }
+  };
+
+  const handleGuidedProgress = async (build: CharacterCreationBuild) => {
+    await saveGuidedCharacter(build);
+  };
+
+  const handleGuidedComplete = async (build: CharacterCreationBuild) => {
+    await saveGuidedCharacter(build);
+
+    setShowGuidedCreator(false);
+    setGuidedCharacter(null);
+    window.location.reload();
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deletingCharacter) return;
 
@@ -215,6 +272,10 @@ export default function Characters() {
   };
 
   const renderCharacterCard = (character: CharacterData) => {
+    const guidedBuild = character.characterSheet?.creationBuild;
+    const isGuidedCharacter = !!guidedBuild;
+    const rulesComplete = character.characterSheet?.creationProvenance?.rulesComplete === true;
+
     return (
       <div
         key={character.id}
@@ -246,8 +307,12 @@ export default function Characters() {
               {character.name}
             </h3>
             {character.characterSheet && (
-              <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded flex-shrink-0">
-                Sheet
+              <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 ${
+                isGuidedCharacter && !rulesComplete
+                  ? "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300"
+                  : "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
+              }`}>
+                {isGuidedCharacter ? (rulesComplete ? "2024 rules" : "Needs choices") : "Sheet"}
               </span>
             )}
           </div>
@@ -271,10 +336,18 @@ export default function Characters() {
         {/* Actions */}
         <div className="flex flex-wrap gap-2 flex-shrink-0 w-full sm:w-auto">
           <button
-            onClick={() => setEditingSheetCharacter(character)}
+            onClick={() => {
+              if (guidedBuild) {
+                openGuidedCreator(character);
+              } else if (character.characterSheet) {
+                setEditingSheetCharacter(character);
+              } else {
+                openGuidedCreator(character);
+              }
+            }}
             className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer flex-1 sm:flex-initial text-center"
           >
-            {character.characterSheet ? "Character Sheet" : "Create Sheet"}
+            {isGuidedCharacter ? "Guided options" : character.characterSheet ? "Character Sheet" : "Create character"}
           </button>
           <button
             onClick={() => openEditModal(character)}
@@ -346,7 +419,7 @@ export default function Characters() {
               onClick={openCreateModal}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
             >
-              Create Character
+              Create character
             </button>
           </div>
         ) : (
@@ -355,7 +428,30 @@ export default function Characters() {
           </div>
         )}
 
-        {/* Create/Edit Modal */}
+        {showGuidedCreator && (
+          <GuidedCharacterCreator
+            initialName={guidedCharacter?.name}
+            initialBuild={guidedCharacter?.characterSheet?.creationBuild}
+            heading={guidedCharacter ? "Continue your character" : "Create your character"}
+            completeLabel="Save character"
+            onCancel={() => {
+              setShowGuidedCreator(false);
+              setGuidedCharacter(null);
+            }}
+            onUseManual={() => {
+              setShowGuidedCreator(false);
+              if (guidedCharacter) {
+                setEditingSheetCharacter(guidedCharacter);
+              } else {
+                openManualCreateModal();
+              }
+            }}
+            onSaveProgress={handleGuidedProgress}
+            onComplete={handleGuidedComplete}
+          />
+        )}
+
+        {/* Create/Edit Modal (manual compatibility path) */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4">

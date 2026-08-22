@@ -21,6 +21,8 @@ import { popUndo, clearUndoStack } from "../utils/undo-stack";
 import { apiUrl } from "~/lib/api-config";
 import type { AccountTier, TierLimits } from "~/lib/tier-limits";
 import { getTierLimits } from "~/lib/tier-limits";
+import type { CharacterCreationBuild } from "~/features/character-creator/rules/types";
+import { hasRulesDerivedManualChanges } from "~/features/character-creator/rules/provenance";
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds debounce
 
@@ -469,11 +471,17 @@ export function MapEditor({
 
   // Combined handler for token creation
   const handleTokenCreate = useCallback(
-    (token: Token) => {
+    async (token: Token): Promise<boolean> => {
+      const persisted = await syncTokenCreate(token);
+      if (!persisted) {
+        removeToken(token.id);
+        return false;
+      }
+
       broadcastTokenCreate(token);
-      syncTokenCreate(token);
+      return true;
     },
-    [broadcastTokenCreate, syncTokenCreate]
+    [broadcastTokenCreate, removeToken, syncTokenCreate]
   );
 
   // Sync after token flip with 500ms debounce + broadcast
@@ -865,10 +873,44 @@ export function MapEditor({
     ? tokens?.find((t) => t.id === openCharacterSheetTokenId) ?? null
     : null;
 
+  const handleGuidedBuildSaved = useCallback(async (build: CharacterCreationBuild) => {
+    if (!characterSheetToken) return;
+
+    const tokenId = characterSheetToken.id;
+    const previousTokenState = {
+      characterSheet: characterSheetToken.characterSheet,
+      characterCreationBuild: characterSheetToken.characterCreationBuild,
+      name: characterSheetToken.name,
+    };
+    const persistenceError = "The guided character was created, but the map token could not be saved. Please try again.";
+
+    updateToken(tokenId, {
+      name: build.name,
+      characterCreationBuild: build,
+    });
+
+    try {
+      if (!(await syncNow())) {
+        throw new Error(persistenceError);
+      }
+    } catch (error) {
+      updateToken(tokenId, previousTokenState);
+      if (error instanceof Error && error.message === persistenceError) {
+        throw error;
+      }
+      throw new Error(persistenceError);
+    }
+  }, [characterSheetToken, syncNow, updateToken]);
+
   // Handler for character sheet updates - sync via HTTP + broadcast stats
   const handleCharacterSheetUpdate = useCallback(
     (updates: Partial<CharacterSheet>) => {
       if (!openCharacterSheetTokenId) return;
+      if (characterSheetToken?.characterCreationBuild && hasRulesDerivedManualChanges(updates, characterSheetToken.characterSheet)) {
+        // A direct guided token becomes a manual sheet once the sheet editor
+        // changes a field; otherwise server recompilation would erase it.
+        updateToken(openCharacterSheetTokenId, { characterCreationBuild: null });
+      }
       updateCharacterSheet(openCharacterSheetTokenId, updates);
 
       // Broadcast AC, HP, condition, and aura changes instantly via WebSocket
@@ -888,7 +930,7 @@ export function MapEditor({
       // Debounced sync since character sheet changes don't need instant sync
       syncDebounced(1000);
     },
-    [openCharacterSheetTokenId, updateCharacterSheet, broadcastTokenStats, syncDebounced]
+    [characterSheetToken, openCharacterSheetTokenId, updateToken, updateCharacterSheet, broadcastTokenStats, syncDebounced]
   );
 
   // Handler for initializing a character sheet
@@ -902,17 +944,19 @@ export function MapEditor({
   const handleLinkCharacter = useCallback(
     (character: { id: string; name: string; imageUrl: string | null; color: string; size: number; layer: string; characterSheet: CharacterSheet | null }) => {
       if (!openCharacterSheetTokenId) return;
-      updateToken(openCharacterSheetTokenId, {
+      const updates = {
         characterId: character.id,
         characterSheet: character.characterSheet,
         name: character.name,
         imageUrl: character.imageUrl,
         color: character.color,
         size: character.size,
-      });
+        ...(characterSheetToken?.characterCreationBuild ? { characterCreationBuild: null } : {}),
+      };
+      updateToken(openCharacterSheetTokenId, updates);
       syncDebounced(500);
     },
-    [openCharacterSheetTokenId, updateToken, syncDebounced]
+    [characterSheetToken, openCharacterSheetTokenId, updateToken, syncDebounced]
   );
 
   // Handler for changing a token's image from the character sheet avatar
@@ -1402,6 +1446,7 @@ export function MapEditor({
           onInitialize={handleInitializeCharacterSheet}
           onLinkCharacter={isTokenOwner(characterSheetToken.ownerId) ? handleLinkCharacter : undefined}
           onTokenImageChange={handleTokenImageChange}
+          onGuidedBuildSaved={handleGuidedBuildSaved}
         />
       )}
 

@@ -15,6 +15,9 @@ import { useUploadThing } from "~/utils/uploadthing";
 import { ImageLibraryPicker } from "../ImageLibraryPicker";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import { useEditorStore } from "../../store";
+import { GuidedCharacterCreator } from "~/features/character-creator/components/GuidedCharacterCreator";
+import type { CharacterCreationBuild } from "~/features/character-creator/rules/types";
+import { hasRulesDerivedManualChanges, invalidateGuidedSheet } from "~/features/character-creator/rules/provenance";
 import {
   PORTRAIT_STYLE_OPTIONS,
   DEFAULT_PORTRAIT_STYLE,
@@ -233,6 +236,7 @@ interface CharacterSheetPanelProps {
   onInitialize?: () => void;
   onLinkCharacter?: (character: LibraryCharacter) => void;
   onTokenImageChange?: (imageUrl: string | null) => void;
+  onGuidedBuildSaved?: (build: CharacterCreationBuild) => void | Promise<void>;
   // Option 2: Standalone character (/characters route)
   character?: StandaloneCharacter;
   // Common props
@@ -248,6 +252,7 @@ export function CharacterSheetPanel({
   onInitialize,
   onLinkCharacter,
   onTokenImageChange,
+  onGuidedBuildSaved,
   character,
   readOnly = false,
   onSaved,
@@ -256,6 +261,7 @@ export function CharacterSheetPanel({
   const isStandalone = !!character && !token;
   const characterId = isStandalone ? character.id : token?.characterId;
   const isLinked = !!characterId;
+  const canUseGuidedCharacterCreator = isStandalone || token?.layer === "character";
 
   // Character info (from token or standalone)
   const charName = isStandalone ? character.name : token?.name ?? "";
@@ -293,6 +299,7 @@ export function CharacterSheetPanel({
   const charLibFetcher = useFetcher<{ characters: LibraryCharacter[] }>();
   const availableCharacters = charLibFetcher.data?.characters ?? [];
   const [showCharacterPicker, setShowCharacterPicker] = useState(false);
+  const [showGuidedCreator, setShowGuidedCreator] = useState(false);
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentSheetRef = useRef<CharacterSheet | null>(null);
   const draftRecoveredRef = useRef(false);
@@ -310,6 +317,7 @@ export function CharacterSheetPanel({
 
   // Use linked/standalone character sheet if available, otherwise use token's inline sheet
   const sheet = isLinked ? linkedCharacterSheet : token?.characterSheet ?? null;
+  const hasGuidedBuild = !!(token?.characterCreationBuild ?? sheet?.creationBuild);
 
   // AI portrait generation state
   const [showPortraitGenerator, setShowPortraitGenerator] = useState(false);
@@ -588,12 +596,28 @@ export function CharacterSheetPanel({
   // Handler that routes to either local update or API update
   const handleUpdate = useCallback(
     (updates: Partial<CharacterSheet>) => {
-      if (!sheet) return;
+      if (!sheet) {
+        // Guided completion can deliver the first inline sheet through this callback.
+        onUpdate?.(updates);
+        return;
+      }
+
+      const guidedRulesEdit = Boolean(sheet.creationBuild && hasRulesDerivedManualChanges(updates, sheet));
+      const invalidatedSheet = guidedRulesEdit
+        ? invalidateGuidedSheet({ ...sheet, ...updates })
+        : null;
+      const normalizedUpdates: Partial<CharacterSheet> = guidedRulesEdit
+        ? {
+            ...updates,
+            creationBuild: undefined,
+            ...(invalidatedSheet?.creationProvenance ? { creationProvenance: invalidatedSheet.creationProvenance } : {}),
+          }
+        : updates;
 
       // Always update lastModified for version tracking
-      const newSheet = { ...sheet, ...updates, lastModified: Date.now() };
-      if (updates.abilities) {
-        newSheet.abilities = { ...sheet.abilities, ...updates.abilities };
+      const newSheet = { ...sheet, ...normalizedUpdates, lastModified: Date.now() };
+      if (normalizedUpdates.abilities) {
+        newSheet.abilities = { ...sheet.abilities, ...normalizedUpdates.abilities };
       }
 
       if (effectivelyLinked && characterId) {
@@ -605,7 +629,7 @@ export function CharacterSheetPanel({
 
         // Also update token's cached copy for display (HP bar, AC icon)
         if (onUpdate) {
-          onUpdate({ ...updates, lastModified: Date.now() });
+          onUpdate({ ...normalizedUpdates, lastModified: Date.now() });
         }
 
         if (syncTimeoutRef.current) {
@@ -621,7 +645,7 @@ export function CharacterSheetPanel({
           // Also keep local state in sync so the panel reflects edits
           setLinkedCharacterSheet(newSheet);
         }
-        onUpdate({ ...updates, lastModified: Date.now() });
+        onUpdate({ ...normalizedUpdates, lastModified: Date.now() });
       }
     },
     [sheet, effectivelyLinked, linkedFetchFailed, characterId, syncToServer, onUpdate]
@@ -646,6 +670,40 @@ export function CharacterSheetPanel({
       handleClose();
     }
   }, [portraitPreview, hasPendingChanges, handleClose]);
+
+  const saveGuidedBuild = useCallback(async (build: CharacterCreationBuild) => {
+    if (!canUseGuidedCharacterCreator) {
+      throw new Error("Guided player characters are only available for standalone characters or character-layer tokens.");
+    }
+
+    const response = await fetch(
+      apiUrl(characterId ? `/api/characters/${characterId}` : "/api/characters/guided"),
+      {
+        method: characterId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guidedBuild: build }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.errors?.[0]?.message || data?.error || "Failed to create guided character");
+    }
+
+    const nextSheet = characterId ? data?.character?.characterSheet : data?.characterSheet;
+    if (!nextSheet) throw new Error("The server did not return a character sheet.");
+    onUpdate?.(nextSheet);
+    if (!characterId) await onGuidedBuildSaved?.(build);
+    setLinkedCharacterSheet(nextSheet);
+    return nextSheet;
+  }, [canUseGuidedCharacterCreator, characterId, onGuidedBuildSaved, onUpdate]);
+
+  const handleGuidedComplete = useCallback(async (build: CharacterCreationBuild) => {
+    await saveGuidedBuild(build);
+    setShowGuidedCreator(false);
+    setHasPendingChanges(false);
+    setSyncError(null);
+    onSaved?.();
+  }, [onSaved, saveGuidedBuild]);
 
   // Backdrop click closes only when the backdrop itself was clicked. The confirm
   // dialog renders inside this backdrop, so without the check its buttons bubble
@@ -728,6 +786,20 @@ export function CharacterSheetPanel({
     );
   }
 
+  if (showGuidedCreator && canUseGuidedCharacterCreator) {
+    return (
+      <GuidedCharacterCreator
+        initialName={charName}
+        initialBuild={token?.characterCreationBuild ?? sheet?.creationBuild ?? null}
+        heading="Create a level-1 player character"
+        completeLabel="Save character"
+        onCancel={() => setShowGuidedCreator(false)}
+        onSaveProgress={saveGuidedBuild}
+        onComplete={handleGuidedComplete}
+      />
+    );
+  }
+
   // If no character sheet, show initialize button
   if (!sheet) {
     return (
@@ -748,6 +820,14 @@ export function CharacterSheetPanel({
           </p>
           {!readOnly && (
             <>
+              {canUseGuidedCharacterCreator && (
+                <button
+                  onClick={() => setShowGuidedCreator(true)}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 cursor-pointer"
+                >
+                  Guided player character
+                </button>
+              )}
               <button
                 onClick={() => {
                   if (isLinked && characterId) {
@@ -763,9 +843,9 @@ export function CharacterSheetPanel({
                     onInitialize();
                   }
                 }}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
+                className="w-full mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"
               >
-                Create Character Sheet
+                Quick/manual sheet
               </button>
               {onLinkCharacter && !isLinked && !isStandalone && (
                 <>
@@ -932,6 +1012,16 @@ export function CharacterSheetPanel({
                 {/* Name + badges */}
                 <div className="flex items-center gap-1 min-w-0 flex-shrink">
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white truncate">{charName}</h2>
+                  {sheet.creationProvenance && (
+                    <span className="inline-flex items-center px-1 py-0.5 text-[10px] font-medium bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded flex-shrink-0">
+                      {sheet.creationProvenance.rulesComplete ? "2024 rules" : "Needs choices"}
+                    </span>
+                  )}
+                  {hasGuidedBuild && !readOnly && (
+                    <button type="button" onClick={() => setShowGuidedCreator(true)} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800">
+                      Guided options
+                    </button>
+                  )}
                   {effectivelyLinked && (
                     <span className="inline-flex items-center px-1 py-0.5 text-[10px] font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded flex-shrink-0">
                       Linked
@@ -1258,6 +1348,16 @@ export function CharacterSheetPanel({
             {/* Name */}
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">{charName}</h2>
+              {sheet.creationProvenance && (
+                <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 rounded">
+                  {sheet.creationProvenance.rulesComplete ? "2024 rules" : "Needs choices"}
+                </span>
+              )}
+              {hasGuidedBuild && !readOnly && (
+                <button type="button" onClick={() => setShowGuidedCreator(true)} className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-800">
+                  Guided options
+                </button>
+              )}
               {effectivelyLinked && (
                 <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded">
                   Linked

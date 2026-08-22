@@ -1,0 +1,66 @@
+{
+  "languages": {
+    "standard": [
+      ["Common", "Sigil"],
+      ["Common Sign Language", "Sigil"],
+      ["Draconic", "Dragons"],
+      ["Dwarvish", "Dwarves"],
+      ["Elvish", "Elves"],
+      ["Giant", "Giants"],
+      ["Gnomish", "Gnomes"],
+      ["Goblin", "Goblinoids"],
+      ["Halfling", "Halflings"],
+      ["Orc", "Orcs"]
+    ],
+    "rare": [
+      ["Abyssal", "Demons of the Abyss"],
+      ["Celestial", "Celestials"],
+      ["Deep Speech", "Aberrations"],
+      ["Druidic", "Druidic circles"],
+      ["Infernal", "Devils of the Nine Hells"],
+      ["Primordial", "Elementals"],
+      ["Sylvan", "The Feywild"],
+      ["Thieves' Cant", "Various criminal guilds"],
+      ["Undercommon", "The Underdark"]
+    ]
+  },
+  "speciesChoices": {
+    "Dragonborn": [
+      { "key": "draconicAncestry", "label": "Draconic Ancestry", "options": [["Black", "Acid"], ["Blue", "Lightning"], ["Brass", "Fire"], ["Bronze", "Lightning"], ["Copper", "Acid"], ["Gold", "Fire"], ["Green", "Poison"], ["Red", "Fire"], ["Silver", "Cold"], ["White", "Cold"]] }
+    ],
+    "Elf": [
+      { "key": "elvenLineage", "label": "Elven Lineage", "options": [{ "id": "drow", "label": "Drow", "grants": ["dancing-lights"] }, { "id": "high-elf", "label": "High Elf", "grants": ["prestidigitation"] }, { "id": "wood-elf", "label": "Wood Elf", "grants": ["druidcraft"], "effects": [{ "type": "speed", "walk": 35 }] }] },
+      { "key": "lineageSpellcastingAbility", "label": "Lineage spellcasting ability", "options": "intelligence-wisdom-charisma" },
+      { "key": "keenSenses", "label": "Keen Senses skill", "options": ["insight", "perception", "survival"] }
+    ],
+    "Gnome": [
+      { "key": "gnomishLineage", "label": "Gnomish Lineage", "options": [{ "id": "forest-gnome", "label": "Forest Gnome", "grants": ["minor-illusion", "speak-with-animals"] }, { "id": "rock-gnome", "label": "Rock Gnome", "grants": ["mending", "prestidigitation"] }] },
+      { "key": "lineageSpellcastingAbility", "label": "Lineage spellcasting ability", "options": "intelligence-wisdom-charisma" }
+    ],
+    "Goliath": [
+      { "key": "giantAncestry", "label": "Giant Ancestry", "options": [
+        { "id": "clouds-jaunt", "label": "Cloud's Jaunt", "effects": [{ "type": "species-ability", "description": "Bonus Action: teleport up to 30 feet to an unoccupied space you can see." }] },
+        { "id": "fires-burn", "label": "Fire's Burn", "effects": [{ "type": "species-ability", "description": "When you hit with an attack roll, deal an extra 1d10 Fire damage." }] },
+        { "id": "frosts-chill", "label": "Frost's Chill", "effects": [{ "type": "species-ability", "description": "When you hit with an attack roll, deal an extra 1d6 Cold damage and reduce the target's Speed by 10 feet until your next turn." }] },
+        { "id": "hills-tumble", "label": "Hill's Tumble", "effects": [{ "type": "species-ability", "description": "When you hit a Large or smaller creature with an attack roll, you can give it the Prone condition." }] },
+        { "id": "stones-endurance", "label": "Stone's Endurance", "effects": [{ "type": "species-ability", "description": "Reaction when damaged: roll 1d12 + Constitution modifier and reduce the damage by the total." }] },
+        { "id": "storms-thunder", "label": "Storm's Thunder", "effects": [{ "type": "species-ability", "description": "Reaction when damaged by a creature within 60 feet: deal 1d8 Thunder damage to it." }] }
+      ] }
+    ],
+    "Human": [
+      { "key": "size", "label": "Human size", "options": [{ "id": "small", "label": "Small" }, { "id": "medium", "label": "Medium" }] },
+      { "key": "skill", "label": "Human skill proficiency", "options": "all-skills" },
+      { "key": "originFeat", "label": "Human origin feat", "options": "origin-feats" }
+    ],
+    "Tiefling": [
+      { "key": "fiendishLegacy", "label": "Fiendish Legacy", "options": [{ "id": "abyssal", "label": "Abyssal", "grants": ["poison-spray"], "effects": [{ "type": "damage-resistance", "damageType": "poison" }] }, { "id": "chthonic", "label": "Chthonic", "grants": ["chill-touch"], "effects": [{ "type": "damage-resistance", "damageType": "necrotic" }] }, { "id": "infernal", "label": "Infernal", "grants": ["fire-bolt"], "effects": [{ "type": "damage-resistance", "damageType": "fire" }] }] },
+      { "key": "legacySpellcastingAbility", "label": "Legacy spellcasting ability", "options": "intelligence-wisdom-charisma" }
+    ]
+  },
+  "equipment": {
+    "focusVariants": [["Arcane Focus", ["Crystal", "Orb", "Rod", "Staff", "Wand"]], ["Druidic Focus", ["Sprig of mistletoe", "Totem", "Wooden staff", "Yew wand"]], ["Holy Symbol", ["Amulet", "Emblem", "Reliquary"]]],
+    "fallbackEntries": ["Arcane Focus", "Druidic Focus", "Holy Symbol", "Book", "Musical Instrument", "Gaming Set", "Calligrapher's Supplies", "Thieves' Tools", "Herbalism Kit"],
+    "musicalVariants": ["Bagpipes", "Drum", "Dulcimer", "Flute", "Horn", "Lute", "Lyre", "Pan Flute", "Shawm", "Viol"],
+    "aliases": [["Handaxes", "Handaxe"], ["Daggers", "Dagger"], ["Javelins", "Javelin"], ["Arrows", "Ammunition"], ["Pouches", "Pouch"], ["Traveler's Clothes", "Clothes, Traveler's"], ["Spellbook", "Book"]]
+  }
+}

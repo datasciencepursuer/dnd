@@ -1,0 +1,5783 @@
+[
+  {
+    "id": "dnd-2024-basic:class:barbarian",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Barbarian",
+    "primaryAbilities": [
+      "strength"
+    ],
+    "hitDie": 12,
+    "savingThrowProficiencies": [
+      "strength",
+      "constitution"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "animal-handling",
+        "athletics",
+        "intimidation",
+        "nature",
+        "perception",
+        "survival"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple and Martial weapons",
+    "armorTraining": "Light and Medium armor and Shields",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Greataxe, 4 Handaxes, Explorer's Pack, and 15 GP; or (B) 75 GP",
+      "packages": [
+        {
+          "id": "barbarian-equipment-a",
+          "label": "Package A",
+          "sourceText": "Greataxe, 4 Handaxes, Explorer's Pack, and 15 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 15
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:greataxe",
+              "displayName": "Greataxe",
+              "quantity": 1,
+              "sourceText": "Greataxe"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:handaxes",
+              "displayName": "Handaxes",
+              "quantity": 4,
+              "sourceText": "4 Handaxes"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:explorers-pack",
+              "displayName": "Explorer's Pack",
+              "quantity": 1,
+              "sourceText": "Explorer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "barbarian-equipment-b",
+          "label": "Package B",
+          "sourceText": "75 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 75
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Rage",
+          "Unarmored Defense",
+          "Weapon Mastery"
+        ],
+        "Rages": "2",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Danger Sense",
+          "Reckless Attack"
+        ],
+        "Rages": "2",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "2"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Barbarian Subclass",
+          "Primal Knowledge"
+        ],
+        "Rages": "3",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "2"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Rages": "3",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Extra Attack",
+          "Fast Movement"
+        ],
+        "Rages": "3",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Feral Instinct",
+          "Instinctive Pounce"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Brutal Strike"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Relentless Rage"
+        ],
+        "Rages": "4",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Rages": "5",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Improved Brutal Strike"
+        ],
+        "Rages": "5",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Rages": "5",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Persistent Rage"
+        ],
+        "Rages": "5",
+        "Rage Damage": "+3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Rages": "5",
+        "Rage Damage": "+4",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Improved Brutal Strike"
+        ],
+        "Rages": "6",
+        "Rage Damage": "+4",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Indomitable Might"
+        ],
+        "Rages": "6",
+        "Rage Damage": "+4",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Rages": "6",
+        "Rage Damage": "+4",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Primal Champion"
+        ],
+        "Rages": "6",
+        "Rage Damage": "+4",
+        "Weapon Mastery": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:barbarian-rage",
+        "name": "Rage",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:barbarian-unarmored-defense",
+        "name": "Unarmored Defense",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:barbarian-weapon-mastery",
+        "name": "Weapon Mastery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:barbarian:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "animal-handling",
+          "athletics",
+          "intimidation",
+          "nature",
+          "perception",
+          "survival"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Barbarian."
+      },
+      {
+        "id": "dnd-2024-basic:class:barbarian:weapon-mastery",
+        "kind": "weapon-mastery",
+        "label": "Weapon mastery",
+        "count": 2,
+        "options": "proficient-weapons",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 weapons whose mastery properties you can use."
+      }
+    ],
+    "spellcasting": null,
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "strength"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "constitution"
+      },
+      {
+        "type": "hit-die",
+        "sides": 12
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple and Martial weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light and Medium armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:barbarian-rage",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:barbarian-unarmored-defense",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:barbarian-weapon-mastery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:bard",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Bard",
+    "primaryAbilities": [
+      "charisma"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "dexterity",
+      "charisma"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": "all-skills",
+      "count": 3
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "Light armor",
+    "toolProficiencies": "Choose 3 Musical Instruments (see Equipment)",
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Leather Armor, 2 Daggers, Musical Instrument of your choice, Entertainer's Pack, and 19 GP; or (B) 90 GP",
+      "packages": [
+        {
+          "id": "bard-equipment-a",
+          "label": "Package A",
+          "sourceText": "Leather Armor, 2 Daggers, Musical Instrument of your choice, Entertainer's Pack, and 19 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 19
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:leather-armor",
+              "displayName": "Leather Armor",
+              "quantity": 1,
+              "sourceText": "Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment-choice",
+              "displayName": "Musical Instrument",
+              "quantity": 1,
+              "choiceKey": "musical-instrument",
+              "sourceText": "Musical Instrument of your choice"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:entertainers-pack",
+              "displayName": "Entertainer's Pack",
+              "quantity": 1,
+              "sourceText": "Entertainer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "bard-equipment-b",
+          "label": "Package B",
+          "sourceText": "90 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 90
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Bardic Inspiration",
+          "Spellcasting"
+        ],
+        "Bardic Die": "D6",
+        "Cantrips": "2",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Expertise",
+          "Jack of All Trades"
+        ],
+        "Bardic Die": "D6",
+        "Cantrips": "2",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Bard Subclass"
+        ],
+        "Bardic Die": "D6",
+        "Cantrips": "2",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Bardic Die": "D6",
+        "Cantrips": "3",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Font of Inspiration"
+        ],
+        "Bardic Die": "D8",
+        "Cantrips": "3",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Bardic Die": "D8",
+        "Cantrips": "3",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Countercharm"
+        ],
+        "Bardic Die": "D8",
+        "Cantrips": "3",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Bardic Die": "D8",
+        "Cantrips": "3",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Expertise"
+        ],
+        "Bardic Die": "D8",
+        "Cantrips": "3",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Magical Secrets"
+        ],
+        "Bardic Die": "D10",
+        "Cantrips": "4",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Bardic Die": "D10",
+        "Cantrips": "4",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Bardic Die": "D10",
+        "Cantrips": "4",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Bardic Die": "D10",
+        "Cantrips": "4",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Bardic Die": "D10",
+        "Cantrips": "4",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "19",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Superior Inspiration"
+        ],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "20",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "21",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Words of Creation"
+        ],
+        "Bardic Die": "D12",
+        "Cantrips": "4",
+        "Prepared Spells": "22",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:bard-bardic-inspiration",
+        "name": "Bardic Inspiration",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:bard-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:bard:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 3,
+        "options": "all-skills",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 3 skill proficiencies granted by Bard."
+      },
+      {
+        "id": "dnd-2024-basic:class:bard:tools",
+        "kind": "tools",
+        "label": "Class tool proficiencies",
+        "count": 3,
+        "options": "musical-instruments",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 3 tool proficiencies from the class options."
+      }
+    ],
+    "spellcasting": {
+      "ability": "charisma",
+      "cantrips": 2,
+      "preparedSpells": 4,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:dancing-lights",
+        "dnd-2024-basic:spell:light",
+        "dnd-2024-basic:spell:mage-hand",
+        "dnd-2024-basic:spell:mending",
+        "dnd-2024-basic:spell:message",
+        "dnd-2024-basic:spell:minor-illusion",
+        "dnd-2024-basic:spell:prestidigitation",
+        "dnd-2024-basic:spell:starry-wisp",
+        "dnd-2024-basic:spell:true-strike",
+        "dnd-2024-basic:spell:vicious-mockery",
+        "dnd-2024-basic:spell:animal-friendship",
+        "dnd-2024-basic:spell:bane",
+        "dnd-2024-basic:spell:charm-person",
+        "dnd-2024-basic:spell:color-spray",
+        "dnd-2024-basic:spell:command",
+        "dnd-2024-basic:spell:comprehend-languages",
+        "dnd-2024-basic:spell:cure-wounds",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:disguise-self",
+        "dnd-2024-basic:spell:dissonant-whispers",
+        "dnd-2024-basic:spell:faerie-fire",
+        "dnd-2024-basic:spell:feather-fall",
+        "dnd-2024-basic:spell:healing-word",
+        "dnd-2024-basic:spell:heroism",
+        "dnd-2024-basic:spell:hideous-laughter",
+        "dnd-2024-basic:spell:identify",
+        "dnd-2024-basic:spell:illusory-script",
+        "dnd-2024-basic:spell:longstrider",
+        "dnd-2024-basic:spell:silent-image",
+        "dnd-2024-basic:spell:sleep",
+        "dnd-2024-basic:spell:speak-with-animals",
+        "dnd-2024-basic:spell:thunderwave",
+        "dnd-2024-basic:spell:unseen-servant",
+        "dnd-2024-basic:spell:aid",
+        "dnd-2024-basic:spell:animal-messenger",
+        "dnd-2024-basic:spell:blindness-deafness",
+        "dnd-2024-basic:spell:calm-emotions",
+        "dnd-2024-basic:spell:detect-thoughts",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:enlarge-reduce",
+        "dnd-2024-basic:spell:enthrall",
+        "dnd-2024-basic:spell:heat-metal",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:invisibility",
+        "dnd-2024-basic:spell:knock",
+        "dnd-2024-basic:spell:lesser-restoration",
+        "dnd-2024-basic:spell:locate-animals-or-plants",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:magic-mouth",
+        "dnd-2024-basic:spell:mirror-image",
+        "dnd-2024-basic:spell:see-invisibility",
+        "dnd-2024-basic:spell:shatter",
+        "dnd-2024-basic:spell:silence",
+        "dnd-2024-basic:spell:suggestion",
+        "dnd-2024-basic:spell:zone-of-truth",
+        "dnd-2024-basic:spell:bestow-curse",
+        "dnd-2024-basic:spell:clairvoyance",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:fear",
+        "dnd-2024-basic:spell:glyph-of-warding",
+        "dnd-2024-basic:spell:hypnotic-pattern",
+        "dnd-2024-basic:spell:major-image",
+        "dnd-2024-basic:spell:mass-healing-word",
+        "dnd-2024-basic:spell:nondetection",
+        "dnd-2024-basic:spell:plant-growth",
+        "dnd-2024-basic:spell:sending",
+        "dnd-2024-basic:spell:slow",
+        "dnd-2024-basic:spell:speak-with-dead",
+        "dnd-2024-basic:spell:speak-with-plants",
+        "dnd-2024-basic:spell:stinking-cloud",
+        "dnd-2024-basic:spell:tiny-hut",
+        "dnd-2024-basic:spell:tongues",
+        "dnd-2024-basic:spell:charm-monster",
+        "dnd-2024-basic:spell:compulsion",
+        "dnd-2024-basic:spell:confusion",
+        "dnd-2024-basic:spell:dimension-door",
+        "dnd-2024-basic:spell:freedom-of-movement",
+        "dnd-2024-basic:spell:greater-invisibility",
+        "dnd-2024-basic:spell:hallucinatory-terrain",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:phantasmal-killer",
+        "dnd-2024-basic:spell:polymorph",
+        "dnd-2024-basic:spell:animate-objects",
+        "dnd-2024-basic:spell:awaken",
+        "dnd-2024-basic:spell:dominate-person",
+        "dnd-2024-basic:spell:dream",
+        "dnd-2024-basic:spell:geas",
+        "dnd-2024-basic:spell:greater-restoration",
+        "dnd-2024-basic:spell:hold-monster",
+        "dnd-2024-basic:spell:legend-lore",
+        "dnd-2024-basic:spell:mass-cure-wounds",
+        "dnd-2024-basic:spell:mislead",
+        "dnd-2024-basic:spell:modify-memory",
+        "dnd-2024-basic:spell:planar-binding",
+        "dnd-2024-basic:spell:raise-dead",
+        "dnd-2024-basic:spell:scrying",
+        "dnd-2024-basic:spell:seeming",
+        "dnd-2024-basic:spell:telepathic-bond",
+        "dnd-2024-basic:spell:teleportation-circle",
+        "dnd-2024-basic:spell:eyebite",
+        "dnd-2024-basic:spell:find-the-path",
+        "dnd-2024-basic:spell:guards-and-wards",
+        "dnd-2024-basic:spell:heroes-feast",
+        "dnd-2024-basic:spell:irresistible-dance",
+        "dnd-2024-basic:spell:mass-suggestion",
+        "dnd-2024-basic:spell:programmed-illusion",
+        "dnd-2024-basic:spell:true-seeing",
+        "dnd-2024-basic:spell:arcane-sword",
+        "dnd-2024-basic:spell:etherealness",
+        "dnd-2024-basic:spell:forcecage",
+        "dnd-2024-basic:spell:magnificent-mansion",
+        "dnd-2024-basic:spell:mirage-arcane",
+        "dnd-2024-basic:spell:prismatic-spray",
+        "dnd-2024-basic:spell:project-image",
+        "dnd-2024-basic:spell:regenerate",
+        "dnd-2024-basic:spell:resurrection",
+        "dnd-2024-basic:spell:symbol",
+        "dnd-2024-basic:spell:teleport",
+        "dnd-2024-basic:spell:antipathy-sympathy",
+        "dnd-2024-basic:spell:befuddlement",
+        "dnd-2024-basic:spell:dominate-monster",
+        "dnd-2024-basic:spell:glibness",
+        "dnd-2024-basic:spell:mind-blank",
+        "dnd-2024-basic:spell:power-word-stun",
+        "dnd-2024-basic:spell:foresight",
+        "dnd-2024-basic:spell:power-word-heal",
+        "dnd-2024-basic:spell:power-word-kill",
+        "dnd-2024-basic:spell:prismatic-wall",
+        "dnd-2024-basic:spell:true-polymorph"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "dexterity"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "charisma"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light armor"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:bard-bardic-inspiration",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:bard-spellcasting",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:cleric",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Cleric",
+    "primaryAbilities": [
+      "wisdom"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "wisdom",
+      "charisma"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "history",
+        "insight",
+        "medicine",
+        "persuasion",
+        "religion"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "Light and Medium armor and Shields",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Chain Shirt, Shield, Mace, Holy Symbol, Priest's Pack, and 7 GP; or (B) 110 GP",
+      "packages": [
+        {
+          "id": "cleric-equipment-a",
+          "label": "Package A",
+          "sourceText": "Chain Shirt, Shield, Mace, Holy Symbol, Priest's Pack, and 7 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 7
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:chain-shirt",
+              "displayName": "Chain Shirt",
+              "quantity": 1,
+              "sourceText": "Chain Shirt"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shield",
+              "displayName": "Shield",
+              "quantity": 1,
+              "sourceText": "Shield"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:mace",
+              "displayName": "Mace",
+              "quantity": 1,
+              "sourceText": "Mace"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:holy-symbol",
+              "displayName": "Holy Symbol",
+              "quantity": 1,
+              "sourceText": "Holy Symbol"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:priests-pack",
+              "displayName": "Priest's Pack",
+              "quantity": 1,
+              "sourceText": "Priest's Pack"
+            }
+          ]
+        },
+        {
+          "id": "cleric-equipment-b",
+          "label": "Package B",
+          "sourceText": "110 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 110
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Spellcasting",
+          "Divine Order"
+        ],
+        "Channel Divinity": "—",
+        "Cantrips": "3",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Channel Divinity"
+        ],
+        "Channel Divinity": "2",
+        "Cantrips": "3",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Cleric Subclass"
+        ],
+        "Channel Divinity": "2",
+        "Cantrips": "3",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "2",
+        "Cantrips": "4",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Sear Undead"
+        ],
+        "Channel Divinity": "2",
+        "Cantrips": "4",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Blessed Strikes"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Channel Divinity": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Divine Intervention"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Improved Blessed Strikes"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Channel Divinity": "3",
+        "Cantrips": "5",
+        "Prepared Spells": "19",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Channel Divinity": "4",
+        "Cantrips": "5",
+        "Prepared Spells": "20",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Channel Divinity": "4",
+        "Cantrips": "5",
+        "Prepared Spells": "21",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Greater Divine Intervention"
+        ],
+        "Channel Divinity": "4",
+        "Cantrips": "5",
+        "Prepared Spells": "22",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:cleric-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:cleric-divine-order",
+        "name": "Divine Order",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:cleric:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "history",
+          "insight",
+          "medicine",
+          "persuasion",
+          "religion"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Cleric."
+      },
+      {
+        "id": "dnd-2024-basic:class:cleric:divineorder",
+        "kind": "divineOrder",
+        "label": "Divine Order",
+        "count": 1,
+        "options": [
+          "Protector",
+          "Thaumaturge"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the level 1 Divine Order choice from the Cleric rules."
+      }
+    ],
+    "spellcasting": {
+      "ability": "wisdom",
+      "cantrips": 3,
+      "preparedSpells": 4,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:guidance",
+        "dnd-2024-basic:spell:light",
+        "dnd-2024-basic:spell:mending",
+        "dnd-2024-basic:spell:resistance",
+        "dnd-2024-basic:spell:sacred-flame",
+        "dnd-2024-basic:spell:spare-the-dying",
+        "dnd-2024-basic:spell:thaumaturgy",
+        "dnd-2024-basic:spell:bane",
+        "dnd-2024-basic:spell:bless",
+        "dnd-2024-basic:spell:command",
+        "dnd-2024-basic:spell:create-or-destroy-water",
+        "dnd-2024-basic:spell:cure-wounds",
+        "dnd-2024-basic:spell:detect-evil-and-good",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:detect-poison-and-disease",
+        "dnd-2024-basic:spell:guiding-bolt",
+        "dnd-2024-basic:spell:healing-word",
+        "dnd-2024-basic:spell:inflict-wounds",
+        "dnd-2024-basic:spell:protection-from-evil-and-good",
+        "dnd-2024-basic:spell:purify-food-and-drink",
+        "dnd-2024-basic:spell:sanctuary",
+        "dnd-2024-basic:spell:shield-of-faith",
+        "dnd-2024-basic:spell:aid",
+        "dnd-2024-basic:spell:augury",
+        "dnd-2024-basic:spell:blindness-deafness",
+        "dnd-2024-basic:spell:calm-emotions",
+        "dnd-2024-basic:spell:continual-flame",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:find-traps",
+        "dnd-2024-basic:spell:gentle-repose",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:lesser-restoration",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:prayer-of-healing",
+        "dnd-2024-basic:spell:protection-from-poison",
+        "dnd-2024-basic:spell:silence",
+        "dnd-2024-basic:spell:spiritual-weapon",
+        "dnd-2024-basic:spell:warding-bond",
+        "dnd-2024-basic:spell:zone-of-truth",
+        "dnd-2024-basic:spell:animate-dead",
+        "dnd-2024-basic:spell:beacon-of-hope",
+        "dnd-2024-basic:spell:bestow-curse",
+        "dnd-2024-basic:spell:clairvoyance",
+        "dnd-2024-basic:spell:create-food-and-water",
+        "dnd-2024-basic:spell:daylight",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:glyph-of-warding",
+        "dnd-2024-basic:spell:magic-circle",
+        "dnd-2024-basic:spell:mass-healing-word",
+        "dnd-2024-basic:spell:meld-into-stone",
+        "dnd-2024-basic:spell:protection-from-energy",
+        "dnd-2024-basic:spell:remove-curse",
+        "dnd-2024-basic:spell:revivify",
+        "dnd-2024-basic:spell:sending",
+        "dnd-2024-basic:spell:speak-with-dead",
+        "dnd-2024-basic:spell:spirit-guardians",
+        "dnd-2024-basic:spell:tongues",
+        "dnd-2024-basic:spell:water-walk",
+        "dnd-2024-basic:spell:aura-of-life",
+        "dnd-2024-basic:spell:banishment",
+        "dnd-2024-basic:spell:control-water",
+        "dnd-2024-basic:spell:death-ward",
+        "dnd-2024-basic:spell:divination",
+        "dnd-2024-basic:spell:freedom-of-movement",
+        "dnd-2024-basic:spell:guardian-of-faith",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:stone-shape",
+        "dnd-2024-basic:spell:commune",
+        "dnd-2024-basic:spell:contagion",
+        "dnd-2024-basic:spell:dispel-evil-and-good",
+        "dnd-2024-basic:spell:flame-strike",
+        "dnd-2024-basic:spell:geas",
+        "dnd-2024-basic:spell:greater-restoration",
+        "dnd-2024-basic:spell:hallow",
+        "dnd-2024-basic:spell:insect-plague",
+        "dnd-2024-basic:spell:legend-lore",
+        "dnd-2024-basic:spell:mass-cure-wounds",
+        "dnd-2024-basic:spell:planar-binding",
+        "dnd-2024-basic:spell:raise-dead",
+        "dnd-2024-basic:spell:scrying",
+        "dnd-2024-basic:spell:blade-barrier",
+        "dnd-2024-basic:spell:create-undead",
+        "dnd-2024-basic:spell:find-the-path",
+        "dnd-2024-basic:spell:forbiddance",
+        "dnd-2024-basic:spell:harm",
+        "dnd-2024-basic:spell:heal",
+        "dnd-2024-basic:spell:heroes-feast",
+        "dnd-2024-basic:spell:planar-ally",
+        "dnd-2024-basic:spell:sunbeam",
+        "dnd-2024-basic:spell:true-seeing",
+        "dnd-2024-basic:spell:word-of-recall",
+        "dnd-2024-basic:spell:conjure-celestial",
+        "dnd-2024-basic:spell:divine-word",
+        "dnd-2024-basic:spell:etherealness",
+        "dnd-2024-basic:spell:fire-storm",
+        "dnd-2024-basic:spell:plane-shift",
+        "dnd-2024-basic:spell:regenerate",
+        "dnd-2024-basic:spell:resurrection",
+        "dnd-2024-basic:spell:symbol",
+        "dnd-2024-basic:spell:antimagic-field",
+        "dnd-2024-basic:spell:control-weather",
+        "dnd-2024-basic:spell:earthquake",
+        "dnd-2024-basic:spell:holy-aura",
+        "dnd-2024-basic:spell:sunburst",
+        "dnd-2024-basic:spell:astral-projection",
+        "dnd-2024-basic:spell:gate",
+        "dnd-2024-basic:spell:mass-heal",
+        "dnd-2024-basic:spell:power-word-heal",
+        "dnd-2024-basic:spell:true-resurrection"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "wisdom"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "charisma"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light and Medium armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:cleric-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:cleric-divine-order",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:druid",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Druid",
+    "primaryAbilities": [
+      "wisdom"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "intelligence",
+      "wisdom"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "animal-handling",
+        "arcana",
+        "insight",
+        "medicine",
+        "nature",
+        "perception",
+        "religion",
+        "survival"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "Light armor and Shields",
+    "toolProficiencies": "Herbalism Kit",
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Leather Armor, Shield, Sickle, Druidic Focus (Quarterstaff), Explorer's Pack, Herbalism Kit, and 9 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "druid-equipment-a",
+          "label": "Package A",
+          "sourceText": "Leather Armor, Shield, Sickle, Druidic Focus (Quarterstaff), Explorer's Pack, Herbalism Kit, and 9 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 9
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:leather-armor",
+              "displayName": "Leather Armor",
+              "quantity": 1,
+              "sourceText": "Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shield",
+              "displayName": "Shield",
+              "quantity": 1,
+              "sourceText": "Shield"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:sickle",
+              "displayName": "Sickle",
+              "quantity": 1,
+              "sourceText": "Sickle"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:druidic-focus",
+              "displayName": "Druidic Focus",
+              "quantity": 1,
+              "sourceText": "Druidic Focus (Quarterstaff)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:explorers-pack",
+              "displayName": "Explorer's Pack",
+              "quantity": 1,
+              "sourceText": "Explorer's Pack"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:herbalism-kit",
+              "displayName": "Herbalism Kit",
+              "quantity": 1,
+              "sourceText": "Herbalism Kit"
+            }
+          ]
+        },
+        {
+          "id": "druid-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Spellcasting",
+          "Druidic",
+          "Primal Order"
+        ],
+        "Wild Shape": "—",
+        "Cantrips": "2",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Wild Shape",
+          "Wild Companion"
+        ],
+        "Wild Shape": "2",
+        "Cantrips": "2",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Druid Subclass"
+        ],
+        "Wild Shape": "2",
+        "Cantrips": "2",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Wild Shape": "2",
+        "Cantrips": "3",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Wild Resurgence"
+        ],
+        "Wild Shape": "2",
+        "Cantrips": "3",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "3",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Elemental Fury"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "3",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "3",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Wild Shape": "3",
+        "Cantrips": "3",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Improved Elemental Fury"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Wild Shape": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Wild Shape": "4",
+        "Cantrips": "4",
+        "Prepared Spells": "19",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Beast Spells"
+        ],
+        "Wild Shape": "4",
+        "Cantrips": "4",
+        "Prepared Spells": "20",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Wild Shape": "4",
+        "Cantrips": "4",
+        "Prepared Spells": "21",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Archdruid"
+        ],
+        "Wild Shape": "4",
+        "Cantrips": "4",
+        "Prepared Spells": "22",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:druid-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:druid-druidic",
+        "name": "Druidic",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:druid-primal-order",
+        "name": "Primal Order",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:druid:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "animal-handling",
+          "arcana",
+          "insight",
+          "medicine",
+          "nature",
+          "perception",
+          "religion",
+          "survival"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Druid."
+      },
+      {
+        "id": "dnd-2024-basic:class:druid:primalorder",
+        "kind": "primalOrder",
+        "label": "Primal Order",
+        "count": 1,
+        "options": [
+          "Magician",
+          "Warden"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the level 1 Primal Order choice from the Druid rules."
+      }
+    ],
+    "spellcasting": {
+      "ability": "wisdom",
+      "cantrips": 2,
+      "preparedSpells": 4,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:druidcraft",
+        "dnd-2024-basic:spell:elementalism",
+        "dnd-2024-basic:spell:guidance",
+        "dnd-2024-basic:spell:mending",
+        "dnd-2024-basic:spell:message",
+        "dnd-2024-basic:spell:poison-spray",
+        "dnd-2024-basic:spell:produce-flame",
+        "dnd-2024-basic:spell:resistance",
+        "dnd-2024-basic:spell:shillelagh",
+        "dnd-2024-basic:spell:spare-the-dying",
+        "dnd-2024-basic:spell:starry-wisp",
+        "dnd-2024-basic:spell:animal-friendship",
+        "dnd-2024-basic:spell:charm-person",
+        "dnd-2024-basic:spell:create-or-destroy-water",
+        "dnd-2024-basic:spell:cure-wounds",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:detect-poison-and-disease",
+        "dnd-2024-basic:spell:entangle",
+        "dnd-2024-basic:spell:faerie-fire",
+        "dnd-2024-basic:spell:fog-cloud",
+        "dnd-2024-basic:spell:goodberry",
+        "dnd-2024-basic:spell:healing-word",
+        "dnd-2024-basic:spell:ice-knife",
+        "dnd-2024-basic:spell:jump",
+        "dnd-2024-basic:spell:longstrider",
+        "dnd-2024-basic:spell:protection-from-evil-and-good",
+        "dnd-2024-basic:spell:purify-food-and-drink",
+        "dnd-2024-basic:spell:speak-with-animals",
+        "dnd-2024-basic:spell:thunderwave",
+        "dnd-2024-basic:spell:aid",
+        "dnd-2024-basic:spell:animal-messenger",
+        "dnd-2024-basic:spell:augury",
+        "dnd-2024-basic:spell:barkskin",
+        "dnd-2024-basic:spell:continual-flame",
+        "dnd-2024-basic:spell:darkvision",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:enlarge-reduce",
+        "dnd-2024-basic:spell:find-traps",
+        "dnd-2024-basic:spell:flame-blade",
+        "dnd-2024-basic:spell:flaming-sphere",
+        "dnd-2024-basic:spell:gust-of-wind",
+        "dnd-2024-basic:spell:heat-metal",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:lesser-restoration",
+        "dnd-2024-basic:spell:locate-animals-or-plants",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:moonbeam",
+        "dnd-2024-basic:spell:pass-without-trace",
+        "dnd-2024-basic:spell:protection-from-poison",
+        "dnd-2024-basic:spell:spike-growth",
+        "dnd-2024-basic:spell:call-lightning",
+        "dnd-2024-basic:spell:conjure-animals",
+        "dnd-2024-basic:spell:daylight",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:meld-into-stone",
+        "dnd-2024-basic:spell:plant-growth",
+        "dnd-2024-basic:spell:protection-from-energy",
+        "dnd-2024-basic:spell:revivify",
+        "dnd-2024-basic:spell:sleet-storm",
+        "dnd-2024-basic:spell:speak-with-plants",
+        "dnd-2024-basic:spell:water-breathing",
+        "dnd-2024-basic:spell:water-walk",
+        "dnd-2024-basic:spell:wind-wall",
+        "dnd-2024-basic:spell:blight",
+        "dnd-2024-basic:spell:charm-monster",
+        "dnd-2024-basic:spell:confusion",
+        "dnd-2024-basic:spell:conjure-minor-elementals",
+        "dnd-2024-basic:spell:conjure-woodland-beings",
+        "dnd-2024-basic:spell:control-water",
+        "dnd-2024-basic:spell:divination",
+        "dnd-2024-basic:spell:dominate-beast",
+        "dnd-2024-basic:spell:fire-shield",
+        "dnd-2024-basic:spell:freedom-of-movement",
+        "dnd-2024-basic:spell:giant-insect",
+        "dnd-2024-basic:spell:hallucinatory-terrain",
+        "dnd-2024-basic:spell:ice-storm",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:polymorph",
+        "dnd-2024-basic:spell:stone-shape",
+        "dnd-2024-basic:spell:stoneskin",
+        "dnd-2024-basic:spell:wall-of-fire",
+        "dnd-2024-basic:spell:antilife-shell",
+        "dnd-2024-basic:spell:awaken",
+        "dnd-2024-basic:spell:commune-with-nature",
+        "dnd-2024-basic:spell:cone-of-cold",
+        "dnd-2024-basic:spell:conjure-elemental",
+        "dnd-2024-basic:spell:contagion",
+        "dnd-2024-basic:spell:geas",
+        "dnd-2024-basic:spell:greater-restoration",
+        "dnd-2024-basic:spell:insect-plague",
+        "dnd-2024-basic:spell:mass-cure-wounds",
+        "dnd-2024-basic:spell:planar-binding",
+        "dnd-2024-basic:spell:reincarnate",
+        "dnd-2024-basic:spell:scrying",
+        "dnd-2024-basic:spell:tree-stride",
+        "dnd-2024-basic:spell:wall-of-stone",
+        "dnd-2024-basic:spell:conjure-fey",
+        "dnd-2024-basic:spell:find-the-path",
+        "dnd-2024-basic:spell:flesh-to-stone",
+        "dnd-2024-basic:spell:heal",
+        "dnd-2024-basic:spell:heroes-feast",
+        "dnd-2024-basic:spell:move-earth",
+        "dnd-2024-basic:spell:sunbeam",
+        "dnd-2024-basic:spell:transport-via-plants",
+        "dnd-2024-basic:spell:wall-of-thorns",
+        "dnd-2024-basic:spell:wind-walk",
+        "dnd-2024-basic:spell:fire-storm",
+        "dnd-2024-basic:spell:mirage-arcane",
+        "dnd-2024-basic:spell:plane-shift",
+        "dnd-2024-basic:spell:regenerate",
+        "dnd-2024-basic:spell:reverse-gravity",
+        "dnd-2024-basic:spell:symbol",
+        "dnd-2024-basic:spell:animal-shapes",
+        "dnd-2024-basic:spell:antipathy-sympathy",
+        "dnd-2024-basic:spell:befuddlement",
+        "dnd-2024-basic:spell:control-weather",
+        "dnd-2024-basic:spell:earthquake",
+        "dnd-2024-basic:spell:incendiary-cloud",
+        "dnd-2024-basic:spell:sunburst",
+        "dnd-2024-basic:spell:tsunami",
+        "dnd-2024-basic:spell:foresight",
+        "dnd-2024-basic:spell:shapechange",
+        "dnd-2024-basic:spell:storm-of-vengeance",
+        "dnd-2024-basic:spell:true-resurrection"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "intelligence"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "wisdom"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:druid-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:druid-druidic",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:druid-primal-order",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:fighter",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Fighter",
+    "primaryAbilities": [
+      "strength",
+      "dexterity"
+    ],
+    "hitDie": 10,
+    "savingThrowProficiencies": [
+      "strength",
+      "constitution"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "acrobatics",
+        "animal-handling",
+        "athletics",
+        "history",
+        "insight",
+        "intimidation",
+        "persuasion",
+        "perception",
+        "survival"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple and Martial weapons",
+    "armorTraining": "Light, Medium, and Heavy armor and Shields",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A, B, or C: (A) Chain Mail, Greatsword, Flail, 8 Javelins, Dungeoneer's Pack, and 4 GP; (B) Studded Leather Armor, Scimitar, Shortsword, Longbow, 20 Arrows, Quiver, Dungeoneer's Pack, and 11 GP; or (C) 155 GP",
+      "packages": [
+        {
+          "id": "fighter-equipment-a",
+          "label": "Package A",
+          "sourceText": "Chain Mail, Greatsword, Flail, 8 Javelins, Dungeoneer's Pack, and 4 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 4
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:chain-mail",
+              "displayName": "Chain Mail",
+              "quantity": 1,
+              "sourceText": "Chain Mail"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:greatsword",
+              "displayName": "Greatsword",
+              "quantity": 1,
+              "sourceText": "Greatsword"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:flail",
+              "displayName": "Flail",
+              "quantity": 1,
+              "sourceText": "Flail"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:javelins",
+              "displayName": "Javelins",
+              "quantity": 8,
+              "sourceText": "8 Javelins"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:dungeoneers-pack",
+              "displayName": "Dungeoneer's Pack",
+              "quantity": 1,
+              "sourceText": "Dungeoneer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "fighter-equipment-b",
+          "label": "Package B",
+          "sourceText": "Studded Leather Armor, Scimitar, Shortsword, Longbow, 20 Arrows, Quiver, Dungeoneer's Pack, and 11 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 11
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:studded-leather-armor",
+              "displayName": "Studded Leather Armor",
+              "quantity": 1,
+              "sourceText": "Studded Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:scimitar",
+              "displayName": "Scimitar",
+              "quantity": 1,
+              "sourceText": "Scimitar"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shortsword",
+              "displayName": "Shortsword",
+              "quantity": 1,
+              "sourceText": "Shortsword"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:longbow",
+              "displayName": "Longbow",
+              "quantity": 1,
+              "sourceText": "Longbow"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arrows",
+              "displayName": "Arrows",
+              "quantity": 20,
+              "sourceText": "20 Arrows"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:quiver",
+              "displayName": "Quiver",
+              "quantity": 1,
+              "sourceText": "Quiver"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:dungeoneers-pack",
+              "displayName": "Dungeoneer's Pack",
+              "quantity": 1,
+              "sourceText": "Dungeoneer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "fighter-equipment-c",
+          "label": "Package C",
+          "sourceText": "155 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 155
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Fighting Style",
+          "Second Wind",
+          "Weapon Mastery"
+        ],
+        "Second Wind": "2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Action Surge (one use)",
+          "Tactical Mind"
+        ],
+        "Second Wind": "2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Fighter Subclass"
+        ],
+        "Second Wind": "2",
+        "Weapon Mastery": "3"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Extra Attack",
+          "Tactical Shift"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Indomitable (one use)",
+          "Tactical Master"
+        ],
+        "Second Wind": "3",
+        "Weapon Mastery": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Two Extra Attacks"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Indomitable (two uses)",
+          "Studied Attacks"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "5"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "6"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Action Surge (two uses)",
+          "Indomitable (three uses)"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "6"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "6"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "6"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Three Extra Attacks"
+        ],
+        "Second Wind": "4",
+        "Weapon Mastery": "6"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:fighter-fighting-style",
+        "name": "Fighting Style",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:fighter-second-wind",
+        "name": "Second Wind",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:fighter-weapon-mastery",
+        "name": "Weapon Mastery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:fighter:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "acrobatics",
+          "animal-handling",
+          "athletics",
+          "history",
+          "insight",
+          "intimidation",
+          "persuasion",
+          "perception",
+          "survival"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Fighter."
+      },
+      {
+        "id": "dnd-2024-basic:class:fighter:weapon-mastery",
+        "kind": "weapon-mastery",
+        "label": "Weapon mastery",
+        "count": 3,
+        "options": "proficient-weapons",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 3 weapons whose mastery properties you can use."
+      },
+      {
+        "id": "dnd-2024-basic:class:fighter:fightingstyle",
+        "kind": "fightingStyle",
+        "label": "Fighting Style",
+        "count": 1,
+        "options": [
+          "Archery",
+          "Defense",
+          "Great Weapon Fighting",
+          "Two-Weapon Fighting"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the level 1 Fighting Style choice from the Fighter rules."
+      }
+    ],
+    "spellcasting": null,
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "strength"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "constitution"
+      },
+      {
+        "type": "hit-die",
+        "sides": 10
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple and Martial weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light, Medium, and Heavy armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:fighter-fighting-style",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:fighter-second-wind",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:fighter-weapon-mastery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:monk",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Monk",
+    "primaryAbilities": [
+      "dexterity",
+      "wisdom"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "strength",
+      "dexterity"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "acrobatics",
+        "athletics",
+        "history",
+        "insight",
+        "religion",
+        "stealth"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons and Martial weapons that have the Light property",
+    "armorTraining": "None",
+    "toolProficiencies": "Choose one type of Artisan's Tools or Musical Instrument (see Equipment)",
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Spear, 5 Daggers, Artisan's Tools or Musical Instrument chosen for the tool proficiency above, Explorer's Pack, and 11 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "monk-equipment-a",
+          "label": "Package A",
+          "sourceText": "Spear, 5 Daggers, Artisan's Tools or Musical Instrument chosen for the tool proficiency above, Explorer's Pack, and 11 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 11
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:spear",
+              "displayName": "Spear",
+              "quantity": 1,
+              "sourceText": "Spear"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 5,
+              "sourceText": "5 Daggers"
+            },
+            {
+              "type": "equipment-choice",
+              "displayName": "Artisan's Tools or Musical Instrument chosen for the tool proficiency above",
+              "quantity": 1,
+              "choiceKey": "artisans-tools-or-musical-instrument-chosen-for-the-tool-proficiency-above",
+              "sourceText": "Artisan's Tools or Musical Instrument chosen for the tool proficiency above"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:explorers-pack",
+              "displayName": "Explorer's Pack",
+              "quantity": 1,
+              "sourceText": "Explorer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "monk-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Martial Arts",
+          "Unarmored Defense"
+        ],
+        "Martial Arts": "1d6",
+        "Focus Points": "—",
+        "Unarmored Movement": "—"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Monk's Focus",
+          "Unarmored Movement",
+          "Uncanny Metabolism"
+        ],
+        "Martial Arts": "1d6",
+        "Focus Points": "2",
+        "Unarmored Movement": "+10 ft."
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Deflect Attacks",
+          "Monk Subclass"
+        ],
+        "Martial Arts": "1d6",
+        "Focus Points": "3",
+        "Unarmored Movement": "+10 ft."
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement",
+          "Slow Fall"
+        ],
+        "Martial Arts": "1d6",
+        "Focus Points": "4",
+        "Unarmored Movement": "+10 ft."
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Extra Attack",
+          "Stunning Strike"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "5",
+        "Unarmored Movement": "+10 ft."
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Empowered Strikes",
+          "Subclass feature"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "6",
+        "Unarmored Movement": "+15 ft."
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Evasion"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "7",
+        "Unarmored Movement": "+15 ft."
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "8",
+        "Unarmored Movement": "+15 ft."
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Acrobatic Movement"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "9",
+        "Unarmored Movement": "+15 ft."
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Heightened Focus",
+          "Self-Restoration"
+        ],
+        "Martial Arts": "1d8",
+        "Focus Points": "10",
+        "Unarmored Movement": "+20 ft."
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "11",
+        "Unarmored Movement": "+20 ft."
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "12",
+        "Unarmored Movement": "+20 ft."
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Deflect Energy"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "13",
+        "Unarmored Movement": "+20 ft."
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Disciplined Survivor"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "14",
+        "Unarmored Movement": "+25 ft."
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Perfect Focus"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "15",
+        "Unarmored Movement": "+25 ft."
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Martial Arts": "1d10",
+        "Focus Points": "16",
+        "Unarmored Movement": "+25 ft."
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Martial Arts": "1d12",
+        "Focus Points": "17",
+        "Unarmored Movement": "+25 ft."
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Superior Defense"
+        ],
+        "Martial Arts": "1d12",
+        "Focus Points": "18",
+        "Unarmored Movement": "+30 ft."
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Martial Arts": "1d12",
+        "Focus Points": "19",
+        "Unarmored Movement": "+30 ft."
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Body and Mind"
+        ],
+        "Martial Arts": "1d12",
+        "Focus Points": "20",
+        "Unarmored Movement": "+30 ft."
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:monk-martial-arts",
+        "name": "Martial Arts",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:monk-unarmored-defense",
+        "name": "Unarmored Defense",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:monk:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "acrobatics",
+          "athletics",
+          "history",
+          "insight",
+          "religion",
+          "stealth"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Monk."
+      },
+      {
+        "id": "dnd-2024-basic:class:monk:tools",
+        "kind": "tools",
+        "label": "Class tool proficiencies",
+        "count": 1,
+        "options": "artisan-tools-or-musical-instruments",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 1 tool proficiencies from the class options."
+      }
+    ],
+    "spellcasting": null,
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "strength"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "dexterity"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons and Martial weapons that have the Light property"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "None"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:monk-martial-arts",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:monk-unarmored-defense",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:paladin",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Paladin",
+    "primaryAbilities": [
+      "strength",
+      "charisma"
+    ],
+    "hitDie": 10,
+    "savingThrowProficiencies": [
+      "wisdom",
+      "charisma"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "athletics",
+        "insight",
+        "intimidation",
+        "medicine",
+        "persuasion",
+        "religion"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple and Martial weapons",
+    "armorTraining": "Light, Medium, and Heavy armor and Shields",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Chain Mail, Shield, Longsword, 6 Javelins, Holy Symbol, Priest's Pack, and 9 GP; or (B) 150 GP",
+      "packages": [
+        {
+          "id": "paladin-equipment-a",
+          "label": "Package A",
+          "sourceText": "Chain Mail, Shield, Longsword, 6 Javelins, Holy Symbol, Priest's Pack, and 9 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 9
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:chain-mail",
+              "displayName": "Chain Mail",
+              "quantity": 1,
+              "sourceText": "Chain Mail"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shield",
+              "displayName": "Shield",
+              "quantity": 1,
+              "sourceText": "Shield"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:longsword",
+              "displayName": "Longsword",
+              "quantity": 1,
+              "sourceText": "Longsword"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:javelins",
+              "displayName": "Javelins",
+              "quantity": 6,
+              "sourceText": "6 Javelins"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:holy-symbol",
+              "displayName": "Holy Symbol",
+              "quantity": 1,
+              "sourceText": "Holy Symbol"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:priests-pack",
+              "displayName": "Priest's Pack",
+              "quantity": 1,
+              "sourceText": "Priest's Pack"
+            }
+          ]
+        },
+        {
+          "id": "paladin-equipment-b",
+          "label": "Package B",
+          "sourceText": "150 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 150
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Lay On Hands",
+          "Spellcasting",
+          "Weapon Mastery"
+        ],
+        "Channel Divinity": "—",
+        "Prepared Spells": "2",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Fighting Style",
+          "Paladin's Smite"
+        ],
+        "Channel Divinity": "—",
+        "Prepared Spells": "3",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Channel Divinity",
+          "Paladin Subclass"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Extra Attack",
+          "Faithful Steed"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Aura of Protection"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Abjure Foes"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Aura of Courage"
+        ],
+        "Channel Divinity": "2",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Radiant Strikes"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Channel Divinity": "3",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Restoring Touch"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Channel Divinity": "3",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Aura Expansion"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Channel Divinity": "3",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:paladin-lay-on-hands",
+        "name": "Lay On Hands",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:paladin-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:paladin-weapon-mastery",
+        "name": "Weapon Mastery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:paladin:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "athletics",
+          "insight",
+          "intimidation",
+          "medicine",
+          "persuasion",
+          "religion"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Paladin."
+      },
+      {
+        "id": "dnd-2024-basic:class:paladin:weapon-mastery",
+        "kind": "weapon-mastery",
+        "label": "Weapon mastery",
+        "count": 2,
+        "options": "proficient-weapons",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 weapons whose mastery properties you can use."
+      }
+    ],
+    "spellcasting": {
+      "ability": "charisma",
+      "cantrips": 0,
+      "preparedSpells": 2,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:bless",
+        "dnd-2024-basic:spell:command",
+        "dnd-2024-basic:spell:cure-wounds",
+        "dnd-2024-basic:spell:detect-evil-and-good",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:detect-poison-and-disease",
+        "dnd-2024-basic:spell:divine-favor",
+        "dnd-2024-basic:spell:divine-smite",
+        "dnd-2024-basic:spell:heroism",
+        "dnd-2024-basic:spell:protection-from-evil-and-good",
+        "dnd-2024-basic:spell:purify-food-and-drink",
+        "dnd-2024-basic:spell:searing-smite",
+        "dnd-2024-basic:spell:shield-of-faith",
+        "dnd-2024-basic:spell:aid",
+        "dnd-2024-basic:spell:find-steed",
+        "dnd-2024-basic:spell:gentle-repose",
+        "dnd-2024-basic:spell:lesser-restoration",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:magic-weapon",
+        "dnd-2024-basic:spell:prayer-of-healing",
+        "dnd-2024-basic:spell:protection-from-poison",
+        "dnd-2024-basic:spell:shining-smite",
+        "dnd-2024-basic:spell:warding-bond",
+        "dnd-2024-basic:spell:zone-of-truth",
+        "dnd-2024-basic:spell:create-food-and-water",
+        "dnd-2024-basic:spell:daylight",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:magic-circle",
+        "dnd-2024-basic:spell:remove-curse",
+        "dnd-2024-basic:spell:revivify",
+        "dnd-2024-basic:spell:aura-of-life",
+        "dnd-2024-basic:spell:banishment",
+        "dnd-2024-basic:spell:death-ward",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:dispel-evil-and-good",
+        "dnd-2024-basic:spell:geas",
+        "dnd-2024-basic:spell:greater-restoration",
+        "dnd-2024-basic:spell:raise-dead"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "wisdom"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "charisma"
+      },
+      {
+        "type": "hit-die",
+        "sides": 10
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple and Martial weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light, Medium, and Heavy armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:paladin-lay-on-hands",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:paladin-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:paladin-weapon-mastery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:ranger",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Ranger",
+    "primaryAbilities": [
+      "dexterity",
+      "wisdom"
+    ],
+    "hitDie": 10,
+    "savingThrowProficiencies": [
+      "strength",
+      "dexterity"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "animal-handling",
+        "athletics",
+        "insight",
+        "investigation",
+        "nature",
+        "perception",
+        "stealth",
+        "survival"
+      ],
+      "count": 3
+    },
+    "weaponProficiencies": "Simple and Martial weapons",
+    "armorTraining": "Light and Medium armor and Shields",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Studded Leather Armor, Scimitar, Shortsword, Longbow, 20 Arrows, Quiver, Druidic Focus (sprig of mistletoe), Explorer's Pack, and 7 GP; or (B) 150 GP",
+      "packages": [
+        {
+          "id": "ranger-equipment-a",
+          "label": "Package A",
+          "sourceText": "Studded Leather Armor, Scimitar, Shortsword, Longbow, 20 Arrows, Quiver, Druidic Focus (sprig of mistletoe), Explorer's Pack, and 7 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 7
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:studded-leather-armor",
+              "displayName": "Studded Leather Armor",
+              "quantity": 1,
+              "sourceText": "Studded Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:scimitar",
+              "displayName": "Scimitar",
+              "quantity": 1,
+              "sourceText": "Scimitar"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shortsword",
+              "displayName": "Shortsword",
+              "quantity": 1,
+              "sourceText": "Shortsword"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:longbow",
+              "displayName": "Longbow",
+              "quantity": 1,
+              "sourceText": "Longbow"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arrows",
+              "displayName": "Arrows",
+              "quantity": 20,
+              "sourceText": "20 Arrows"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:quiver",
+              "displayName": "Quiver",
+              "quantity": 1,
+              "sourceText": "Quiver"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:druidic-focus",
+              "displayName": "Druidic Focus",
+              "quantity": 1,
+              "sourceText": "Druidic Focus (sprig of mistletoe)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:explorers-pack",
+              "displayName": "Explorer's Pack",
+              "quantity": 1,
+              "sourceText": "Explorer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "ranger-equipment-b",
+          "label": "Package B",
+          "sourceText": "150 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 150
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Spellcasting",
+          "Favored Enemy",
+          "Weapon Mastery"
+        ],
+        "Favored Enemy": "2",
+        "Prepared Spells": "2",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Deft Explorer",
+          "Fighting Style"
+        ],
+        "Favored Enemy": "2",
+        "Prepared Spells": "3",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ranger Subclass"
+        ],
+        "Favored Enemy": "2",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Favored Enemy": "2",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Extra Attack"
+        ],
+        "Favored Enemy": "3",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Roving"
+        ],
+        "Favored Enemy": "3",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Favored Enemy": "3",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Favored Enemy": "3",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Expertise"
+        ],
+        "Favored Enemy": "4",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Tireless"
+        ],
+        "Favored Enemy": "4",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Favored Enemy": "4",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Favored Enemy": "4",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Relentless Hunter"
+        ],
+        "Favored Enemy": "5",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Nature’s Veil"
+        ],
+        "Favored Enemy": "5",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Favored Enemy": "5",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Favored Enemy": "5",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Precise Hunter"
+        ],
+        "Favored Enemy": "6",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Feral Senses"
+        ],
+        "Favored Enemy": "6",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Favored Enemy": "6",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Foe Slayer"
+        ],
+        "Favored Enemy": "6",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:ranger-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:ranger-favored-enemy",
+        "name": "Favored Enemy",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:ranger-weapon-mastery",
+        "name": "Weapon Mastery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:ranger:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 3,
+        "options": [
+          "animal-handling",
+          "athletics",
+          "insight",
+          "investigation",
+          "nature",
+          "perception",
+          "stealth",
+          "survival"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 3 skill proficiencies granted by Ranger."
+      },
+      {
+        "id": "dnd-2024-basic:class:ranger:weapon-mastery",
+        "kind": "weapon-mastery",
+        "label": "Weapon mastery",
+        "count": 2,
+        "options": "proficient-weapons",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 weapons whose mastery properties you can use."
+      }
+    ],
+    "spellcasting": {
+      "ability": "wisdom",
+      "cantrips": 0,
+      "preparedSpells": 2,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:alarm",
+        "dnd-2024-basic:spell:animal-friendship",
+        "dnd-2024-basic:spell:cure-wounds",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:detect-poison-and-disease",
+        "dnd-2024-basic:spell:ensnaring-strike",
+        "dnd-2024-basic:spell:entangle",
+        "dnd-2024-basic:spell:fog-cloud",
+        "dnd-2024-basic:spell:goodberry",
+        "dnd-2024-basic:spell:hunters-mark",
+        "dnd-2024-basic:spell:jump",
+        "dnd-2024-basic:spell:longstrider",
+        "dnd-2024-basic:spell:speak-with-animals",
+        "dnd-2024-basic:spell:aid",
+        "dnd-2024-basic:spell:animal-messenger",
+        "dnd-2024-basic:spell:barkskin",
+        "dnd-2024-basic:spell:darkvision",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:find-traps",
+        "dnd-2024-basic:spell:gust-of-wind",
+        "dnd-2024-basic:spell:lesser-restoration",
+        "dnd-2024-basic:spell:locate-animals-or-plants",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:magic-weapon",
+        "dnd-2024-basic:spell:pass-without-trace",
+        "dnd-2024-basic:spell:protection-from-poison",
+        "dnd-2024-basic:spell:silence",
+        "dnd-2024-basic:spell:spike-growth",
+        "dnd-2024-basic:spell:conjure-animals",
+        "dnd-2024-basic:spell:daylight",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:meld-into-stone",
+        "dnd-2024-basic:spell:nondetection",
+        "dnd-2024-basic:spell:plant-growth",
+        "dnd-2024-basic:spell:protection-from-energy",
+        "dnd-2024-basic:spell:revivify",
+        "dnd-2024-basic:spell:speak-with-plants",
+        "dnd-2024-basic:spell:water-breathing",
+        "dnd-2024-basic:spell:water-walk",
+        "dnd-2024-basic:spell:wind-wall",
+        "dnd-2024-basic:spell:conjure-woodland-beings",
+        "dnd-2024-basic:spell:dominate-beast",
+        "dnd-2024-basic:spell:freedom-of-movement",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:stoneskin",
+        "dnd-2024-basic:spell:commune-with-nature",
+        "dnd-2024-basic:spell:greater-restoration",
+        "dnd-2024-basic:spell:tree-stride"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "strength"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "dexterity"
+      },
+      {
+        "type": "hit-die",
+        "sides": 10
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple and Martial weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light and Medium armor and Shields"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:ranger-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:ranger-favored-enemy",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:ranger-weapon-mastery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:rogue",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Rogue",
+    "primaryAbilities": [
+      "dexterity"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "dexterity",
+      "intelligence"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "acrobatics",
+        "athletics",
+        "deception",
+        "insight",
+        "intimidation",
+        "investigation",
+        "perception",
+        "persuasion",
+        "sleight-of-hand",
+        "stealth"
+      ],
+      "count": 4
+    },
+    "weaponProficiencies": "Simple weapons and Martial weapons that have the Finesse or Light property",
+    "armorTraining": "Light armor",
+    "toolProficiencies": "Thieves' Tools",
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Leather Armor, 2 Daggers, Shortsword, Shortbow, 20 Arrows, Quiver, Thieves' Tools, Burglar's Pack, and 8 GP; or (B) 100 GP",
+      "packages": [
+        {
+          "id": "rogue-equipment-a",
+          "label": "Package A",
+          "sourceText": "Leather Armor, 2 Daggers, Shortsword, Shortbow, 20 Arrows, Quiver, Thieves' Tools, Burglar's Pack, and 8 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 8
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:leather-armor",
+              "displayName": "Leather Armor",
+              "quantity": 1,
+              "sourceText": "Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shortsword",
+              "displayName": "Shortsword",
+              "quantity": 1,
+              "sourceText": "Shortsword"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shortbow",
+              "displayName": "Shortbow",
+              "quantity": 1,
+              "sourceText": "Shortbow"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arrows",
+              "displayName": "Arrows",
+              "quantity": 20,
+              "sourceText": "20 Arrows"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:quiver",
+              "displayName": "Quiver",
+              "quantity": 1,
+              "sourceText": "Quiver"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:thieves-tools",
+              "displayName": "Thieves' Tools",
+              "quantity": 1,
+              "sourceText": "Thieves' Tools"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:burglars-pack",
+              "displayName": "Burglar's Pack",
+              "quantity": 1,
+              "sourceText": "Burglar's Pack"
+            }
+          ]
+        },
+        {
+          "id": "rogue-equipment-b",
+          "label": "Package B",
+          "sourceText": "100 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 100
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Expertise",
+          "Sneak Attack",
+          "Thieves' Cant",
+          "Weapon Mastery"
+        ],
+        "Sneak Attack": "1d6"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Cunning Action"
+        ],
+        "Sneak Attack": "1d6"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Rogue Subclass",
+          "Steady Aim"
+        ],
+        "Sneak Attack": "2d6"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sneak Attack": "2d6"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Cunning Strike",
+          "Uncanny Dodge"
+        ],
+        "Sneak Attack": "3d6"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Expertise"
+        ],
+        "Sneak Attack": "3d6"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Evasion",
+          "Reliable Talent"
+        ],
+        "Sneak Attack": "4d6"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sneak Attack": "4d6"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sneak Attack": "5d6"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sneak Attack": "5d6"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Improved Cunning Strike"
+        ],
+        "Sneak Attack": "6d6"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sneak Attack": "6d6"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sneak Attack": "7d6"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Devious Strikes"
+        ],
+        "Sneak Attack": "7d6"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Slippery Mind"
+        ],
+        "Sneak Attack": "8d6"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sneak Attack": "8d6"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sneak Attack": "9d6"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Elusive"
+        ],
+        "Sneak Attack": "9d6"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Sneak Attack": "10d6"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Stroke of Luck"
+        ],
+        "Sneak Attack": "10d6"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:rogue-expertise",
+        "name": "Expertise",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:rogue-sneak-attack",
+        "name": "Sneak Attack",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:rogue-thieves-cant",
+        "name": "Thieves' Cant",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:rogue-weapon-mastery",
+        "name": "Weapon Mastery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:rogue:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 4,
+        "options": [
+          "acrobatics",
+          "athletics",
+          "deception",
+          "insight",
+          "intimidation",
+          "investigation",
+          "perception",
+          "persuasion",
+          "sleight-of-hand",
+          "stealth"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 4 skill proficiencies granted by Rogue."
+      },
+      {
+        "id": "dnd-2024-basic:class:rogue:weapon-mastery",
+        "kind": "weapon-mastery",
+        "label": "Weapon mastery",
+        "count": 2,
+        "options": "proficient-weapons",
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 weapons whose mastery properties you can use."
+      },
+      {
+        "id": "dnd-2024-basic:class:rogue:expertise",
+        "kind": "expertise",
+        "label": "Expertise",
+        "count": 2,
+        "options": "selected-skills",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the level 1 Expertise choice from the Rogue rules."
+      },
+      {
+        "id": "dnd-2024-basic:class:rogue:language",
+        "kind": "languages",
+        "label": "Rogue language",
+        "count": 1,
+        "options": "standard-or-rare-languages",
+        "unique": true,
+        "required": true,
+        "explanation": "Rogue grants Thieves' Cant and one additional language."
+      }
+    ],
+    "spellcasting": null,
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "dexterity"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "intelligence"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons and Martial weapons that have the Finesse or Light property"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light armor"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:rogue-expertise",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:rogue-sneak-attack",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:rogue-thieves-cant",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:rogue-weapon-mastery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:sorcerer",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Sorcerer",
+    "primaryAbilities": [
+      "charisma"
+    ],
+    "hitDie": 6,
+    "savingThrowProficiencies": [
+      "constitution",
+      "charisma"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "arcana",
+        "deception",
+        "insight",
+        "intimidation",
+        "persuasion",
+        "religion"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "None",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Spear, 2 Daggers, Arcane Focus (crystal), Dungeoneer's Pack, and 28 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "sorcerer-equipment-a",
+          "label": "Package A",
+          "sourceText": "Spear, 2 Daggers, Arcane Focus (crystal), Dungeoneer's Pack, and 28 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 28
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:spear",
+              "displayName": "Spear",
+              "quantity": 1,
+              "sourceText": "Spear"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arcane-focus",
+              "displayName": "Arcane Focus",
+              "quantity": 1,
+              "sourceText": "Arcane Focus (crystal)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:dungeoneers-pack",
+              "displayName": "Dungeoneer's Pack",
+              "quantity": 1,
+              "sourceText": "Dungeoneer's Pack"
+            }
+          ]
+        },
+        {
+          "id": "sorcerer-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Spellcasting",
+          "Innate Sorcery"
+        ],
+        "Sorcery Points": "—",
+        "Cantrips": "4",
+        "Prepared Spells": "2",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Font of Magic",
+          "Metamagic"
+        ],
+        "Sorcery Points": "2",
+        "Cantrips": "4",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Sorcerer Subclass"
+        ],
+        "Sorcery Points": "3",
+        "Cantrips": "4",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sorcery Points": "4",
+        "Cantrips": "5",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Sorcerous Restoration"
+        ],
+        "Sorcery Points": "5",
+        "Cantrips": "5",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sorcery Points": "6",
+        "Cantrips": "5",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [
+          "Sorcery Incarnate"
+        ],
+        "Sorcery Points": "7",
+        "Cantrips": "5",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sorcery Points": "8",
+        "Cantrips": "5",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Sorcery Points": "9",
+        "Cantrips": "5",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Metamagic"
+        ],
+        "Sorcery Points": "10",
+        "Cantrips": "6",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Sorcery Points": "11",
+        "Cantrips": "6",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sorcery Points": "12",
+        "Cantrips": "6",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Sorcery Points": "13",
+        "Cantrips": "6",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sorcery Points": "14",
+        "Cantrips": "6",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Sorcery Points": "15",
+        "Cantrips": "6",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Sorcery Points": "16",
+        "Cantrips": "6",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Metamagic"
+        ],
+        "Sorcery Points": "17",
+        "Cantrips": "6",
+        "Prepared Spells": "19",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Subclass feature"
+        ],
+        "Sorcery Points": "18",
+        "Cantrips": "6",
+        "Prepared Spells": "20",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Sorcery Points": "19",
+        "Cantrips": "6",
+        "Prepared Spells": "21",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Arcane Apotheosis"
+        ],
+        "Sorcery Points": "20",
+        "Cantrips": "6",
+        "Prepared Spells": "22",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:sorcerer-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:sorcerer-innate-sorcery",
+        "name": "Innate Sorcery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:sorcerer:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "arcana",
+          "deception",
+          "insight",
+          "intimidation",
+          "persuasion",
+          "religion"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Sorcerer."
+      }
+    ],
+    "spellcasting": {
+      "ability": "charisma",
+      "cantrips": 4,
+      "preparedSpells": 2,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:acid-splash",
+        "dnd-2024-basic:spell:chill-touch",
+        "dnd-2024-basic:spell:dancing-lights",
+        "dnd-2024-basic:spell:elementalism",
+        "dnd-2024-basic:spell:fire-bolt",
+        "dnd-2024-basic:spell:light",
+        "dnd-2024-basic:spell:mage-hand",
+        "dnd-2024-basic:spell:mending",
+        "dnd-2024-basic:spell:message",
+        "dnd-2024-basic:spell:minor-illusion",
+        "dnd-2024-basic:spell:poison-spray",
+        "dnd-2024-basic:spell:prestidigitation",
+        "dnd-2024-basic:spell:ray-of-frost",
+        "dnd-2024-basic:spell:shocking-grasp",
+        "dnd-2024-basic:spell:sorcerous-burst",
+        "dnd-2024-basic:spell:true-strike",
+        "dnd-2024-basic:spell:burning-hands",
+        "dnd-2024-basic:spell:charm-person",
+        "dnd-2024-basic:spell:chromatic-orb",
+        "dnd-2024-basic:spell:color-spray",
+        "dnd-2024-basic:spell:comprehend-languages",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:disguise-self",
+        "dnd-2024-basic:spell:expeditious-retreat",
+        "dnd-2024-basic:spell:false-life",
+        "dnd-2024-basic:spell:feather-fall",
+        "dnd-2024-basic:spell:fog-cloud",
+        "dnd-2024-basic:spell:grease",
+        "dnd-2024-basic:spell:ice-knife",
+        "dnd-2024-basic:spell:jump",
+        "dnd-2024-basic:spell:mage-armor",
+        "dnd-2024-basic:spell:magic-missile",
+        "dnd-2024-basic:spell:ray-of-sickness",
+        "dnd-2024-basic:spell:shield",
+        "dnd-2024-basic:spell:silent-image",
+        "dnd-2024-basic:spell:sleep",
+        "dnd-2024-basic:spell:thunderwave",
+        "dnd-2024-basic:spell:alter-self",
+        "dnd-2024-basic:spell:blindness-deafness",
+        "dnd-2024-basic:spell:blur",
+        "dnd-2024-basic:spell:darkness",
+        "dnd-2024-basic:spell:darkvision",
+        "dnd-2024-basic:spell:detect-thoughts",
+        "dnd-2024-basic:spell:dragons-breath",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:enlarge-reduce",
+        "dnd-2024-basic:spell:flame-blade",
+        "dnd-2024-basic:spell:flaming-sphere",
+        "dnd-2024-basic:spell:gust-of-wind",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:invisibility",
+        "dnd-2024-basic:spell:knock",
+        "dnd-2024-basic:spell:levitate",
+        "dnd-2024-basic:spell:magic-weapon",
+        "dnd-2024-basic:spell:mirror-image",
+        "dnd-2024-basic:spell:misty-step",
+        "dnd-2024-basic:spell:scorching-ray",
+        "dnd-2024-basic:spell:see-invisibility",
+        "dnd-2024-basic:spell:shatter",
+        "dnd-2024-basic:spell:spider-climb",
+        "dnd-2024-basic:spell:suggestion",
+        "dnd-2024-basic:spell:web",
+        "dnd-2024-basic:spell:blink",
+        "dnd-2024-basic:spell:clairvoyance",
+        "dnd-2024-basic:spell:counterspell",
+        "dnd-2024-basic:spell:daylight",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:fear",
+        "dnd-2024-basic:spell:fireball",
+        "dnd-2024-basic:spell:fly",
+        "dnd-2024-basic:spell:gaseous-form",
+        "dnd-2024-basic:spell:haste",
+        "dnd-2024-basic:spell:hypnotic-pattern",
+        "dnd-2024-basic:spell:lightning-bolt",
+        "dnd-2024-basic:spell:major-image",
+        "dnd-2024-basic:spell:protection-from-energy",
+        "dnd-2024-basic:spell:sleet-storm",
+        "dnd-2024-basic:spell:slow",
+        "dnd-2024-basic:spell:stinking-cloud",
+        "dnd-2024-basic:spell:tongues",
+        "dnd-2024-basic:spell:vampiric-touch",
+        "dnd-2024-basic:spell:water-breathing",
+        "dnd-2024-basic:spell:water-walk",
+        "dnd-2024-basic:spell:banishment",
+        "dnd-2024-basic:spell:blight",
+        "dnd-2024-basic:spell:charm-monster",
+        "dnd-2024-basic:spell:confusion",
+        "dnd-2024-basic:spell:dimension-door",
+        "dnd-2024-basic:spell:dominate-beast",
+        "dnd-2024-basic:spell:fire-shield",
+        "dnd-2024-basic:spell:greater-invisibility",
+        "dnd-2024-basic:spell:ice-storm",
+        "dnd-2024-basic:spell:polymorph",
+        "dnd-2024-basic:spell:stoneskin",
+        "dnd-2024-basic:spell:vitriolic-sphere",
+        "dnd-2024-basic:spell:wall-of-fire",
+        "dnd-2024-basic:spell:animate-objects",
+        "dnd-2024-basic:spell:arcane-hand",
+        "dnd-2024-basic:spell:cloudkill",
+        "dnd-2024-basic:spell:cone-of-cold",
+        "dnd-2024-basic:spell:creation",
+        "dnd-2024-basic:spell:dominate-person",
+        "dnd-2024-basic:spell:hold-monster",
+        "dnd-2024-basic:spell:insect-plague",
+        "dnd-2024-basic:spell:seeming",
+        "dnd-2024-basic:spell:telekinesis",
+        "dnd-2024-basic:spell:teleportation-circle",
+        "dnd-2024-basic:spell:wall-of-stone",
+        "dnd-2024-basic:spell:chain-lightning",
+        "dnd-2024-basic:spell:circle-of-death",
+        "dnd-2024-basic:spell:disintegrate",
+        "dnd-2024-basic:spell:eyebite",
+        "dnd-2024-basic:spell:flesh-to-stone",
+        "dnd-2024-basic:spell:freezing-sphere",
+        "dnd-2024-basic:spell:globe-of-invulnerability",
+        "dnd-2024-basic:spell:mass-suggestion",
+        "dnd-2024-basic:spell:move-earth",
+        "dnd-2024-basic:spell:sunbeam",
+        "dnd-2024-basic:spell:true-seeing",
+        "dnd-2024-basic:spell:delayed-blast-fireball",
+        "dnd-2024-basic:spell:etherealness",
+        "dnd-2024-basic:spell:finger-of-death",
+        "dnd-2024-basic:spell:fire-storm",
+        "dnd-2024-basic:spell:plane-shift",
+        "dnd-2024-basic:spell:prismatic-spray",
+        "dnd-2024-basic:spell:reverse-gravity",
+        "dnd-2024-basic:spell:teleport",
+        "dnd-2024-basic:spell:demiplane",
+        "dnd-2024-basic:spell:dominate-monster",
+        "dnd-2024-basic:spell:earthquake",
+        "dnd-2024-basic:spell:incendiary-cloud",
+        "dnd-2024-basic:spell:power-word-stun",
+        "dnd-2024-basic:spell:sunburst",
+        "dnd-2024-basic:spell:gate",
+        "dnd-2024-basic:spell:meteor-swarm",
+        "dnd-2024-basic:spell:power-word-kill",
+        "dnd-2024-basic:spell:time-stop",
+        "dnd-2024-basic:spell:wish"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "constitution"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "charisma"
+      },
+      {
+        "type": "hit-die",
+        "sides": 6
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "None"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:sorcerer-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:sorcerer-innate-sorcery",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:warlock",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Warlock",
+    "primaryAbilities": [
+      "charisma"
+    ],
+    "hitDie": 8,
+    "savingThrowProficiencies": [
+      "wisdom",
+      "charisma"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "arcana",
+        "deception",
+        "history",
+        "intimidation",
+        "investigation",
+        "nature",
+        "religion"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "Light armor",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) Leather Armor, Sickle, 2 Daggers, Arcane Focus (orb), Book (occult lore), Scholar's Pack, and 15 GP; or (B) 100 GP",
+      "packages": [
+        {
+          "id": "warlock-equipment-a",
+          "label": "Package A",
+          "sourceText": "Leather Armor, Sickle, 2 Daggers, Arcane Focus (orb), Book (occult lore), Scholar's Pack, and 15 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 15
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:leather-armor",
+              "displayName": "Leather Armor",
+              "quantity": 1,
+              "sourceText": "Leather Armor"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:sickle",
+              "displayName": "Sickle",
+              "quantity": 1,
+              "sourceText": "Sickle"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arcane-focus",
+              "displayName": "Arcane Focus",
+              "quantity": 1,
+              "sourceText": "Arcane Focus (orb)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:book",
+              "displayName": "Book",
+              "quantity": 1,
+              "sourceText": "Book (occult lore)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:scholars-pack",
+              "displayName": "Scholar's Pack",
+              "quantity": 1,
+              "sourceText": "Scholar's Pack"
+            }
+          ]
+        },
+        {
+          "id": "warlock-equipment-b",
+          "label": "Package B",
+          "sourceText": "100 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 100
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Eldritch Invocations",
+          "Pact Magic"
+        ],
+        "Eldritch Invocations": "1",
+        "Cantrips": "2",
+        "Prepared Spells": "2",
+        "Spell Slots": "1",
+        "Slot Level": "1"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Magical Cunning"
+        ],
+        "Eldritch Invocations": "3",
+        "Cantrips": "2",
+        "Prepared Spells": "3",
+        "Spell Slots": "2",
+        "Slot Level": "1"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Warlock Subclass"
+        ],
+        "Eldritch Invocations": "3",
+        "Cantrips": "2",
+        "Prepared Spells": "4",
+        "Spell Slots": "2",
+        "Slot Level": "2"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Eldritch Invocations": "3",
+        "Cantrips": "3",
+        "Prepared Spells": "5",
+        "Spell Slots": "2",
+        "Slot Level": "2"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [],
+        "Eldritch Invocations": "5",
+        "Cantrips": "3",
+        "Prepared Spells": "6",
+        "Spell Slots": "2",
+        "Slot Level": "3"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Eldritch Invocations": "5",
+        "Cantrips": "3",
+        "Prepared Spells": "7",
+        "Spell Slots": "2",
+        "Slot Level": "3"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [],
+        "Eldritch Invocations": "6",
+        "Cantrips": "3",
+        "Prepared Spells": "8",
+        "Spell Slots": "2",
+        "Slot Level": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Eldritch Invocations": "6",
+        "Cantrips": "3",
+        "Prepared Spells": "9",
+        "Spell Slots": "2",
+        "Slot Level": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [
+          "Contact Patron"
+        ],
+        "Eldritch Invocations": "7",
+        "Cantrips": "3",
+        "Prepared Spells": "10",
+        "Spell Slots": "2",
+        "Slot Level": "5"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Eldritch Invocations": "7",
+        "Cantrips": "4",
+        "Prepared Spells": "10",
+        "Spell Slots": "2",
+        "Slot Level": "5"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [
+          "Mystic Arcanum (level 6 spell)"
+        ],
+        "Eldritch Invocations": "7",
+        "Cantrips": "4",
+        "Prepared Spells": "11",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Eldritch Invocations": "8",
+        "Cantrips": "4",
+        "Prepared Spells": "11",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [
+          "Mystic Arcanum (level 7 spell)"
+        ],
+        "Eldritch Invocations": "8",
+        "Cantrips": "4",
+        "Prepared Spells": "12",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Eldritch Invocations": "8",
+        "Cantrips": "4",
+        "Prepared Spells": "12",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [
+          "Mystic Arcanum (level 8 spell)"
+        ],
+        "Eldritch Invocations": "9",
+        "Cantrips": "4",
+        "Prepared Spells": "13",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Eldritch Invocations": "9",
+        "Cantrips": "4",
+        "Prepared Spells": "13",
+        "Spell Slots": "3",
+        "Slot Level": "5"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [
+          "Mystic Arcanum (level 9 spell)"
+        ],
+        "Eldritch Invocations": "9",
+        "Cantrips": "4",
+        "Prepared Spells": "14",
+        "Spell Slots": "4",
+        "Slot Level": "5"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Eldritch Invocations": "10",
+        "Cantrips": "4",
+        "Prepared Spells": "14",
+        "Spell Slots": "4",
+        "Slot Level": "5"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Eldritch Invocations": "10",
+        "Cantrips": "4",
+        "Prepared Spells": "15",
+        "Spell Slots": "4",
+        "Slot Level": "5"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Eldritch Master"
+        ],
+        "Eldritch Invocations": "10",
+        "Cantrips": "4",
+        "Prepared Spells": "15",
+        "Spell Slots": "4",
+        "Slot Level": "5"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:warlock-eldritch-invocations",
+        "name": "Eldritch Invocations",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:warlock-pact-magic",
+        "name": "Pact Magic",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:warlock:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "arcana",
+          "deception",
+          "history",
+          "intimidation",
+          "investigation",
+          "nature",
+          "religion"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Warlock."
+      },
+      {
+        "id": "dnd-2024-basic:class:warlock:eldritchinvocation",
+        "kind": "eldritchInvocation",
+        "label": "Eldritch Invocation",
+        "count": 1,
+        "options": "level-one-invocations",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the level 1 Eldritch Invocation choice from the Warlock rules."
+      }
+    ],
+    "spellcasting": {
+      "ability": "charisma",
+      "cantrips": 2,
+      "preparedSpells": 2,
+      "spellSlots": {
+        "1": "1"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:chill-touch",
+        "dnd-2024-basic:spell:eldritch-blast",
+        "dnd-2024-basic:spell:mage-hand",
+        "dnd-2024-basic:spell:minor-illusion",
+        "dnd-2024-basic:spell:poison-spray",
+        "dnd-2024-basic:spell:prestidigitation",
+        "dnd-2024-basic:spell:true-strike",
+        "dnd-2024-basic:spell:bane",
+        "dnd-2024-basic:spell:charm-person",
+        "dnd-2024-basic:spell:comprehend-languages",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:expeditious-retreat",
+        "dnd-2024-basic:spell:hellish-rebuke",
+        "dnd-2024-basic:spell:hex",
+        "dnd-2024-basic:spell:hideous-laughter",
+        "dnd-2024-basic:spell:illusory-script",
+        "dnd-2024-basic:spell:protection-from-evil-and-good",
+        "dnd-2024-basic:spell:speak-with-animals",
+        "dnd-2024-basic:spell:unseen-servant",
+        "dnd-2024-basic:spell:darkness",
+        "dnd-2024-basic:spell:enthrall",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:invisibility",
+        "dnd-2024-basic:spell:mind-spike",
+        "dnd-2024-basic:spell:mirror-image",
+        "dnd-2024-basic:spell:misty-step",
+        "dnd-2024-basic:spell:ray-of-enfeeblement",
+        "dnd-2024-basic:spell:spider-climb",
+        "dnd-2024-basic:spell:suggestion",
+        "dnd-2024-basic:spell:counterspell",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:fear",
+        "dnd-2024-basic:spell:fly",
+        "dnd-2024-basic:spell:gaseous-form",
+        "dnd-2024-basic:spell:hypnotic-pattern",
+        "dnd-2024-basic:spell:magic-circle",
+        "dnd-2024-basic:spell:major-image",
+        "dnd-2024-basic:spell:remove-curse",
+        "dnd-2024-basic:spell:tongues",
+        "dnd-2024-basic:spell:vampiric-touch",
+        "dnd-2024-basic:spell:banishment",
+        "dnd-2024-basic:spell:blight",
+        "dnd-2024-basic:spell:charm-monster",
+        "dnd-2024-basic:spell:dimension-door",
+        "dnd-2024-basic:spell:hallucinatory-terrain",
+        "dnd-2024-basic:spell:contact-other-plane",
+        "dnd-2024-basic:spell:dream",
+        "dnd-2024-basic:spell:hold-monster",
+        "dnd-2024-basic:spell:mislead",
+        "dnd-2024-basic:spell:planar-binding",
+        "dnd-2024-basic:spell:scrying",
+        "dnd-2024-basic:spell:teleportation-circle",
+        "dnd-2024-basic:spell:circle-of-death",
+        "dnd-2024-basic:spell:create-undead",
+        "dnd-2024-basic:spell:eyebite",
+        "dnd-2024-basic:spell:true-seeing",
+        "dnd-2024-basic:spell:etherealness",
+        "dnd-2024-basic:spell:finger-of-death",
+        "dnd-2024-basic:spell:forcecage",
+        "dnd-2024-basic:spell:plane-shift",
+        "dnd-2024-basic:spell:befuddlement",
+        "dnd-2024-basic:spell:demiplane",
+        "dnd-2024-basic:spell:dominate-monster",
+        "dnd-2024-basic:spell:glibness",
+        "dnd-2024-basic:spell:power-word-stun",
+        "dnd-2024-basic:spell:astral-projection",
+        "dnd-2024-basic:spell:foresight",
+        "dnd-2024-basic:spell:gate",
+        "dnd-2024-basic:spell:imprisonment",
+        "dnd-2024-basic:spell:power-word-kill",
+        "dnd-2024-basic:spell:true-polymorph",
+        "dnd-2024-basic:spell:weird"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "wisdom"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "charisma"
+      },
+      {
+        "type": "hit-die",
+        "sides": 8
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "Light armor"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:warlock-eldritch-invocations",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:warlock-pact-magic",
+        "level": 1
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:class:wizard",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Wizard",
+    "primaryAbilities": [
+      "intelligence"
+    ],
+    "hitDie": 6,
+    "savingThrowProficiencies": [
+      "intelligence",
+      "wisdom"
+    ],
+    "skillProficiencies": {
+      "fixed": [],
+      "options": [
+        "arcana",
+        "history",
+        "insight",
+        "investigation",
+        "medicine",
+        "nature",
+        "religion"
+      ],
+      "count": 2
+    },
+    "weaponProficiencies": "Simple weapons",
+    "armorTraining": "None",
+    "toolProficiencies": null,
+    "startingEquipment": {
+      "sourceText": "Choose A or B: (A) 2 Daggers, Arcane Focus (Quarterstaff), Robe, Spellbook, Scholar's Pack, and 5 GP; or (B) 55 GP",
+      "packages": [
+        {
+          "id": "wizard-equipment-a",
+          "label": "Package A",
+          "sourceText": "2 Daggers, Arcane Focus (Quarterstaff), Robe, Spellbook, Scholar's Pack, and 5 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 5
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arcane-focus",
+              "displayName": "Arcane Focus",
+              "quantity": 1,
+              "sourceText": "Arcane Focus (Quarterstaff)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:robe",
+              "displayName": "Robe",
+              "quantity": 1,
+              "sourceText": "Robe"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:spellbook",
+              "displayName": "Spellbook",
+              "quantity": 1,
+              "sourceText": "Spellbook"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:scholars-pack",
+              "displayName": "Scholar's Pack",
+              "quantity": 1,
+              "sourceText": "Scholar's Pack"
+            }
+          ]
+        },
+        {
+          "id": "wizard-equipment-b",
+          "label": "Package B",
+          "sourceText": "55 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 55
+            }
+          ]
+        }
+      ]
+    },
+    "progression": [
+      {
+        "level": 1,
+        "proficiencyBonus": 2,
+        "features": [
+          "Spellcasting",
+          "Ritual Adept",
+          "Arcane Recovery"
+        ],
+        "Cantrips": "3",
+        "Prepared Spells": "4",
+        "——Spell Slots per Spell Level——": "2"
+      },
+      {
+        "level": 2,
+        "proficiencyBonus": 2,
+        "features": [
+          "Scholar"
+        ],
+        "Cantrips": "3",
+        "Prepared Spells": "5",
+        "——Spell Slots per Spell Level——": "3"
+      },
+      {
+        "level": 3,
+        "proficiencyBonus": 2,
+        "features": [
+          "Wizard Subclass"
+        ],
+        "Cantrips": "3",
+        "Prepared Spells": "6",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 4,
+        "proficiencyBonus": 2,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Cantrips": "4",
+        "Prepared Spells": "7",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 5,
+        "proficiencyBonus": 3,
+        "features": [
+          "Memorize Spell"
+        ],
+        "Cantrips": "4",
+        "Prepared Spells": "9",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 6,
+        "proficiencyBonus": 3,
+        "features": [
+          "Subclass feature"
+        ],
+        "Cantrips": "4",
+        "Prepared Spells": "10",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 7,
+        "proficiencyBonus": 3,
+        "features": [],
+        "Cantrips": "4",
+        "Prepared Spells": "11",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 8,
+        "proficiencyBonus": 3,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Cantrips": "4",
+        "Prepared Spells": "12",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 9,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Cantrips": "4",
+        "Prepared Spells": "14",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 10,
+        "proficiencyBonus": 4,
+        "features": [
+          "Subclass feature"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "15",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 11,
+        "proficiencyBonus": 4,
+        "features": [],
+        "Cantrips": "5",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 12,
+        "proficiencyBonus": 4,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "16",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 13,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Cantrips": "5",
+        "Prepared Spells": "17",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 14,
+        "proficiencyBonus": 5,
+        "features": [
+          "Subclass feature"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "18",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 15,
+        "proficiencyBonus": 5,
+        "features": [],
+        "Cantrips": "5",
+        "Prepared Spells": "19",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 16,
+        "proficiencyBonus": 5,
+        "features": [
+          "Ability Score Improvement"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "21",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 17,
+        "proficiencyBonus": 6,
+        "features": [],
+        "Cantrips": "5",
+        "Prepared Spells": "22",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 18,
+        "proficiencyBonus": 6,
+        "features": [
+          "Spell Mastery"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "23",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 19,
+        "proficiencyBonus": 6,
+        "features": [
+          "Epic Boon"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "24",
+        "——Spell Slots per Spell Level——": "4"
+      },
+      {
+        "level": 20,
+        "proficiencyBonus": 6,
+        "features": [
+          "Signature Spells"
+        ],
+        "Cantrips": "5",
+        "Prepared Spells": "25",
+        "——Spell Slots per Spell Level——": "4"
+      }
+    ],
+    "features": [
+      {
+        "id": "dnd-2024-basic:feature:wizard-spellcasting",
+        "name": "Spellcasting",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:wizard-ritual-adept",
+        "name": "Ritual Adept",
+        "level": 1,
+        "category": "class"
+      },
+      {
+        "id": "dnd-2024-basic:feature:wizard-arcane-recovery",
+        "name": "Arcane Recovery",
+        "level": 1,
+        "category": "class"
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:class:wizard:skills",
+        "kind": "skills",
+        "label": "Class skill proficiencies",
+        "count": 2,
+        "options": [
+          "arcana",
+          "history",
+          "insight",
+          "investigation",
+          "medicine",
+          "nature",
+          "religion"
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Choose 2 skill proficiencies granted by Wizard."
+      }
+    ],
+    "spellcasting": {
+      "ability": "intelligence",
+      "cantrips": 3,
+      "preparedSpells": 4,
+      "spellSlots": {
+        "1": "2"
+      },
+      "spellIds": [
+        "dnd-2024-basic:spell:acid-splash",
+        "dnd-2024-basic:spell:chill-touch",
+        "dnd-2024-basic:spell:dancing-lights",
+        "dnd-2024-basic:spell:elementalism",
+        "dnd-2024-basic:spell:fire-bolt",
+        "dnd-2024-basic:spell:light",
+        "dnd-2024-basic:spell:mage-hand",
+        "dnd-2024-basic:spell:mending",
+        "dnd-2024-basic:spell:message",
+        "dnd-2024-basic:spell:minor-illusion",
+        "dnd-2024-basic:spell:poison-spray",
+        "dnd-2024-basic:spell:prestidigitation",
+        "dnd-2024-basic:spell:ray-of-frost",
+        "dnd-2024-basic:spell:shocking-grasp",
+        "dnd-2024-basic:spell:true-strike",
+        "dnd-2024-basic:spell:alarm",
+        "dnd-2024-basic:spell:burning-hands",
+        "dnd-2024-basic:spell:charm-person",
+        "dnd-2024-basic:spell:chromatic-orb",
+        "dnd-2024-basic:spell:color-spray",
+        "dnd-2024-basic:spell:comprehend-languages",
+        "dnd-2024-basic:spell:detect-magic",
+        "dnd-2024-basic:spell:disguise-self",
+        "dnd-2024-basic:spell:expeditious-retreat",
+        "dnd-2024-basic:spell:false-life",
+        "dnd-2024-basic:spell:feather-fall",
+        "dnd-2024-basic:spell:find-familiar",
+        "dnd-2024-basic:spell:floating-disk",
+        "dnd-2024-basic:spell:fog-cloud",
+        "dnd-2024-basic:spell:grease",
+        "dnd-2024-basic:spell:hideous-laughter",
+        "dnd-2024-basic:spell:ice-knife",
+        "dnd-2024-basic:spell:identify",
+        "dnd-2024-basic:spell:illusory-script",
+        "dnd-2024-basic:spell:jump",
+        "dnd-2024-basic:spell:longstrider",
+        "dnd-2024-basic:spell:mage-armor",
+        "dnd-2024-basic:spell:magic-missile",
+        "dnd-2024-basic:spell:protection-from-evil-and-good",
+        "dnd-2024-basic:spell:ray-of-sickness",
+        "dnd-2024-basic:spell:shield",
+        "dnd-2024-basic:spell:silent-image",
+        "dnd-2024-basic:spell:sleep",
+        "dnd-2024-basic:spell:thunderwave",
+        "dnd-2024-basic:spell:unseen-servant",
+        "dnd-2024-basic:spell:acid-arrow",
+        "dnd-2024-basic:spell:alter-self",
+        "dnd-2024-basic:spell:arcane-lock",
+        "dnd-2024-basic:spell:arcanists-magic-aura",
+        "dnd-2024-basic:spell:augury",
+        "dnd-2024-basic:spell:blindness-deafness",
+        "dnd-2024-basic:spell:blur",
+        "dnd-2024-basic:spell:continual-flame",
+        "dnd-2024-basic:spell:darkness",
+        "dnd-2024-basic:spell:darkvision",
+        "dnd-2024-basic:spell:detect-thoughts",
+        "dnd-2024-basic:spell:dragons-breath",
+        "dnd-2024-basic:spell:enhance-ability",
+        "dnd-2024-basic:spell:enlarge-reduce",
+        "dnd-2024-basic:spell:flaming-sphere",
+        "dnd-2024-basic:spell:gentle-repose",
+        "dnd-2024-basic:spell:gust-of-wind",
+        "dnd-2024-basic:spell:hold-person",
+        "dnd-2024-basic:spell:invisibility",
+        "dnd-2024-basic:spell:knock",
+        "dnd-2024-basic:spell:levitate",
+        "dnd-2024-basic:spell:locate-object",
+        "dnd-2024-basic:spell:magic-mouth",
+        "dnd-2024-basic:spell:magic-weapon",
+        "dnd-2024-basic:spell:mind-spike",
+        "dnd-2024-basic:spell:mirror-image",
+        "dnd-2024-basic:spell:misty-step",
+        "dnd-2024-basic:spell:ray-of-enfeeblement",
+        "dnd-2024-basic:spell:rope-trick",
+        "dnd-2024-basic:spell:scorching-ray",
+        "dnd-2024-basic:spell:see-invisibility",
+        "dnd-2024-basic:spell:shatter",
+        "dnd-2024-basic:spell:spider-climb",
+        "dnd-2024-basic:spell:suggestion",
+        "dnd-2024-basic:spell:web",
+        "dnd-2024-basic:spell:animate-dead",
+        "dnd-2024-basic:spell:bestow-curse",
+        "dnd-2024-basic:spell:blink",
+        "dnd-2024-basic:spell:clairvoyance",
+        "dnd-2024-basic:spell:counterspell",
+        "dnd-2024-basic:spell:dispel-magic",
+        "dnd-2024-basic:spell:fear",
+        "dnd-2024-basic:spell:fireball",
+        "dnd-2024-basic:spell:fly",
+        "dnd-2024-basic:spell:gaseous-form",
+        "dnd-2024-basic:spell:glyph-of-warding",
+        "dnd-2024-basic:spell:haste",
+        "dnd-2024-basic:spell:hypnotic-pattern",
+        "dnd-2024-basic:spell:lightning-bolt",
+        "dnd-2024-basic:spell:magic-circle",
+        "dnd-2024-basic:spell:major-image",
+        "dnd-2024-basic:spell:nondetection",
+        "dnd-2024-basic:spell:phantom-steed",
+        "dnd-2024-basic:spell:protection-from-energy",
+        "dnd-2024-basic:spell:remove-curse",
+        "dnd-2024-basic:spell:sending",
+        "dnd-2024-basic:spell:sleet-storm",
+        "dnd-2024-basic:spell:slow",
+        "dnd-2024-basic:spell:speak-with-dead",
+        "dnd-2024-basic:spell:stinking-cloud",
+        "dnd-2024-basic:spell:tiny-hut",
+        "dnd-2024-basic:spell:tongues",
+        "dnd-2024-basic:spell:vampiric-touch",
+        "dnd-2024-basic:spell:water-breathing",
+        "dnd-2024-basic:spell:arcane-eye",
+        "dnd-2024-basic:spell:banishment",
+        "dnd-2024-basic:spell:black-tentacles",
+        "dnd-2024-basic:spell:blight",
+        "dnd-2024-basic:spell:charm-monster",
+        "dnd-2024-basic:spell:confusion",
+        "dnd-2024-basic:spell:conjure-minor-elementals",
+        "dnd-2024-basic:spell:control-water",
+        "dnd-2024-basic:spell:dimension-door",
+        "dnd-2024-basic:spell:divination",
+        "dnd-2024-basic:spell:fabricate",
+        "dnd-2024-basic:spell:faithful-hound",
+        "dnd-2024-basic:spell:fire-shield",
+        "dnd-2024-basic:spell:greater-invisibility",
+        "dnd-2024-basic:spell:hallucinatory-terrain",
+        "dnd-2024-basic:spell:ice-storm",
+        "dnd-2024-basic:spell:locate-creature",
+        "dnd-2024-basic:spell:phantasmal-killer",
+        "dnd-2024-basic:spell:polymorph",
+        "dnd-2024-basic:spell:private-sanctum",
+        "dnd-2024-basic:spell:resilient-sphere",
+        "dnd-2024-basic:spell:secret-chest",
+        "dnd-2024-basic:spell:stone-shape",
+        "dnd-2024-basic:spell:stoneskin",
+        "dnd-2024-basic:spell:vitriolic-sphere",
+        "dnd-2024-basic:spell:wall-of-fire",
+        "dnd-2024-basic:spell:animate-objects",
+        "dnd-2024-basic:spell:arcane-hand",
+        "dnd-2024-basic:spell:cloudkill",
+        "dnd-2024-basic:spell:cone-of-cold",
+        "dnd-2024-basic:spell:conjure-elemental",
+        "dnd-2024-basic:spell:contact-other-plane",
+        "dnd-2024-basic:spell:creation",
+        "dnd-2024-basic:spell:dominate-person",
+        "dnd-2024-basic:spell:dream",
+        "dnd-2024-basic:spell:geas",
+        "dnd-2024-basic:spell:hold-monster",
+        "dnd-2024-basic:spell:legend-lore",
+        "dnd-2024-basic:spell:mislead",
+        "dnd-2024-basic:spell:modify-memory",
+        "dnd-2024-basic:spell:passwall",
+        "dnd-2024-basic:spell:planar-binding",
+        "dnd-2024-basic:spell:scrying",
+        "dnd-2024-basic:spell:seeming",
+        "dnd-2024-basic:spell:summon-dragon",
+        "dnd-2024-basic:spell:telekinesis",
+        "dnd-2024-basic:spell:telepathic-bond",
+        "dnd-2024-basic:spell:teleportation-circle",
+        "dnd-2024-basic:spell:wall-of-force",
+        "dnd-2024-basic:spell:wall-of-stone",
+        "dnd-2024-basic:spell:chain-lightning",
+        "dnd-2024-basic:spell:circle-of-death",
+        "dnd-2024-basic:spell:contingency",
+        "dnd-2024-basic:spell:create-undead",
+        "dnd-2024-basic:spell:disintegrate",
+        "dnd-2024-basic:spell:eyebite",
+        "dnd-2024-basic:spell:flesh-to-stone",
+        "dnd-2024-basic:spell:freezing-sphere",
+        "dnd-2024-basic:spell:globe-of-invulnerability",
+        "dnd-2024-basic:spell:guards-and-wards",
+        "dnd-2024-basic:spell:instant-summons",
+        "dnd-2024-basic:spell:irresistible-dance",
+        "dnd-2024-basic:spell:magic-jar",
+        "dnd-2024-basic:spell:mass-suggestion",
+        "dnd-2024-basic:spell:move-earth",
+        "dnd-2024-basic:spell:programmed-illusion",
+        "dnd-2024-basic:spell:sunbeam",
+        "dnd-2024-basic:spell:true-seeing",
+        "dnd-2024-basic:spell:wall-of-ice",
+        "dnd-2024-basic:spell:arcane-sword",
+        "dnd-2024-basic:spell:delayed-blast-fireball",
+        "dnd-2024-basic:spell:etherealness",
+        "dnd-2024-basic:spell:finger-of-death",
+        "dnd-2024-basic:spell:forcecage",
+        "dnd-2024-basic:spell:magnificent-mansion",
+        "dnd-2024-basic:spell:mirage-arcane",
+        "dnd-2024-basic:spell:plane-shift",
+        "dnd-2024-basic:spell:prismatic-spray",
+        "dnd-2024-basic:spell:project-image",
+        "dnd-2024-basic:spell:reverse-gravity",
+        "dnd-2024-basic:spell:sequester",
+        "dnd-2024-basic:spell:simulacrum",
+        "dnd-2024-basic:spell:symbol",
+        "dnd-2024-basic:spell:teleport",
+        "dnd-2024-basic:spell:antimagic-field",
+        "dnd-2024-basic:spell:antipathy-sympathy",
+        "dnd-2024-basic:spell:befuddlement",
+        "dnd-2024-basic:spell:clone",
+        "dnd-2024-basic:spell:control-weather",
+        "dnd-2024-basic:spell:demiplane",
+        "dnd-2024-basic:spell:dominate-monster",
+        "dnd-2024-basic:spell:incendiary-cloud",
+        "dnd-2024-basic:spell:maze",
+        "dnd-2024-basic:spell:mind-blank",
+        "dnd-2024-basic:spell:power-word-stun",
+        "dnd-2024-basic:spell:sunburst",
+        "dnd-2024-basic:spell:astral-projection",
+        "dnd-2024-basic:spell:foresight",
+        "dnd-2024-basic:spell:gate",
+        "dnd-2024-basic:spell:imprisonment",
+        "dnd-2024-basic:spell:meteor-swarm",
+        "dnd-2024-basic:spell:power-word-kill",
+        "dnd-2024-basic:spell:prismatic-wall",
+        "dnd-2024-basic:spell:shapechange",
+        "dnd-2024-basic:spell:time-stop",
+        "dnd-2024-basic:spell:true-polymorph",
+        "dnd-2024-basic:spell:weird",
+        "dnd-2024-basic:spell:wish"
+      ]
+    },
+    "grants": [
+      {
+        "type": "saving-throw-proficiency",
+        "target": "intelligence"
+      },
+      {
+        "type": "saving-throw-proficiency",
+        "target": "wisdom"
+      },
+      {
+        "type": "hit-die",
+        "sides": 6
+      },
+      {
+        "type": "proficiency-text",
+        "target": "weapon",
+        "value": "Simple weapons"
+      },
+      {
+        "type": "proficiency-text",
+        "target": "armor",
+        "value": "None"
+      }
+    ],
+    "effects": [
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:wizard-spellcasting",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:wizard-ritual-adept",
+        "level": 1
+      },
+      {
+        "type": "feature",
+        "featureId": "dnd-2024-basic:feature:wizard-arcane-recovery",
+        "level": 1
+      }
+    ]
+  }
+]

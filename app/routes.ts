@@ -38,6 +38,7 @@ const apiRoutes = [
   route("api/uploadthing/files", "routes/api.uploadthing.files.ts"),
   route("api/uploads", "routes/api.uploads.tsx"),
   route("api/characters", "routes/api.characters.tsx"),
+  route("api/characters/guided", "routes/api.characters.guided.tsx"),
   route("api/characters/:characterId", "routes/api.characters.$characterId.tsx"),
   route("api/groups/:groupId/tokens", "routes/api.groups.$groupId.tokens.tsx"),
   route("api/groups/:groupId/availability", "routes/api.groups.$groupId.availability.tsx"),

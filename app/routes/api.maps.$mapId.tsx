@@ -14,10 +14,135 @@ import {
   validateOwnedImageUrls,
 } from "~/.server/uploads/image-validation";
 import { cleanupDeletedRecordImages } from "~/.server/uploads/lifecycle";
+import { recompileGuidedToken } from "~/features/character-creator/rules/recompile-token";
+import {
+  canonicalizePlayerMapData,
+  validateTokenIdUniqueness,
+  validatePlayerTokenChanges,
+} from "~/features/map-editor/utils/map-data-policy";
 
 interface GroupMemberInfo {
   id: string;
   name: string;
+}
+
+interface RecordValue {
+  [key: string]: unknown;
+}
+
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function recompileTokenArray(
+  value: unknown,
+  existingValue: unknown,
+  generatedAt: string,
+) {
+  if (!Array.isArray(value)) return { valid: true as const, value };
+
+  const existingById = new Map<string, RecordValue>();
+  if (Array.isArray(existingValue)) {
+    for (const entry of existingValue) {
+      if (isRecord(entry) && typeof entry.id === "string") {
+        existingById.set(entry.id, entry);
+      }
+    }
+  }
+
+  let changed = false;
+  const nextTokens: unknown[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      nextTokens.push(entry);
+      continue;
+    }
+
+    const existingToken = typeof entry.id === "string" ? existingById.get(entry.id) : undefined;
+    const hasSubmittedBuild = Object.prototype.hasOwnProperty.call(entry, "characterCreationBuild");
+    let tokenForCompilation: RecordValue = !hasSubmittedBuild && existingToken?.characterCreationBuild !== undefined
+      ? { ...entry, characterCreationBuild: existingToken.characterCreationBuild }
+      : entry;
+
+    // A full-map update may omit the cached sheet while still carrying a guided
+    // source build. Keep the existing runtime state available to the compiler.
+    if (
+      tokenForCompilation.characterCreationBuild !== undefined &&
+      tokenForCompilation.characterCreationBuild !== null &&
+      existingToken?.characterSheet !== undefined
+    ) {
+      const existingSheet = isRecord(existingToken.characterSheet) ? existingToken.characterSheet : {};
+      const submittedSheet = isRecord(tokenForCompilation.characterSheet)
+        ? tokenForCompilation.characterSheet
+        : {};
+      tokenForCompilation = {
+        ...tokenForCompilation,
+        characterSheet: { ...existingSheet, ...submittedSheet },
+      };
+    }
+    const compiledToken = recompileGuidedToken(tokenForCompilation, generatedAt);
+    if (!compiledToken.valid) return compiledToken;
+
+    if (compiledToken.token !== entry) changed = true;
+    nextTokens.push(compiledToken.token);
+  }
+
+  return { valid: true as const, value: changed ? nextTokens : value };
+}
+
+function recompileGuidedTokensInMapData(
+  data: unknown,
+  existingData: unknown,
+  generatedAt: string,
+) {
+  if (!isRecord(data)) return { valid: true as const, data };
+
+  const existingRecord = isRecord(existingData) ? existingData : undefined;
+  let nextData: RecordValue = data;
+  let changed = false;
+
+  const activeTokens = recompileTokenArray(data.tokens, existingRecord?.tokens, generatedAt);
+  if (!activeTokens.valid) return activeTokens;
+  if (activeTokens.value !== data.tokens) {
+    nextData = { ...nextData, tokens: activeTokens.value };
+    changed = true;
+  }
+
+  const scenes = data.scenes;
+  if (Array.isArray(scenes)) {
+    const existingScenes = Array.isArray(existingRecord?.scenes) ? existingRecord.scenes : [];
+    const existingScenesById = new Map<string, RecordValue>();
+    for (const scene of existingScenes) {
+      if (isRecord(scene) && typeof scene.id === "string") {
+        existingScenesById.set(scene.id, scene);
+      }
+    }
+
+    const nextScenes: unknown[] = [];
+    for (const scene of scenes) {
+      if (!isRecord(scene)) {
+        nextScenes.push(scene);
+        continue;
+      }
+
+      const existingScene = typeof scene.id === "string" ? existingScenesById.get(scene.id) : undefined;
+      const sceneTokens = recompileTokenArray(scene.tokens, existingScene?.tokens, generatedAt);
+      if (!sceneTokens.valid) return sceneTokens;
+
+      if (sceneTokens.value !== scene.tokens) {
+        nextScenes.push({ ...scene, tokens: sceneTokens.value });
+        changed = true;
+      } else {
+        nextScenes.push(scene);
+      }
+    }
+    if (changed || nextScenes.some((scene, index) => scene !== scenes[index])) {
+      nextData = { ...nextData, scenes: nextScenes };
+      changed = true;
+    }
+  }
+
+  return { valid: true as const, data: changed ? nextData : data };
 }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -82,6 +207,8 @@ export async function action({ request, params }: Route.ActionArgs) {
 
       const body = await request.json();
       const { name, data, newDmId } = body;
+      let persistedData = data;
+      let dataForPersistence = data;
 
       let currentMapData: { data: unknown; groupId: string | null } | null = null;
       if (data !== undefined) {
@@ -96,12 +223,34 @@ export async function action({ request, params }: Route.ActionArgs) {
         }
 
         currentMapData = currentMap[0];
+        if (!isDM) {
+          const tokenIdValidation = validateTokenIdUniqueness(currentMapData.data, data);
+          if (!tokenIdValidation.valid) {
+            return new Response(tokenIdValidation.error, { status: 403 });
+          }
+
+          const tokenValidation = validatePlayerTokenChanges(
+            currentMapData.data,
+            data,
+            session.user.id,
+          );
+          if (!tokenValidation.valid) {
+            return new Response(tokenValidation.error, { status: 403 });
+          }
+
+          const mapDataPolicy = canonicalizePlayerMapData(currentMapData.data, data);
+          if (!mapDataPolicy.valid) {
+            return new Response(mapDataPolicy.error, { status: 403 });
+          }
+          dataForPersistence = mapDataPolicy.data;
+        }
+
         const existingImageUrls = collectImageUrlValues(currentMapData.data).filter(
           (value): value is string => typeof value === "string"
         );
         const imageValidation = await validateOwnedImageUrls(
           session.user.id,
-          collectImageUrlValues(data),
+          collectImageUrlValues(dataForPersistence),
           {
             allowedExistingUrls: existingImageUrls,
             ...(currentMapData.groupId ? { groupId: currentMapData.groupId } : {}),
@@ -110,6 +259,19 @@ export async function action({ request, params }: Route.ActionArgs) {
         if (!imageValidation.valid) {
           return Response.json({ error: imageValidation.error }, { status: 400 });
         }
+
+        const guidedTokenResult = recompileGuidedTokensInMapData(
+          dataForPersistence,
+          currentMapData.data,
+          new Date().toISOString(),
+        );
+        if (!guidedTokenResult.valid) {
+          return Response.json(
+            { error: "Invalid guided token build", errors: guidedTokenResult.errors },
+            { status: 400 },
+          );
+        }
+        persistedData = guidedTokenResult.data;
       }
 
       // Handle DM transfer
@@ -151,30 +313,8 @@ export async function action({ request, params }: Route.ActionArgs) {
         return Response.json({ success: true, transferred: true });
       }
 
-      // Players can only delete tokens they own
-      if (!isDM && data) {
-        const currentData = currentMapData!.data as { tokens?: Array<{ id: string; ownerId: string | null }> };
-        const newData = data as { tokens?: Array<{ id: string; ownerId: string | null }> };
-
-        // Check that player only deleted their own tokens
-        const currentTokens = currentData.tokens || [];
-        const newTokens = newData.tokens || [];
-
-        // Find deleted tokens - must be owned by this user
-        const newTokenIds = new Set(newTokens.map(t => t.id));
-        for (const token of currentTokens) {
-          if (!newTokenIds.has(token.id)) {
-            // Token was deleted - check if user owns it
-            if (token.ownerId !== session.user.id) {
-              return new Response("Cannot delete tokens you don't own", { status: 403 });
-            }
-          }
-        }
-        // Note: All players can edit any token, so no edit restriction needed
-      }
-
       // Tier limit validation on map data
-      if (data) {
+      if (dataForPersistence) {
         const mapRecord = await db
           .select({ userId: maps.userId })
           .from(maps)
@@ -183,7 +323,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
         if (mapRecord.length > 0) {
           const limits = await getUserTierLimits(mapRecord[0].userId);
-          const mapData = data as { scenes?: unknown[]; walls?: unknown[]; areas?: unknown[] };
+          const mapData = dataForPersistence as { scenes?: unknown[]; walls?: unknown[]; areas?: unknown[] };
 
           // Scene count check: scenes array + 1 for the active scene
           if (mapData.scenes && mapData.scenes.length + 1 > limits.maxScenesPerMap) {
@@ -212,7 +352,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         updateData.name = name;
       }
       if (data !== undefined) {
-        updateData.data = data;
+        updateData.data = persistedData;
       }
 
       await db.update(maps).set(updateData).where(eq(maps.id, mapId));

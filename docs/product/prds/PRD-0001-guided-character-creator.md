@@ -1,10 +1,10 @@
 ---
 id: PRD-0001
 title: Guided D&D Character Creator
-status: Draft — approval required before implementation
+status: Approved for implementation
 owner: Product / Engineering
 created: 2026-08-21
-updated: 2026-08-21
+updated: 2026-08-22
 proposedRuleset: D&D 2024 is canonical; 2014 content is deprecated legacy data only
 ---
 
@@ -28,7 +28,7 @@ Recommended initial scope: a level-1 player-character flow based on the canonica
 
 Product direction recorded in this revision: D&D 2024 is the canonical ruleset for all new character creation. The active character and monster catalogs are now refreshed to the 2024 SRD 5.2.1 scope; historical documentation and persisted sheets may still reference 2014 values for compatibility, but those values are not new choices or an equally supported ruleset.
 
-This document is an analysis and decision record. It is not authorization to implement the feature yet.
+The initial metadata-only creator slice exists in the worktree, but this revision is the approved implementation contract for completing the SRD-backed experience. The creator is approved for implementation within the scope and decisions recorded below.
 
 ## 2. Repository findings
 
@@ -36,7 +36,7 @@ This document is an analysis and decision record. It is not authorization to imp
 
 | Entry point | Current behavior | Character-creator recommendation |
 | --- | --- | --- |
-| `/characters` → `+ New Character` | Creates a name/color/size/image shell. The sheet is created later from `CharacterSheetPanel`. | **Yes. Primary entry point.** Replace or extend the shell modal with the guided creator, or create a resumable draft. |
+| `/characters` → `+ New Character` | Creates a name/color/size/image shell. The sheet is created later from `CharacterSheetPanel`. | **Yes. Primary entry point.** Open the immersive guided creator and persist its build as it progresses. |
 | Existing library character → `Create Sheet` | Opens an empty/default sheet. | **Yes, when the character has no sheet.** Open the creator in resume mode. |
 | Map → custom unit → character layer | Creates a token with `characterSheet: null`. | **Yes, but with an explicit choice between “Guided Player Character” and “Quick/Manual Token.”** Map users may need NPCs or temporary tokens that should not require the full player flow. |
 | Map → custom unit → object/other layer | Creates a non-character token. | **No.** Keep the existing token editor. |
@@ -56,9 +56,14 @@ The important product decision is not whether every path can technically reach t
 - `CharacterSheetPanel` supports both standalone library characters and map tokens. It also supports importing/linking a library character and saving a token back to the library.
 - Library characters persist the sheet in a JSONB `characterSheet` column. The character API currently accepts an arbitrary sheet payload; it does not perform ruleset-aware validation.
 - Map tokens can contain an inline sheet or a `characterId` pointing to a library character. A linked token fetches the library sheet, while an unlinked token owns its inline sheet.
-- `character-options.ts` is now a generated 2024 SRD 5.2.1 UI catalog with structured source metadata, but it is still not a rules engine. It retains string-compatible exports for the existing sheet editor; feats and traits remain display-oriented, and class/spell prerequisites are not yet enforced.
+- `character-options.ts` is a generated 2024 SRD 5.2.1 metadata index with string-compatible exports for the existing sheet editor, but it is not a rules engine. The checked-in character artifact is TypeScript generated from pinned Markdown extracts; the extracts themselves are not stored in the repository. The implementation must add checked-in structured JSON definitions for the supported character rules and keep the generator/manifest verification path for reproducibility.
+- `srd-monsters.json` is already a checked-in JSON knowledge base for monster stat blocks. It remains local application data and must not be fetched or crawled at runtime. Any new SRD knowledge-base artifact used by character or monster features follows the same checked-in, manifest-verified JSON policy. The character catalog's language/species/equipment supplements are also checked-in JSON with a manifest hash, so generator output is reproducible even where the pinned Markdown extracts omit a table.
 - `srd-monsters.json` and `SrdMonster` describe monster templates and stat blocks. They should not become the input model for player-character creation.
 - Redis is currently an optional Upstash client used by the AI rate limiter. There are no catalog cache helpers, versioned catalog keys, or invalidation rules. It should not be the authoritative store for character rules.
+
+The character catalog generator has been verified against the pinned 5.2.1 extracts and supplemental JSON with:
+
+`node scripts/generate-character-creator-catalog.mjs --source-dir <verified-extract-dir> --verify`
 
 Relevant implementation locations:
 
@@ -113,11 +118,11 @@ The result is high cognitive load for new users, inconsistent derived values, an
 
 ## 6. Ruleset and content policy
 
-The repository now labels its active option file as a generated D&D 2024 SRD 5.2.1 catalog. The guided creator still needs a rules engine and per-definition prerequisites; those are separate from the static catalog refresh.
+The repository now labels its active option file and structured creator JSON as generated D&D 2024 SRD 5.2.1 catalogs. The guided creator uses the structured JSON and a rules engine with per-definition prerequisites; the compatibility option file remains for the general-purpose sheet editor.
 
 ### Recommendation
 
-Use a separately identified `dnd-2024-basic` ruleset and the source-verified 2024 SRD 5.2.1 catalog now checked into the repository. Do not maintain a parallel active `dnd-2014` adapter/catalog. Existing 2014 or provenance-free sheets should be treated as legacy/manual data, remain readable and editable, and never be silently recalculated. Any future 2014-to-2024 conversion must be an explicit, user-approved migration.
+Use a separately identified `dnd-2024-basic` ruleset and the source-verified 2024 SRD 5.2.1 catalog now checked into the repository. Do not maintain a parallel active `dnd-2014` adapter/catalog. For new behavior, 2024 is canonical. Existing 2014, conflicting-schema, or provenance-free sheets remain readable and editable, but must not be silently merged, recalculated, or migrated; inventory the concrete conflict and ask the product owner for an explicit decision before changing the record.
 
 The full Handbook can remain the human reference for requirements analysis, but the application should only distribute rule text and structured content that the project is permitted to use. The first catalog should therefore be limited to the selected Basic Rules/SRD/licensed scope. A content-source and licensing decision is a product gate, not an implementation detail.
 
@@ -315,22 +320,23 @@ ruleset catalog + creation selections
      persisted runtime CharacterSheet
 ```
 
-### 9.2 Proposed application structure
+### 9.2 Approved application structure
 
-This is a proposed target structure; it is not yet an implementation task:
+The approved target structure is:
 
 ```text
 app/features/character-creator/
   components/
   data/
     dnd-2024-basic/
-      classes/
-      backgrounds/
-      species/
-      feats/
-      spells/
-      equipment/
-      languages/
+      catalog.json
+      classes.json
+      backgrounds.json
+      species.json
+      feats.json
+      spells.json
+      equipment.json
+      languages.json
     legacy/                    # compatibility metadata only; not a new-choice catalog
   rules/
     types.ts
@@ -343,7 +349,9 @@ app/features/character-creator/
   state/
 ```
 
-`character-options.ts` can remain temporarily as a UI compatibility index, but new creation logic should consume structured definitions from the creator domain. A future shared rules package is possible; it should not be created by blending monster and player-character records.
+The JSON files are authoritative application artifacts for the approved SRD scope. `character-options.ts` may remain as a compatibility index for the existing manual editor, but new creation logic must consume the structured creator catalog. `srd-monsters.json` remains the authoritative local monster artifact. Character and monster JSON must be imported by both server and client code from the repository; no runtime URL crawling, Redis lookup, or serverless catalog endpoint is required.
+
+For low client latency and low serverless cost, the catalog is public static application data: Vite may split larger JSON sections into route-level chunks, and the browser may cache them. Server validation imports the same JSON directly. This avoids a per-request server function, duplicate catalog copies, and runtime network dependency while keeping data available to the client when the creator needs it.
 
 ### 9.3 Content definition shape
 
@@ -394,37 +402,43 @@ Keep the authoritative rule catalog in the repository and bundle/import it as ap
 - a cache hit still requires a source of truth and invalidation/versioning strategy; and
 - catalog data may be shipped to the browser for the wizard regardless of whether Redis holds a copy.
 
-An optional future Redis cache could cache a compiled catalog or an external/dynamic catalog, keyed by ruleset and content version. It must be a rebuildable optimization, never the only copy. For the first implementation, repository-backed JSON/TypeScript with shared server/client imports is the recommended approach.
+An optional future Redis cache could cache a compiled catalog or an external/dynamic catalog, keyed by ruleset and content version. It must be a rebuildable optimization, never the only copy. For this implementation, repository-backed JSON with shared server/client imports is required. The browser should receive only static bundled/chunked catalog data; serverless handlers must not fetch the SRD or query Redis to load it.
 
 ## 10. Persistence and API decisions
 
 ### 10.1 Build state versus sheet state
 
-Add a distinction between an in-progress creation build and a completed/runtime sheet. The persisted representation should eventually include fields equivalent to:
+Keep the creation recipe separate from runtime sheet fields at the domain level, while initially persisting both inside the existing JSONB character record to avoid an unnecessary database migration. The sheet remains the usable in-game projection; the build is the source recipe used to validate, resume, and recompile it.
+
+The persisted representation should include fields equivalent to:
 
 ```ts
 interface CharacterCreationMetadata {
   mode: "guided" | "manual" | "monster-template" | "imported";
   ruleset?: RulesetId;
   rulesVersion?: string;
-  status: "draft" | "complete" | "legacy";
+  build?: CharacterCreationBuild;
+  rulesComplete?: boolean;
+  unresolvedChoices?: string[];
   definitionIds?: string[];
   choices?: Record<string, unknown>;
 }
 ```
 
-The exact database shape is a schema-design task. The current JSONB sheet can be extended during a migration, but existing records must remain readable.
+`rulesComplete` and `unresolvedChoices` are advisory creation metadata, not gameplay permissions. A character or token is usable even when the guided build is incomplete. The implementation must not use a user-facing `draft` status as a prerequisite for play.
 
-### 10.2 Draft strategy
+Manual edits should clear or invalidate the guided build when they make the runtime sheet no longer reproducible from the recipe. The exact field names may evolve, but the separation between source build and derived sheet must remain explicit.
+
+### 10.2 Resumable creation strategy
 
 Two viable approaches exist:
 
 | Approach | Benefits | Costs |
 | --- | --- | --- |
 | Save only at completion | Simple persistence and fewer partial records. | Users lose progress if they leave; map/library resume is harder. |
-| Create a draft at the beginning | Supports resume, crash recovery, and multi-step editing. | Requires draft status, partial validation, cleanup, and UI for incomplete records. |
+| Save the build throughout creation | Supports resume, crash recovery, and multi-step editing. | Requires partial validation and clear unresolved-choice feedback. |
 
-Recommendation: support resumable drafts for the library flow if the product expects a multi-step creator. For a first technical slice, local draft state plus an explicit final save is acceptable, but the data model should not make server drafts impossible.
+Decision: save the build throughout creation for library characters and guided map tokens. The saved character/token remains usable immediately; resume state is represented by the build and unresolved-choice metadata rather than a blocking draft lifecycle. A completed guided build must satisfy all required SRD choices before it is marked `rulesComplete: true`.
 
 ### 10.3 Server validation
 
@@ -437,31 +451,31 @@ The client should provide immediate feedback, but the server must validate the s
 - invalid spell, feat, equipment, language, or proficiency selections; and
 - derived fields that do not match canonical calculation, unless an explicit manual override is allowed.
 
-This is necessary because the current character API accepts a caller-provided JSON sheet without these guarantees.
+This is necessary because the current character API accepts a caller-provided JSON sheet without these guarantees. The API must compile the canonical sheet from the submitted build and must not trust client-provided derived fields.
 
-## 11. Decisions required before implementation
+## 11. Approved implementation decisions
 
-The following decisions should be confirmed. Recommendations are included to make approval concrete.
+The following decisions were confirmed for this implementation:
 
 | Priority | Decision | Recommendation |
 | --- | --- | --- |
-| P0 | Which ruleset is the first implementation for? | **D&D 2024 is canonical.** Mark 2014 as `dnd-2014-legacy` for compatibility only; do not offer new 2014 creation or maintain a parallel 2014 catalog. |
-| P0 | What content may be distributed? | Start with Basic Rules/SRD or content the project has rights to use; do not silently treat the full Handbook as an application data license. |
-| P0 | What starting levels are supported? | Level 1 only for the first flow. Add higher-level creation after progression is modeled. |
-| P0 | Is multiclassing in scope? | No for MVP. Model the build so a future multiclass adapter is possible. |
-| P0 | Which entry points launch the guided flow? | Library creation and character-layer creation. Existing empty character sheets may resume it. Monster templates, imports, duplicates, and object tokens do not. |
-| P0 | What should a custom map character token create? | Recommended: offer “Guided Player Character” or “Quick/Manual Token”; do not force every NPC/token through the wizard. |
-| P0 | Which ability-score methods are enabled? | Recommended: standard array and point buy first; allow rolling only if campaign/DM policy is defined. |
-| P0 | Are rules violations blocked or merely warned? | Block invalid guided builds; keep explicit manual overrides in the general editor and mark them as overrides. |
-| P0 | Are equipment packages and starting spell choices required in MVP? | Yes for a complete level-1 character, but scope the catalog to the chosen source. If delayed, save a clearly incomplete draft rather than fabricating values. |
-| P0 | Should the wizard create a library character before completion? | Recommended: resumable draft for library creation; map-only quick tokens can remain inline until the user chooses to save/link. |
-| P1 | Are homebrew/custom options supported? | Not in the first catalog. Define an extension boundary after the official rules path works. |
-| P1 | How are legacy/manual sheets handled? | Preserve them as `legacy`/`manual`; do not silently migrate or recalculate. Hide deprecated 2014 choices from new creation and offer an explicit 2024 rebuild/migration only as later approved work. |
-| P1 | How are duplicate proficiencies handled? | Follow the selected source’s rule, represented as an explicit conflict policy in the catalog. Never silently drop a selection. |
-| P1 | When should subclass selection appear? | At the ruleset-defined level. For a level-1-only flow, show “subclass later” without asking for a value. |
-| P1 | Can users override derived values? | Yes in the general editor if required for homebrew/manual play, but record the override and show that it is not rules-derived. |
-
-Approval should answer the P0 rows before implementation begins. P1 rows can be resolved during the data-contract design spike if they do not change the MVP boundary.
+| P0 | First ruleset | **D&D 2024 SRD 5.2.1 only.** New guided creation uses no 2014 catalog. |
+| P0 | Catalog source/storage | Pin the manifest sources, verify hashes, and commit structured JSON catalogs for character and monster knowledge. Runtime code never crawls URLs. |
+| P0 | Client/server delivery | Import the same repository JSON on server and client. Use static/lazy client chunks for larger sections; do not add a serverless catalog endpoint or Redis dependency. |
+| P0 | Starting level | Level 1 only. Higher-level progression is future scope. |
+| P0 | Multiclassing | Out of scope for MVP. |
+| P0 | Guided entry points | Library creation and custom character-layer map tokens. Monster templates, imports, duplicates, and object tokens retain their existing flows. |
+| P0 | Custom map tokens | Offer “Guided Player Character” or “Quick/Manual Token.” |
+| P0 | Ability scores | Standard array, point buy, and rolling. Unrestricted manual entry remains available through the post-creation sheet editor. |
+| P0 | Rules violations | Block invalid guided completion, but allow saving/using an incomplete or partially resolved sheet. |
+| P0 | Completion requirements | A rules-complete level-1 build requires all source-defined class, background, species, language, score, feat, equipment, and spell choices. |
+| P0 | Usability/status | Every saved sheet/token is usable in-game. Do not gate gameplay on `draft`; expose only non-blocking rules-completion and unresolved-choice metadata. |
+| P0 | Persistence | Persist the typed creation build alongside the runtime sheet inside the existing JSONB record initially. The sheet is the runtime projection; the build enables resume and deterministic recompilation. |
+| P1 | Homebrew/custom options | Out of scope for the first catalog; manual post-creation edits remain supported. |
+| P1 | Existing records | Use 2024 as the canonical schema for new behavior. Do not silently merge, recalculate, or migrate conflicting existing data; inventory concrete conflicts and ask for an explicit migration decision before changing records. |
+| P1 | Duplicate proficiencies | Follow the source-defined conflict/replacement policy and never silently discard a selection. |
+| P1 | Subclass timing | Follow the SRD level gate; do not ask for a subclass when level 1 does not grant one. |
+| P1 | Derived overrides | Preserve manual overrides in the general editor and identify them as non-rules-derived. |
 
 ## 12. Acceptance criteria for the requirements
 
@@ -470,34 +484,36 @@ The implementation should not be considered complete unless:
 1. A user can complete a level-1 build with a supported class, background, species, languages, scores, equipment, and any required spell/feat choices.
 2. The creator prevents invalid combinations and explains the reason in user-facing language.
 3. The same build produces the same derived values in the client preview and server result.
-4. The persisted character records its ruleset/version and the source IDs used to create it.
-5. Existing manual library sheets continue to open and edit.
-6. Importing, duplicating, and monster-template flows retain their existing semantics.
-7. A character-layer map token can either use the guided creator or remain a quick/manual token according to the approved UX decision.
-8. Monster data remains in the monster domain and is not required for player-character rule validation.
-9. No runtime Redis dependency is required to load the authoritative static rules catalog.
-10. The feature has a migration/compatibility story for sheets created before the ruleset metadata exists.
+4. Standard array, point buy, and rolling are validated; manual post-creation editing remains available.
+5. The persisted character records its ruleset/version, source IDs, creation build, completion metadata, and unresolved choices.
+6. The full-screen creator can save/resume partial builds, while every saved sheet/token remains usable in-game.
+7. Existing manual library sheets continue to open and edit without silent recalculation.
+8. Importing, duplicating, and monster-template flows retain their existing semantics.
+9. A character-layer map token can use guided creation or remain a quick/manual token.
+10. Character and monster SRD knowledge is stored as checked-in, manifest-verified JSON and is never loaded by runtime URL crawling.
+11. The same JSON catalog is shared by client preview and server validation without a runtime Redis or serverless catalog dependency.
+12. Concrete conflicts with existing records are documented and surfaced for explicit migration decisions rather than silently rewritten.
 
-## 13. Suggested delivery phases
+## 13. Approved delivery phases
 
-### Phase 0 — decisions and contract
+### Phase 0 — approved contract and source artifacts
 
-- Confirm the P0 decisions above.
-- Confirm the content source and permitted catalog scope.
-- Define the ruleset IDs, build-state schema, effect/choice vocabulary, and persistence metadata.
-- Inventory the exact 2024 source data required for level 1.
+- Pin and verify the SRD source extracts and character supplemental JSON against the checked-in manifest.
+- Generate and commit JSON artifacts for character definitions and monster knowledge.
+- Define the ruleset IDs, build-state schema, effect/choice vocabulary, and non-blocking completion metadata.
+- Inventory concrete conflicts between the 2024 creator model and existing runtime records; pause for user decisions before destructive migration.
 
-### Phase 1 — rule engine and catalog
+### Phase 1 — rule engine and JSON catalog
 
-- Add the versioned 2024 catalog for the selected classes, backgrounds, species, feats, spells, equipment, and languages.
+- Add the versioned 2024 JSON catalog for the selected classes, backgrounds, species, feats, spells, equipment, languages, and structured monster knowledge.
 - Implement pure validation and derivation functions.
 - Add server validation and unit-level tests for score generation, prerequisites, grants, and derived values.
 
 ### Phase 2 — library creator
 
-- Add the guided wizard to `/characters`.
-- Add draft/resume behavior if approved.
-- Compile valid builds into the existing sheet and preserve provenance.
+- Add the immersive full-screen guided creator to `/characters`.
+- Save/resume partial builds without preventing immediate sheet use.
+- Compile valid builds into the existing sheet and preserve the source build/provenance.
 
 ### Phase 3 — map integration
 
@@ -511,15 +527,15 @@ The implementation should not be considered complete unless:
 - Preserve the invariant that no deprecated 2014 entries can appear in new 2024 creation; future catalog updates must pass the source-manifest and generator verification checks.
 - Add explicit 2024 rebuild/migration tooling for legacy sheets only if separately approved.
 
-## 14. Implementation workflow after approval
+## 14. Implementation workflow
 
-No implementation or Herdr orchestration is part of this draft. After the requirements and P0 decisions are approved, the implementation workflow should use separate Herdr instances for:
+Implementation uses separate Herdr Codex sessions for:
 
-1. feature development;
-2. code review focused on rules/data integrity and regression risk; and
-3. QA focused on wizard combinations, persistence, map integration, mobile behavior, and legacy/monster flows.
+1. feature development and catalog generation;
+2. code review focused on rules/data integrity, security, persistence, and regression risk; and
+3. QA focused on wizard combinations, persistence, map integration, mobile behavior, and manual/monster flows.
 
-Each instance should receive the approved PRD, the agreed ruleset/content scope, and a clear handoff artifact. Final merge or release remains subject to the user’s final approval after development, review, and QA reports are complete.
+Each session receives this approved PRD, the agreed SRD-only scope, the JSON storage/delivery decision, and a clear handoff artifact. Developer changes must be complete before Reviewer starts; Reviewer approval is required before QA starts. Final merge or release remains subject to the user’s final approval after development, review, and QA reports are complete.
 
 ## 15. Reference material
 

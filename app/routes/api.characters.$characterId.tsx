@@ -4,6 +4,10 @@ import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
 import { cleanupDeletedRecordImages } from "~/.server/uploads/lifecycle";
+import { compileCharacterBuild } from "~/features/character-creator/rules/compile-build";
+import { preserveRuntimeSheetState } from "~/features/character-creator/rules/recompile-token";
+import { hasRulesDerivedManualChanges, invalidateGuidedSheet } from "~/features/character-creator/rules/provenance";
+import type { CharacterSheet } from "~/features/map-editor/types";
 
 async function canAccessCharacter(userId: string, characterId: string) {
   // Get the character
@@ -94,8 +98,10 @@ export async function action({ request, params }: { request: Request; params: { 
       updatedAt: new Date(),
     };
 
+    const hasGuidedBuild = body.guidedBuild !== undefined;
+
     // Only allow updating certain fields
-    if (body.name !== undefined) updates.name = body.name;
+    if (!hasGuidedBuild && body.name !== undefined) updates.name = body.name;
     if (body.imageUrl !== undefined) {
       const imageValidation = await validateOwnedImageUrls(userId, [body.imageUrl], {
         allowedExistingUrls: access.character?.imageUrl ? [access.character.imageUrl] : [],
@@ -108,8 +114,59 @@ export async function action({ request, params }: { request: Request; params: { 
     }
     if (body.color !== undefined) updates.color = body.color;
     if (body.size !== undefined) updates.size = body.size;
-    if (body.layer !== undefined) updates.layer = body.layer;
-    if (body.characterSheet !== undefined) updates.characterSheet = body.characterSheet;
+    if (body.layer !== undefined) {
+      if (hasGuidedBuild && body.layer !== "character") {
+        return Response.json(
+          { error: "Guided player characters must use the character layer." },
+          { status: 400 },
+        );
+      }
+      updates.layer = body.layer;
+    }
+    if (hasGuidedBuild) {
+      if (access.character?.layer !== "character") {
+        return Response.json(
+          { error: "Guided builds can only update character-layer records." },
+          { status: 400 },
+        );
+      }
+
+      const compiled = compileCharacterBuild(body.guidedBuild, new Date().toISOString());
+      if (!compiled.valid) {
+        return Response.json(
+          { error: "Invalid guided character build", errors: compiled.errors },
+          { status: 400 },
+        );
+      }
+      // Never trust a client-provided sheet when a guided build is submitted.
+      // The validated build is also authoritative for the stored name.
+      updates.name = compiled.build.name;
+      // Preserve runtime-only state while replacing the rules-derived sheet.
+      updates.characterSheet = preserveRuntimeSheetState(
+        compiled.sheet,
+        access.character?.characterSheet,
+      );
+    } else if (body.characterSheet !== undefined) {
+      // Preserve the existing manual/import/monster compatibility path.
+      const previousSheet = access.character?.characterSheet as CharacterSheet | null | undefined;
+      if (
+        previousSheet?.creationBuild &&
+        body.characterSheet &&
+        typeof body.characterSheet === "object" &&
+        !Array.isArray(body.characterSheet)
+      ) {
+        const changedFields = Object.fromEntries(
+          Object.keys(body.characterSheet).filter((fieldName) =>
+            JSON.stringify((body.characterSheet as Record<string, unknown>)[fieldName]) !== JSON.stringify((previousSheet as unknown as Record<string, unknown>)[fieldName]),
+          ).map((fieldName) => [fieldName, (body.characterSheet as Record<string, unknown>)[fieldName]]),
+        ) as Partial<CharacterSheet>;
+        updates.characterSheet = hasRulesDerivedManualChanges(changedFields, previousSheet)
+          ? invalidateGuidedSheet(body.characterSheet as CharacterSheet)
+          : body.characterSheet;
+      } else {
+        updates.characterSheet = body.characterSheet;
+      }
+    }
 
     await db.update(characters).set(updates).where(eq(characters.id, characterId));
 

@@ -4,6 +4,7 @@ import { characters } from "~/.server/db/schema";
 import { requireAuth } from "~/.server/auth/session";
 import { getUserTierLimits } from "~/.server/subscription";
 import { validateOwnedImageUrls } from "~/.server/uploads/image-validation";
+import { compileCharacterBuild } from "~/features/character-creator/rules/compile-build";
 
 /**
  * GET /api/characters
@@ -46,7 +47,32 @@ export async function action({ request }: { request: Request }) {
   const body = await request.json();
   const { name, imageUrl, color, size, layer, characterSheet } = body;
 
-  if (!name?.trim()) {
+  let persistedCharacterSheet = characterSheet || null;
+  let persistedName = typeof name === "string" ? name.trim() : "";
+  let persistedLayer = layer || "character";
+  if (body.guidedBuild !== undefined) {
+    if (layer !== undefined && layer !== "character") {
+      return Response.json(
+        { error: "Guided player characters must use the character layer." },
+        { status: 400 },
+      );
+    }
+
+    const compiled = compileCharacterBuild(body.guidedBuild, new Date().toISOString());
+    if (!compiled.valid) {
+      return Response.json(
+        { error: "Invalid guided character build", errors: compiled.errors },
+        { status: 400 },
+      );
+    }
+    // The validated build is authoritative for guided metadata. Ignore any
+    // conflicting top-level name supplied by the caller.
+    persistedName = compiled.build.name;
+    persistedLayer = "character";
+    persistedCharacterSheet = compiled.sheet;
+  }
+
+  if (!persistedName) {
     return Response.json({ error: "Name is required" }, { status: 400 });
   }
 
@@ -61,12 +87,12 @@ export async function action({ request }: { request: Request }) {
   await db.insert(characters).values({
     id,
     userId,
-    name: name.trim(),
+    name: persistedName,
     imageUrl: imageUrl || null,
     color: color || "#ef4444",
     size: size || 1,
-    layer: layer || "character",
-    characterSheet: characterSheet || null,
+    layer: persistedLayer,
+    characterSheet: persistedCharacterSheet,
     createdAt: now,
     updatedAt: now,
   });

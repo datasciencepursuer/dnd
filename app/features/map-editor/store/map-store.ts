@@ -7,6 +7,7 @@ import { hapticImpact } from "~/lib/haptics";
 import { normalizeGridRange } from "../utils/grid-utils";
 import { computeDistanceMatrix } from "../utils/distance-utils";
 import { packActiveScene, unpackSceneIntoMap } from "../utils/scene-utils";
+import { hasRulesDerivedManualChanges, invalidateGuidedSheet } from "~/features/character-creator/rules/provenance";
 
 // Timeout for dirty tokens - after this time, server updates will overwrite local changes
 const DIRTY_TOKEN_STALE_MS = 10000; // 10 seconds
@@ -797,6 +798,9 @@ export const useMapStore = create<MapState>()(
 
           // If token has no characterSheet, initialize with defaults before applying updates
           const baseSheet = token.characterSheet ?? createDefaultCharacterSheet();
+          const nextSheet = baseSheet.creationBuild && hasRulesDerivedManualChanges(updates, baseSheet)
+            ? invalidateGuidedSheet({ ...baseSheet, ...updates })
+            : { ...baseSheet, ...updates };
 
           // Fields that stay individual per monster in a group
           const individualFields = new Set<string>(['hpCurrent', 'deathSaves', 'condition']);
@@ -828,7 +832,7 @@ export const useMapStore = create<MapState>()(
               ...state.map,
               tokens: state.map.tokens.map((t) => {
                 if (t.id === tokenId) {
-                  return { ...t, characterSheet: { ...baseSheet, ...updates } };
+                  return { ...t, characterSheet: nextSheet };
                 }
                 // Propagate shared fields to siblings in the same monster group
                 if (hasSiblings && t.monsterGroupId === groupId) {
@@ -1056,7 +1060,7 @@ export const useMapStore = create<MapState>()(
         // When duplicating into the same group, reset individual combat state
         const duplicatedSheet = sourceToken.characterSheet
           ? options.sameGroup
-            ? {
+            ? invalidateGuidedSheet({
                 ...sourceToken.characterSheet,
                 hpCurrent: sourceToken.characterSheet.hpMax,
                 deathSaves: {
@@ -1064,8 +1068,8 @@ export const useMapStore = create<MapState>()(
                   failures: [false, false, false] as [boolean, boolean, boolean],
                 },
                 condition: "Healthy" as const,
-              }
-            : { ...sourceToken.characterSheet }
+              })
+            : invalidateGuidedSheet({ ...sourceToken.characterSheet })
           : sourceToken.characterSheet;
 
         const newToken: Token = {
@@ -1080,6 +1084,8 @@ export const useMapStore = create<MapState>()(
           monsterGroupId: options.sameGroup ? sourceToken.monsterGroupId : null,
           // Don't copy character link - duplicates should be independent
           characterId: null,
+          // Keep the copied current sheet; do not rerun a guided source build.
+          characterCreationBuild: null,
           // Use reset character sheet for group duplicates
           characterSheet: duplicatedSheet,
         };
@@ -1177,7 +1183,15 @@ export const useMapStore = create<MapState>()(
             ...structuredClone(source),
             id: crypto.randomUUID(),
             name: `${source.name} (Copy)`,
-            tokens: source.tokens.map((t) => ({ ...structuredClone(t), id: crypto.randomUUID() })),
+            tokens: source.tokens.map((t) => ({
+              ...structuredClone(t),
+              id: crypto.randomUUID(),
+              // Scene duplicates are independent tokens, matching duplicateToken.
+              // Preserve the copied sheet, including current runtime state.
+              characterId: null,
+              characterCreationBuild: null,
+              characterSheet: t.characterSheet ? invalidateGuidedSheet(structuredClone(t.characterSheet)) : null,
+            })),
             walls: source.walls.map((w) => ({ ...structuredClone(w), id: crypto.randomUUID() })),
             areas: source.areas.map((a) => ({ ...structuredClone(a), id: crypto.randomUUID() })),
             labels: source.labels.map((l) => ({ ...structuredClone(l), id: crypto.randomUUID() })),

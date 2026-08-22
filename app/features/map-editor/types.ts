@@ -1,3 +1,5 @@
+import type { CharacterCreationBuild } from "~/features/character-creator/rules/types";
+
 // Grid Types
 export type GridType = "square" | "hex";
 
@@ -205,9 +207,48 @@ export interface Equipment {
   notes: string;
 }
 
+/**
+ * Provenance for values produced by a rules-aware character creator.
+ *
+ * This is optional so legacy/manual sheets and monster-derived sheets retain
+ * their existing JSON shape. The creator records field-level sources instead
+ * of implying that every runtime sheet field was rules-derived.
+ */
+export interface CharacterSheetProvenanceField {
+  source: "catalog" | "score-generation" | "runtime-calculation" | "manual-override";
+  definitionId?: string;
+  note?: string;
+}
+
+export interface CharacterSheetProvenance {
+  /** Deprecated compatibility marker; gameplay must never depend on it. */
+  status?: "draft";
+  mode: "guided" | "manual" | "monster-template" | "imported";
+  ruleset: string;
+  sourceBook: string;
+  sourceVersion: string;
+  sourceManifest: string;
+  catalogVersion: string;
+  generatedAt: string;
+  definitionIds: string[];
+  choices: Record<string, unknown>;
+  fields: Record<string, CharacterSheetProvenanceField>;
+  modeled: string[];
+  notModeled: string[];
+  /** Advisory only: a sheet remains usable when this is false. */
+  rulesComplete?: boolean;
+  /** Human-readable missing/invalid creation choices. */
+  unresolvedChoices?: string[];
+}
+
 export interface CharacterSheet {
   // Version tracking for sync
   lastModified?: number; // Unix timestamp for version checking
+
+  // Optional provenance for guided player-character creation.
+  creationProvenance?: CharacterSheetProvenance;
+  // Typed creation recipe persisted alongside the runtime projection.
+  creationBuild?: CharacterCreationBuild;
 
   // SRD monster origin (set when placed from compendium, used for AI DM enrichment)
   srdMonsterIndex?: string;
@@ -235,6 +276,8 @@ export interface CharacterSheet {
 
   // Skills
   skills: SkillProficiencies;
+  /** Additional numeric bonuses from selected 2024 class features. */
+  skillBonuses?: Partial<Record<keyof SkillProficiencies, number>>;
 
   // Equipment & Training Proficiencies
   armorProficiencies: ArmorProficiencies;
@@ -244,6 +287,10 @@ export interface CharacterSheet {
   // Class Features, Species Traits, Feats
   classFeatures: ClassFeature[];
   speciesTraits: string; // Free text
+  /** Optional structured effects emitted by the 2024 guided creator. */
+  damageResistances?: string[];
+  speciesAbilities?: Array<{ id: string; name: string; description: string }>;
+  weaponMasteries?: string[];
   feats: string; // Free text
 
   // Weapons & Equipment
@@ -311,6 +358,9 @@ export interface Token {
   layer: TokenLayer;
   ownerId: string | null; // User who created/owns this token (null = map owner)
   characterSheet: CharacterSheet | null;
+  // Optional source build for server-side recompilation of guided draft tokens.
+  // null explicitly transitions a guided token to the manual sheet path.
+  characterCreationBuild?: CharacterCreationBuild | null;
   // If set, this token is linked to a shared character from the library
   // The character's data (name, image, color, size, characterSheet) takes precedence
   characterId: string | null;

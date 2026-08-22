@@ -145,10 +145,10 @@ export function formatSkillName(skill: keyof SkillProficiencies): string {
   return names[skill];
 }
 
-export function createDefaultCharacterSheet(): CharacterSheet {
+export function createDefaultCharacterSheet(lastModified = Date.now()): CharacterSheet {
   return {
     // Version tracking
-    lastModified: Date.now(),
+    lastModified,
 
     // Basic info
     background: null,
@@ -246,9 +246,10 @@ export function calculateSkillModifier(
   const abilityMod = sheet.abilities[ability].modifier;
   const skillLevel = sheet.skills?.[skill];
   const profBonus = sheet.proficiencyBonus;
-  if (skillLevel === "expertise") return abilityMod + profBonus * 2;
-  if (skillLevel === "proficient") return abilityMod + profBonus;
-  return abilityMod;
+  const featureBonus = sheet.skillBonuses?.[skill] ?? 0;
+  if (skillLevel === "expertise") return abilityMod + profBonus * 2 + featureBonus;
+  if (skillLevel === "proficient") return abilityMod + profBonus + featureBonus;
+  return abilityMod + featureBonus;
 }
 
 // Calculate Passive Perception: 10 + Wisdom modifier + proficiency bonus (if proficient)

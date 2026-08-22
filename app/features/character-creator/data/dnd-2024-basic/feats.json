@@ -1,0 +1,379 @@
+[
+  {
+    "id": "dnd-2024-basic:feat:alert",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Alert",
+    "category": "origin",
+    "prerequisite": null,
+    "description": "_Initiative Swap._ Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can't make this swap if you or the ally has the Incapacitated condition.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:alert"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:magic-initiate",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Magic Initiate",
+    "category": "origin",
+    "prerequisite": null,
+    "description": "_Repeatable._ You can take this feat more than once, but you must choose a different spell list each time.",
+    "choices": [
+      "level 1 spell from the same list you selected for this feat's cantrips",
+      "different spell list each time"
+    ],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:magic-initiate"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:savage-attacker",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Savage Attacker",
+    "category": "origin",
+    "prerequisite": null,
+    "description": "You've trained to deal particularly damaging strikes. Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:savage-attacker"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:skilled",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Skilled",
+    "category": "origin",
+    "prerequisite": null,
+    "description": "_Repeatable._ You can take this feat more than once.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:skilled"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:ability-score-improvement",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Ability Score Improvement",
+    "category": "general",
+    "prerequisite": "Level 4+)",
+    "description": "_Repeatable._ You can take this feat more than once.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:ability-score-improvement"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:grappler",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Grappler",
+    "category": "general",
+    "prerequisite": "Level 4+, Strength or Dexterity 13+)",
+    "description": "_Fast Wrestler._ You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:grappler"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:archery",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Archery",
+    "category": "fighting style",
+    "prerequisite": "Fighting Style Feature)",
+    "description": "You gain a +2 bonus to attack rolls you make with Ranged weapons.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:archery"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:defense",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Defense",
+    "category": "fighting style",
+    "prerequisite": "Fighting Style Feature)",
+    "description": "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:defense"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:great-weapon-fighting",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Great Weapon Fighting",
+    "category": "fighting style",
+    "prerequisite": "Fighting Style Feature)",
+    "description": "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:great-weapon-fighting"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:two-weapon-fighting",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Two-Weapon Fighting",
+    "category": "fighting style",
+    "prerequisite": "Fighting Style Feature)",
+    "description": "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:two-weapon-fighting"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-combat-prowess",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Combat Prowess",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Peerless Aim._ When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-combat-prowess"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-dimensional-travel",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Dimensional Travel",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Blink Steps._ Immediately after you take the Attack action or the Magic action, you can teleport up to 30 feet to an unoccupied space you can see.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-dimensional-travel"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-fate",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Fate",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Improve Fate._ When you or another creature within 60 feet of you succeeds on or fails a D20 Test, you can roll 2d4 and apply the total rolled as a bonus or penalty to the d20 roll. Once you use this benefit, you can't use it again until you roll Initiative or finish a Short or Long Rest.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-fate"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-irresistible-offense",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Irresistible Offense",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Overwhelming Strike._ When you roll a 20 on the d20 for an attack roll, you can deal extra damage to the target equal to the ability score increased by this feat. The extra damage's type is the same as the attack's type.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-irresistible-offense"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-spell-recall",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Spell Recall",
+    "category": "epic boon",
+    "prerequisite": "Level 19+, Spellcasting Feature)",
+    "description": "_Free Casting._ Whenever you cast a spell with a level 1–4 spell slot, roll 1d4. If the number you roll is the same as the slot's level, the slot isn't expended.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-spell-recall"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-the-night-spirit",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of the Night Spirit",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Shadowy Form._ While within Dim Light or Darkness, you have Resistance to all damage except Psychic and Radiant.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-the-night-spirit"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:feat:boon-of-truesight",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Boon of Truesight",
+    "category": "epic boon",
+    "prerequisite": "Level 19+)",
+    "description": "_Truesight._ You have Truesight with a range of 60 feet.",
+    "choices": [],
+    "effects": [
+      {
+        "type": "feat",
+        "featId": "dnd-2024-basic:feat:boon-of-truesight"
+      }
+    ]
+  }
+]

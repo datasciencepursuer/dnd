@@ -64,7 +64,7 @@ function applyRenderResolutionCap(stage: any, width: number, height: number) {
 interface MapCanvasProps {
   onTokenMoved?: (tokenId: string, position: GridPosition) => void;
   onTokenFlip?: (tokenId: string) => void;
-  onTokenCreate?: (token: Token) => void;
+  onTokenCreate?: (token: Token) => void | Promise<boolean>;
   onFogPaint?: (col: number, row: number, creatorId: string) => void;
   onFogErase?: (col: number, row: number) => void;
   onFogPaintRange?: (startCol: number, startRow: number, endCol: number, endRow: number, creatorId: string) => void;

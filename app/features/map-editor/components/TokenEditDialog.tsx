@@ -8,6 +8,7 @@ import { apiUrl } from "~/lib/api-config";
 import { useUploadThing } from "~/utils/uploadthing";
 import { UPLOAD_LIMITS, parseUploadError } from "~/lib/upload-limits";
 import type { Token, TokenLayer, CharacterSheet, MonsterGroup } from "../types";
+import { invalidateGuidedSheet } from "~/features/character-creator/rules/provenance";
 import {
   PORTRAIT_STYLE_OPTIONS,
   DEFAULT_PORTRAIT_STYLE,
@@ -301,7 +302,7 @@ export function TokenEditDialog({
 
   const handleSave = () => {
     const updates: Record<string, unknown> = {
-      name: name.trim() || "Unnamed Token",
+      name: savedName,
       color,
       size,
       layer,
@@ -315,7 +316,14 @@ export function TokenEditDialog({
     // If we imported a character, use the pending sheet for display (HP bar, AC icon)
     // The library is the source of truth for editing, but token keeps cached copy for rendering
     if (pendingCharacterSheet !== undefined) {
-      updates.characterSheet = pendingCharacterSheet;
+      updates.characterSheet = shouldClearEmbeddedGuidedBuild ? clearedEmbeddedSheet : pendingCharacterSheet;
+    }
+    if (shouldClearGuidedBuild) {
+      updates.characterCreationBuild = null;
+      if (pendingCharacterSheet === undefined && shouldClearEmbeddedGuidedBuild) updates.characterSheet = clearedEmbeddedSheet;
+    }
+    if (guidedSourceName && name !== guidedSourceName) {
+      setName(guidedSourceName);
     }
 
     // Update locally first for responsive UI
@@ -456,6 +464,20 @@ export function TokenEditDialog({
     ? availableCharacters.find((c) => c.id === characterId)
     : null;
 
+  // Library import/link/remove operations must clear a guided source build.
+  // Otherwise a later server persistence pass could recompile over the imported sheet.
+  const hasGuidedSourceBuild = token.characterCreationBuild != null;
+  const shouldClearGuidedBuild = (hasGuidedSourceBuild && layer !== "character") ||
+    pendingCharacterSheet !== undefined ||
+    characterId !== (token.characterId ?? null);
+  const guidedSourceName = !shouldClearGuidedBuild && layer === "character"
+    ? token.characterCreationBuild?.name
+    : undefined;
+  const savedName = guidedSourceName ?? (name.trim() || "Unnamed Token");
+  const shouldClearEmbeddedGuidedBuild = shouldClearGuidedBuild && (layer !== "character" || characterId === null);
+  const sourceSheet = pendingCharacterSheet !== undefined ? pendingCharacterSheet : token.characterSheet;
+  const clearedEmbeddedSheet = sourceSheet ? invalidateGuidedSheet(sourceSheet) : sourceSheet;
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -481,7 +503,7 @@ export function TokenEditDialog({
   // Save current edits without closing the dialog
   const saveCurrentEdits = () => {
     const updates: Record<string, unknown> = {
-      name: name.trim() || "Unnamed Token",
+      name: savedName,
       color,
       size,
       layer,
@@ -493,7 +515,14 @@ export function TokenEditDialog({
     };
 
     if (pendingCharacterSheet !== undefined) {
-      updates.characterSheet = pendingCharacterSheet;
+      updates.characterSheet = shouldClearEmbeddedGuidedBuild ? clearedEmbeddedSheet : pendingCharacterSheet;
+    }
+    if (shouldClearGuidedBuild) {
+      updates.characterCreationBuild = null;
+      if (pendingCharacterSheet === undefined && shouldClearEmbeddedGuidedBuild) updates.characterSheet = clearedEmbeddedSheet;
+    }
+    if (guidedSourceName && name !== guidedSourceName) {
+      setName(guidedSourceName);
     }
 
     updateToken(token.id, updates);

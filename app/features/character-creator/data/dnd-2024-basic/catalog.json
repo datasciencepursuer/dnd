@@ -1,0 +1,56 @@
+{
+  "ruleset": "dnd-2024-basic",
+  "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+  "sourceVersion": "5.2.1",
+  "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+  "sourceUrl": "https://www.dndbeyond.com/srd",
+  "attribution": "D&D Beyond, System Reference Document v5.2.1",
+  "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+  "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+  "id": "dnd-2024-basic",
+  "version": "5.2.1",
+  "generatedAt": "source-manifest",
+  "files": {
+    "classes": "classes.json",
+    "backgrounds": "backgrounds.json",
+    "species": "species.json",
+    "feats": "feats.json",
+    "spells": "spells.json",
+    "equipment": "equipment.json",
+    "languages": "languages.json"
+  },
+  "languagePolicy": {
+    "fixed": [
+      "dnd-2024-basic:language:common"
+    ],
+    "choose": 2,
+    "options": [
+      "dnd-2024-basic:language:common-sign-language",
+      "dnd-2024-basic:language:draconic",
+      "dnd-2024-basic:language:dwarvish",
+      "dnd-2024-basic:language:elvish",
+      "dnd-2024-basic:language:giant",
+      "dnd-2024-basic:language:gnomish",
+      "dnd-2024-basic:language:goblin",
+      "dnd-2024-basic:language:halfling",
+      "dnd-2024-basic:language:orc"
+    ],
+    "explanation": "Every character knows Common plus two languages chosen from the Standard Languages table. Class features can add more languages."
+  },
+  "scoreMethods": [
+    "standard-array",
+    "point-buy",
+    "rolling"
+  ],
+  "level": 1,
+  "multiclassing": false,
+  "counts": {
+    "classes": 12,
+    "backgrounds": 4,
+    "species": 9,
+    "feats": 17,
+    "spells": 339,
+    "equipment": 185,
+    "languages": 19
+  }
+}

@@ -1,0 +1,1248 @@
+[
+  {
+    "id": "dnd-2024-basic:species:dragonborn",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Dragonborn",
+    "creatureType": "Humanoid",
+    "size": [
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:dragonborn-draconic-ancestry",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Draconic Ancestry",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dragonborn-breath-weapon",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Breath Weapon",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dragonborn-damage-resistance",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Damage Resistance",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dragonborn-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dragonborn-draconic-flight",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Draconic Flight",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:dragonborn:draconicancestry",
+        "kind": "draconicAncestry",
+        "label": "Draconic Ancestry",
+        "count": 1,
+        "options": [
+          {
+            "id": "black",
+            "label": "Black",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "acid"
+              }
+            ]
+          },
+          {
+            "id": "blue",
+            "label": "Blue",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "lightning"
+              }
+            ]
+          },
+          {
+            "id": "brass",
+            "label": "Brass",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "fire"
+              }
+            ]
+          },
+          {
+            "id": "bronze",
+            "label": "Bronze",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "lightning"
+              }
+            ]
+          },
+          {
+            "id": "copper",
+            "label": "Copper",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "acid"
+              }
+            ]
+          },
+          {
+            "id": "gold",
+            "label": "Gold",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "fire"
+              }
+            ]
+          },
+          {
+            "id": "green",
+            "label": "Green",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "poison"
+              }
+            ]
+          },
+          {
+            "id": "red",
+            "label": "Red",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "fire"
+              }
+            ]
+          },
+          {
+            "id": "silver",
+            "label": "Silver",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "cold"
+              }
+            ]
+          },
+          {
+            "id": "white",
+            "label": "White",
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "cold"
+              }
+            ]
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Draconic Ancestry granted by Dragonborn."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dragonborn-draconic-ancestry"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dragonborn-breath-weapon"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dragonborn-damage-resistance"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dragonborn-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dragonborn-draconic-flight"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:dwarf",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Dwarf",
+    "creatureType": "Humanoid",
+    "size": [
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:dwarf-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dwarf-dwarven-resilience",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Dwarven Resilience",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dwarf-dwarven-toughness",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Dwarven Toughness",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:dwarf-stonecunning",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Stonecunning",
+        "level": 1
+      }
+    ],
+    "choices": [],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dwarf-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dwarf-dwarven-resilience"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dwarf-dwarven-toughness"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:dwarf-stonecunning"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:elf",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Elf",
+    "creatureType": "Humanoid",
+    "size": [
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:elf-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:elf-elven-lineage",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Elven Lineage",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:elf-fey-ancestry",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Fey Ancestry",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:elf-keen-senses",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Keen Senses",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:elf-trance",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Trance",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:elf:elvenlineage",
+        "kind": "elvenLineage",
+        "label": "Elven Lineage",
+        "count": 1,
+        "options": [
+          {
+            "id": "drow",
+            "label": "Drow",
+            "grants": [
+              "dancing-lights"
+            ]
+          },
+          {
+            "id": "high-elf",
+            "label": "High Elf",
+            "grants": [
+              "prestidigitation"
+            ]
+          },
+          {
+            "id": "wood-elf",
+            "label": "Wood Elf",
+            "grants": [
+              "druidcraft"
+            ],
+            "effects": [
+              {
+                "type": "speed",
+                "walk": 35
+              }
+            ]
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Elven Lineage granted by Elf."
+      },
+      {
+        "id": "dnd-2024-basic:species:elf:lineagespellcastingability",
+        "kind": "lineageSpellcastingAbility",
+        "label": "Lineage spellcasting ability",
+        "count": 1,
+        "options": "intelligence-wisdom-charisma",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Lineage spellcasting ability granted by Elf."
+      },
+      {
+        "id": "dnd-2024-basic:species:elf:keensenses",
+        "kind": "keenSenses",
+        "label": "Keen Senses skill",
+        "count": 1,
+        "options": [
+          {
+            "id": "insight",
+            "label": "insight"
+          },
+          {
+            "id": "perception",
+            "label": "perception"
+          },
+          {
+            "id": "survival",
+            "label": "survival"
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Keen Senses skill granted by Elf."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:elf-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:elf-elven-lineage"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:elf-fey-ancestry"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:elf-keen-senses"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:elf-trance"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:gnome",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Gnome",
+    "creatureType": "Humanoid",
+    "size": [
+      "S"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:gnome-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:gnome-gnomish-cunning",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Gnomish Cunning",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:gnome-gnomish-lineage",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Gnomish Lineage",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:gnome:gnomishlineage",
+        "kind": "gnomishLineage",
+        "label": "Gnomish Lineage",
+        "count": 1,
+        "options": [
+          {
+            "id": "forest-gnome",
+            "label": "Forest Gnome",
+            "grants": [
+              "minor-illusion",
+              "speak-with-animals"
+            ]
+          },
+          {
+            "id": "rock-gnome",
+            "label": "Rock Gnome",
+            "grants": [
+              "mending",
+              "prestidigitation"
+            ]
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Gnomish Lineage granted by Gnome."
+      },
+      {
+        "id": "dnd-2024-basic:species:gnome:lineagespellcastingability",
+        "kind": "lineageSpellcastingAbility",
+        "label": "Lineage spellcasting ability",
+        "count": 1,
+        "options": "intelligence-wisdom-charisma",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Lineage spellcasting ability granted by Gnome."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:gnome-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:gnome-gnomish-cunning"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:gnome-gnomish-lineage"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:goliath",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Goliath",
+    "creatureType": "Humanoid",
+    "size": [
+      "M"
+    ],
+    "speed": {
+      "walk": 35
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:goliath-giant-ancestry",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Giant Ancestry",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:goliath-large-form",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Large Form",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:goliath-powerful-build",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Powerful Build",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:goliath:giantancestry",
+        "kind": "giantAncestry",
+        "label": "Giant Ancestry",
+        "count": 1,
+        "options": [
+          {
+            "id": "clouds-jaunt",
+            "label": "Cloud's Jaunt",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "Bonus Action: teleport up to 30 feet to an unoccupied space you can see."
+              }
+            ]
+          },
+          {
+            "id": "fires-burn",
+            "label": "Fire's Burn",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "When you hit with an attack roll, deal an extra 1d10 Fire damage."
+              }
+            ]
+          },
+          {
+            "id": "frosts-chill",
+            "label": "Frost's Chill",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "When you hit with an attack roll, deal an extra 1d6 Cold damage and reduce the target's Speed by 10 feet until your next turn."
+              }
+            ]
+          },
+          {
+            "id": "hills-tumble",
+            "label": "Hill's Tumble",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "When you hit a Large or smaller creature with an attack roll, you can give it the Prone condition."
+              }
+            ]
+          },
+          {
+            "id": "stones-endurance",
+            "label": "Stone's Endurance",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "Reaction when damaged: roll 1d12 + Constitution modifier and reduce the damage by the total."
+              }
+            ]
+          },
+          {
+            "id": "storms-thunder",
+            "label": "Storm's Thunder",
+            "effects": [
+              {
+                "type": "species-ability",
+                "description": "Reaction when damaged by a creature within 60 feet: deal 1d8 Thunder damage to it."
+              }
+            ]
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Giant Ancestry granted by Goliath."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 35
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:goliath-giant-ancestry"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:goliath-large-form"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:goliath-powerful-build"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:halfling",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Halfling",
+    "creatureType": "Humanoid",
+    "size": [
+      "S"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:halfling-brave",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Brave",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:halfling-halfling-nimbleness",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Halfling Nimbleness",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:halfling-luck",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Luck",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:halfling-naturally-stealthy",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Naturally Stealthy",
+        "level": 1
+      }
+    ],
+    "choices": [],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:halfling-brave"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:halfling-halfling-nimbleness"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:halfling-luck"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:halfling-naturally-stealthy"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:human",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Human",
+    "creatureType": "Humanoid",
+    "size": [
+      "S",
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:human-resourceful",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Resourceful",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:human-skillful",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Skillful",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:human-versatile",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Versatile",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:human:size",
+        "kind": "size",
+        "label": "Human size",
+        "count": 1,
+        "options": [
+          {
+            "id": "small",
+            "label": "Small"
+          },
+          {
+            "id": "medium",
+            "label": "Medium"
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Human size granted by Human."
+      },
+      {
+        "id": "dnd-2024-basic:species:human:skill",
+        "kind": "skill",
+        "label": "Human skill proficiency",
+        "count": 1,
+        "options": "all-skills",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Human skill proficiency granted by Human."
+      },
+      {
+        "id": "dnd-2024-basic:species:human:originfeat",
+        "kind": "originFeat",
+        "label": "Human origin feat",
+        "count": 1,
+        "options": "origin-feats",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Human origin feat granted by Human."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:human-resourceful"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:human-skillful"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:human-versatile"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:orc",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Orc",
+    "creatureType": "Humanoid",
+    "size": [
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:orc-adrenaline-rush",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Adrenaline Rush",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:orc-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:orc-relentless-endurance",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Relentless Endurance",
+        "level": 1
+      }
+    ],
+    "choices": [],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:orc-adrenaline-rush"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:orc-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:orc-relentless-endurance"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:species:tiefling",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Tiefling",
+    "creatureType": "Humanoid",
+    "size": [
+      "S",
+      "M"
+    ],
+    "speed": {
+      "walk": 30
+    },
+    "traits": [
+      {
+        "id": "dnd-2024-basic:species-trait:tiefling-darkvision",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Darkvision",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:tiefling-fiendish-legacy",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Fiendish Legacy",
+        "level": 1
+      },
+      {
+        "id": "dnd-2024-basic:species-trait:tiefling-otherworldly-presence",
+        "ruleset": "dnd-2024-basic",
+        "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+        "sourceVersion": "5.2.1",
+        "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+        "sourceUrl": "https://www.dndbeyond.com/srd",
+        "attribution": "D&D Beyond, System Reference Document v5.2.1",
+        "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+        "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+        "displayName": "Otherworldly Presence",
+        "level": 1
+      }
+    ],
+    "choices": [
+      {
+        "id": "dnd-2024-basic:species:tiefling:fiendishlegacy",
+        "kind": "fiendishLegacy",
+        "label": "Fiendish Legacy",
+        "count": 1,
+        "options": [
+          {
+            "id": "abyssal",
+            "label": "Abyssal",
+            "grants": [
+              "poison-spray"
+            ],
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "poison"
+              }
+            ]
+          },
+          {
+            "id": "chthonic",
+            "label": "Chthonic",
+            "grants": [
+              "chill-touch"
+            ],
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "necrotic"
+              }
+            ]
+          },
+          {
+            "id": "infernal",
+            "label": "Infernal",
+            "grants": [
+              "fire-bolt"
+            ],
+            "effects": [
+              {
+                "type": "damage-resistance",
+                "damageType": "fire"
+              }
+            ]
+          }
+        ],
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Fiendish Legacy granted by Tiefling."
+      },
+      {
+        "id": "dnd-2024-basic:species:tiefling:legacyspellcastingability",
+        "kind": "legacySpellcastingAbility",
+        "label": "Legacy spellcasting ability",
+        "count": 1,
+        "options": "intelligence-wisdom-charisma",
+        "unique": true,
+        "required": true,
+        "explanation": "Resolve the Legacy spellcasting ability granted by Tiefling."
+      }
+    ],
+    "grants": [
+      {
+        "type": "creature-type",
+        "value": "humanoid"
+      },
+      {
+        "type": "speed",
+        "walk": 30
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:tiefling-darkvision"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:tiefling-fiendish-legacy"
+      },
+      {
+        "type": "species-trait",
+        "traitId": "dnd-2024-basic:species-trait:tiefling-otherworldly-presence"
+      }
+    ]
+  }
+]

@@ -1,0 +1,592 @@
+[
+  {
+    "id": "dnd-2024-basic:background:acolyte",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Acolyte",
+    "abilityScores": [
+      "intelligence",
+      "wisdom",
+      "charisma"
+    ],
+    "abilityScoreIncrease": {
+      "cap": 20,
+      "patterns": [
+        "two-plus-one",
+        "one-plus-one-plus-one"
+      ]
+    },
+    "originFeatId": "dnd-2024-basic:feat:magic-initiate",
+    "skillProficiencies": [
+      "insight",
+      "religion"
+    ],
+    "toolProficiencies": [
+      "calligraphers-supplies"
+    ],
+    "startingEquipment": {
+      "sourceText": "_Choose A or B:_ (A) Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "acolyte-equipment-a",
+          "label": "Package A",
+          "sourceText": "Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 8
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:calligraphers-supplies",
+              "displayName": "Calligrapher's Supplies",
+              "quantity": 1,
+              "sourceText": "Calligrapher's Supplies"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:book",
+              "displayName": "Book",
+              "quantity": 1,
+              "sourceText": "Book (prayers)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:holy-symbol",
+              "displayName": "Holy Symbol",
+              "quantity": 1,
+              "sourceText": "Holy Symbol"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:parchment",
+              "displayName": "Parchment",
+              "quantity": 1,
+              "sourceText": "Parchment (10 sheets)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:robe",
+              "displayName": "Robe",
+              "quantity": 1,
+              "sourceText": "Robe"
+            }
+          ]
+        },
+        {
+          "id": "acolyte-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "choices": [
+      {
+        "id": "dnd-2024-basic:background:acolyte:ability-score-increase",
+        "kind": "background-ability-scores",
+        "label": "Background ability-score increases",
+        "count": 3,
+        "options": [
+          "intelligence",
+          "wisdom",
+          "charisma"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Increase one listed ability by 2 and a different listed ability by 1, or increase all three by 1. Scores cannot exceed 20."
+      },
+      {
+        "id": "dnd-2024-basic:background:acolyte:equipment",
+        "kind": "equipment-package",
+        "label": "Background equipment",
+        "count": 1,
+        "options": [
+          "a",
+          "b"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Choose the background equipment package or the 50 GP alternative."
+      }
+    ],
+    "grants": [
+      {
+        "type": "skill-proficiency",
+        "target": "insight"
+      },
+      {
+        "type": "skill-proficiency",
+        "target": "religion"
+      },
+      {
+        "type": "tool-proficiency",
+        "target": "calligraphers-supplies"
+      },
+      {
+        "type": "origin-feat",
+        "featId": "dnd-2024-basic:feat:magic-initiate"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:background:criminal",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Criminal",
+    "abilityScores": [
+      "dexterity",
+      "constitution",
+      "intelligence"
+    ],
+    "abilityScoreIncrease": {
+      "cap": 20,
+      "patterns": [
+        "two-plus-one",
+        "one-plus-one-plus-one"
+      ]
+    },
+    "originFeatId": "dnd-2024-basic:feat:alert",
+    "skillProficiencies": [
+      "sleight-of-hand",
+      "stealth"
+    ],
+    "toolProficiencies": [
+      "thieves-tools"
+    ],
+    "startingEquipment": {
+      "sourceText": "_Choose A or B:_ (A) 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "criminal-equipment-a",
+          "label": "Package A",
+          "sourceText": "2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 16
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:daggers",
+              "displayName": "Daggers",
+              "quantity": 2,
+              "sourceText": "2 Daggers"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:thieves-tools",
+              "displayName": "Thieves' Tools",
+              "quantity": 1,
+              "sourceText": "Thieves' Tools"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:crowbar",
+              "displayName": "Crowbar",
+              "quantity": 1,
+              "sourceText": "Crowbar"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:pouches",
+              "displayName": "Pouches",
+              "quantity": 2,
+              "sourceText": "2 Pouches"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:travelers-clothes",
+              "displayName": "Traveler's Clothes",
+              "quantity": 1,
+              "sourceText": "Traveler's Clothes"
+            }
+          ]
+        },
+        {
+          "id": "criminal-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "choices": [
+      {
+        "id": "dnd-2024-basic:background:criminal:ability-score-increase",
+        "kind": "background-ability-scores",
+        "label": "Background ability-score increases",
+        "count": 3,
+        "options": [
+          "dexterity",
+          "constitution",
+          "intelligence"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Increase one listed ability by 2 and a different listed ability by 1, or increase all three by 1. Scores cannot exceed 20."
+      },
+      {
+        "id": "dnd-2024-basic:background:criminal:equipment",
+        "kind": "equipment-package",
+        "label": "Background equipment",
+        "count": 1,
+        "options": [
+          "a",
+          "b"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Choose the background equipment package or the 50 GP alternative."
+      }
+    ],
+    "grants": [
+      {
+        "type": "skill-proficiency",
+        "target": "sleight-of-hand"
+      },
+      {
+        "type": "skill-proficiency",
+        "target": "stealth"
+      },
+      {
+        "type": "tool-proficiency",
+        "target": "thieves-tools"
+      },
+      {
+        "type": "origin-feat",
+        "featId": "dnd-2024-basic:feat:alert"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:background:sage",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Sage",
+    "abilityScores": [
+      "constitution",
+      "intelligence",
+      "wisdom"
+    ],
+    "abilityScoreIncrease": {
+      "cap": 20,
+      "patterns": [
+        "two-plus-one",
+        "one-plus-one-plus-one"
+      ]
+    },
+    "originFeatId": "dnd-2024-basic:feat:magic-initiate",
+    "skillProficiencies": [
+      "arcana",
+      "history"
+    ],
+    "toolProficiencies": [
+      "calligraphers-supplies"
+    ],
+    "startingEquipment": {
+      "sourceText": "_Choose A or B:_ (A) Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "sage-equipment-a",
+          "label": "Package A",
+          "sourceText": "Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 8
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:quarterstaff",
+              "displayName": "Quarterstaff",
+              "quantity": 1,
+              "sourceText": "Quarterstaff"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:calligraphers-supplies",
+              "displayName": "Calligrapher's Supplies",
+              "quantity": 1,
+              "sourceText": "Calligrapher's Supplies"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:book",
+              "displayName": "Book",
+              "quantity": 1,
+              "sourceText": "Book (history)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:parchment",
+              "displayName": "Parchment",
+              "quantity": 1,
+              "sourceText": "Parchment (8 sheets)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:robe",
+              "displayName": "Robe",
+              "quantity": 1,
+              "sourceText": "Robe"
+            }
+          ]
+        },
+        {
+          "id": "sage-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "choices": [
+      {
+        "id": "dnd-2024-basic:background:sage:ability-score-increase",
+        "kind": "background-ability-scores",
+        "label": "Background ability-score increases",
+        "count": 3,
+        "options": [
+          "constitution",
+          "intelligence",
+          "wisdom"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Increase one listed ability by 2 and a different listed ability by 1, or increase all three by 1. Scores cannot exceed 20."
+      },
+      {
+        "id": "dnd-2024-basic:background:sage:equipment",
+        "kind": "equipment-package",
+        "label": "Background equipment",
+        "count": 1,
+        "options": [
+          "a",
+          "b"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Choose the background equipment package or the 50 GP alternative."
+      }
+    ],
+    "grants": [
+      {
+        "type": "skill-proficiency",
+        "target": "arcana"
+      },
+      {
+        "type": "skill-proficiency",
+        "target": "history"
+      },
+      {
+        "type": "tool-proficiency",
+        "target": "calligraphers-supplies"
+      },
+      {
+        "type": "origin-feat",
+        "featId": "dnd-2024-basic:feat:magic-initiate"
+      }
+    ]
+  },
+  {
+    "id": "dnd-2024-basic:background:soldier",
+    "ruleset": "dnd-2024-basic",
+    "sourceBook": "D&D Beyond System Reference Document v5.2.1",
+    "sourceVersion": "5.2.1",
+    "sourceManifest": "docs/data/2024-srd-catalog-manifest.json",
+    "sourceUrl": "https://www.dndbeyond.com/srd",
+    "attribution": "D&D Beyond, System Reference Document v5.2.1",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "coverage": "SRD-only; not full 2024 Player's Handbook coverage",
+    "displayName": "Soldier",
+    "abilityScores": [
+      "strength",
+      "dexterity",
+      "constitution"
+    ],
+    "abilityScoreIncrease": {
+      "cap": 20,
+      "patterns": [
+        "two-plus-one",
+        "one-plus-one-plus-one"
+      ]
+    },
+    "originFeatId": "dnd-2024-basic:feat:savage-attacker",
+    "skillProficiencies": [
+      "athletics",
+      "intimidation"
+    ],
+    "toolProficiencies": [],
+    "startingEquipment": {
+      "sourceText": "_Choose A or B:_ (A) Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer's Kit, Quiver, Traveler's Clothes, 14 GP; or (B) 50 GP",
+      "packages": [
+        {
+          "id": "soldier-equipment-a",
+          "label": "Package A",
+          "sourceText": "Spear, Shortbow, 20 Arrows, Gaming Set (same as above), Healer's Kit, Quiver, Traveler's Clothes, 14 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 14
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:spear",
+              "displayName": "Spear",
+              "quantity": 1,
+              "sourceText": "Spear"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:shortbow",
+              "displayName": "Shortbow",
+              "quantity": 1,
+              "sourceText": "Shortbow"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:arrows",
+              "displayName": "Arrows",
+              "quantity": 20,
+              "sourceText": "20 Arrows"
+            },
+            {
+              "type": "equipment-choice",
+              "displayName": "Gaming Set",
+              "quantity": 1,
+              "choiceKey": "gaming-set",
+              "sourceText": "Gaming Set (same as above)"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:healers-kit",
+              "displayName": "Healer's Kit",
+              "quantity": 1,
+              "sourceText": "Healer's Kit"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:quiver",
+              "displayName": "Quiver",
+              "quantity": 1,
+              "sourceText": "Quiver"
+            },
+            {
+              "type": "equipment",
+              "equipmentId": "dnd-2024-basic:equipment:travelers-clothes",
+              "displayName": "Traveler's Clothes",
+              "quantity": 1,
+              "sourceText": "Traveler's Clothes"
+            }
+          ]
+        },
+        {
+          "id": "soldier-equipment-b",
+          "label": "Package B",
+          "sourceText": "50 GP",
+          "grants": [
+            {
+              "type": "coins",
+              "currency": "gp",
+              "amount": 50
+            }
+          ]
+        }
+      ]
+    },
+    "choices": [
+      {
+        "id": "dnd-2024-basic:background:soldier:ability-score-increase",
+        "kind": "background-ability-scores",
+        "label": "Background ability-score increases",
+        "count": 3,
+        "options": [
+          "strength",
+          "dexterity",
+          "constitution"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Increase one listed ability by 2 and a different listed ability by 1, or increase all three by 1. Scores cannot exceed 20."
+      },
+      {
+        "id": "dnd-2024-basic:background:soldier:equipment",
+        "kind": "equipment-package",
+        "label": "Background equipment",
+        "count": 1,
+        "options": [
+          "a",
+          "b"
+        ],
+        "required": true,
+        "unique": true,
+        "explanation": "Choose the background equipment package or the 50 GP alternative."
+      },
+      {
+        "id": "dnd-2024-basic:background:soldier:tool",
+        "kind": "tools",
+        "label": "Background tool",
+        "count": 1,
+        "options": "gaming-sets",
+        "required": true,
+        "unique": true,
+        "explanation": "Choose one kind of Gaming Set."
+      }
+    ],
+    "grants": [
+      {
+        "type": "skill-proficiency",
+        "target": "athletics"
+      },
+      {
+        "type": "skill-proficiency",
+        "target": "intimidation"
+      },
+      {
+        "type": "origin-feat",
+        "featId": "dnd-2024-basic:feat:savage-attacker"
+      }
+    ]
+  }
+]
